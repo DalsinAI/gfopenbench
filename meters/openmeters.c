@@ -53,6 +53,11 @@
  * so a root semaphore OpenMeters made was named "" and no one found it. meters/build.sh turns the pass off on a
  * compiler that has it, until OpenAmigaGCC open4 (openamigagcc #29); no source changed.
  *
+ * 0.2.8 (review, 1 November 2026): the look's three files (ENV:OpenGadTools/Look, ENV:OpenDock/Dock and
+ * ENV:Sys/font.prefs) are read again only when DOS notification says one changed, not every second. The mode
+ * (auto turns with the hour) and the screen's background are still looked at each second. A file DOS can't watch
+ * has the three read every second, as before.
+ *
  * Video RAM: openrtg.library does not yet say how much of the card's memory is in use, so that bar shows the
  * card's video RAM (the AutoConfig board's size, AmigaChrome Team $DA15 product 9 or 15) with no fill.
  *
@@ -63,6 +68,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
+#include <dos/notify.h>
 #include <devices/timer.h>
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
@@ -95,8 +101,8 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 
-#define OPENMETERS_VERSION "0.2.7"
-static const char version[] __attribute__((used)) = "$VER: OpenMeters " OPENMETERS_VERSION " (25.10.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
+#define OPENMETERS_VERSION "0.2.8"
+static const char version[] __attribute__((used)) = "$VER: OpenMeters " OPENMETERS_VERSION " (1.11.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
@@ -454,17 +460,62 @@ static int mode_of(const char *word)
     return hour >= 19 || hour < 7;
 }
 
+/* The three files look_signature reads, read again only when DOS says one changed (1 Nov 2026: they were read every
+ * second, three files a second while the desktop sat still). files_seen: their hash and Look's mode word are kept
+ * from the last read. A file DOS couldn't watch (StartNotify said no) has all three read each time, as before. */
+static struct NotifyRequest look_nr[3];
+static int look_watched[3];
+static BYTE look_sig_bit = -1;
+static int files_seen, files_mode_set;
+static ULONG files_hash;
+static char files_mode[8];
+
+static void look_notify_start(void)
+{
+    static const char *const names[3] = { LOOK_ENV, DOCK_ENV, FONT_ENV };
+    int i;
+    files_seen = 0;
+    if ((look_sig_bit = AllocSignal(-1)) < 0) return;
+    for (i = 0; i < 3; i++) {
+        memset(&look_nr[i], 0, sizeof look_nr[i]);
+        look_nr[i].nr_Name = (STRPTR)names[i];
+        look_nr[i].nr_Flags = NRF_SEND_SIGNAL;
+        look_nr[i].nr_stuff.nr_Signal.nr_Task = FindTask(NULL);
+        look_nr[i].nr_stuff.nr_Signal.nr_SignalNum = (UBYTE)look_sig_bit;
+        look_watched[i] = StartNotify(&look_nr[i]) != 0;
+    }
+}
+
+static void look_notify_end(void)
+{
+    int i;
+    for (i = 0; i < 3; i++)
+        if (look_watched[i]) EndNotify(&look_nr[i]);
+    look_watched[0] = look_watched[1] = look_watched[2] = 0;
+    if (look_sig_bit >= 0) FreeSignal(look_sig_bit);
+    look_sig_bit = -1;
+}
+
 /* What the look depends on, as one number: Look prefs, the dock's settings, the mode now (auto turns with the
  * hour) and the screen's background. It changes when any of them does. */
 static ULONG look_signature(void)
 {
-    LONG fn;
-    char *l = read_file(LOOK_ENV), *d = read_file(DOCK_ENV), *f = read_file_n(FONT_ENV, &fn), name[64], mode[8];
-    ULONG h = hash_n(hash(hash(5381, l), d), f, fn);    /* 0.2.5: Font prefs too, for the icons' font */
-    if (f) FreeVec(f);
-    if (l && sscanf(l, "%63s %7s", name, mode) == 2) h = h * 33 + (ULONG)mode_of(mode);
-    if (l) FreeVec(l);
-    if (d) FreeVec(d);
+    ULONG h;
+    /* a change told since the last look (the signal taken here, not waited for), or a file not watched */
+    if (look_sig_bit >= 0 && (SetSignal(0, 1UL << look_sig_bit) & (1UL << look_sig_bit))) files_seen = 0;
+    if (!look_watched[0] || !look_watched[1] || !look_watched[2]) files_seen = 0;
+    if (!files_seen) {
+        LONG fn;
+        char *l = read_file(LOOK_ENV), *d = read_file(DOCK_ENV), *f = read_file_n(FONT_ENV, &fn), name[64];
+        files_hash = hash_n(hash(hash(5381, l), d), f, fn);    /* 0.2.5: Font prefs too, for the icons' font */
+        files_mode_set = l && sscanf(l, "%63s %7s", name, files_mode) == 2;
+        if (f) FreeVec(f);
+        if (l) FreeVec(l);
+        if (d) FreeVec(d);
+        files_seen = 1;
+    }
+    h = files_hash;
+    if (files_mode_set) h = h * 33 + (ULONG)mode_of(files_mode);
     if (scr) {
         struct DrawInfo *dri = GetScreenDrawInfo(scr);
         if (dri) {
@@ -1125,7 +1176,8 @@ static int run(void)
     int settle = 6;
     placed = opt.left >= 0 && opt.top >= 0;
     wbc_start();
-    if (!open_panel()) { wbc_stop(); return RETURN_FAIL; }
+    look_notify_start();
+    if (!open_panel()) { look_notify_end(); wbc_stop(); return RETURN_FAIL; }
     if ((tport = CreateMsgPort()) && (tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
         !OpenDevice((STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)tr, 0)) {
         timer = 1;
@@ -1202,6 +1254,7 @@ static int run(void)
     if (tr) DeleteIORequest((struct IORequest *)tr);
     if (tport) DeleteMsgPort(tport);
     close_panel();
+    look_notify_end();
     wbc_stop();
     if (theme_ok) { ogt_theme_free(&theme); theme_ok = 0; }
     return RETURN_OK;
