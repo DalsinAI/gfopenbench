@@ -20,7 +20,7 @@
  *     for each volume in a drive: ob_volfp_add(&now, name, len, days, minute, tick, (unsigned long)dol_Task);
  *     if (!ob_volfp_same(&now, &seen)) { scan again; seen = now; }
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_VOLS_H
 #define OB_VOLS_H
 

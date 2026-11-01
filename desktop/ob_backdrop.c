@@ -1,5 +1,5 @@
 /* ob_backdrop.c: a disk's .backdrop, the icons left out on the desktop for good (ob_backdrop.h).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
 
 #include "ob_backdrop.h"

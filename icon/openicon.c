@@ -21,7 +21,7 @@
  * under the library's semaphore, so a call is never made on memory we
  * didn't give: a DiskObject a program built itself is only read.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stddef.h>
 #include <exec/types.h>
 #include <exec/resident.h>
@@ -64,7 +64,7 @@ __asm("\t.text\n\t.globl _oi_start\n_oi_start:\n\tmoveq #-1,d0\n\trts\n");
 static const char lib_name[] = LIBNAME;
 static const char lib_id[] = "icon.library 47.5 (12.10.2026) GFOpenBench R3 (our own, for the side-by-side test)\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: gfopenicon.library 47.5 (12.10.2026) GFOpenBench R2, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: gfopenicon.library 47.5 (12.10.2026) GFOpenBench R2, MIT, Copyright (c) 2026 AmiCradle Team";
 
 /* The layouts the file format and the programs share. */
 typedef char check_diskobject[sizeof(struct DiskObject) == 78 ? 1 : -1];

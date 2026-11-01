@@ -2,7 +2,7 @@
  * notify, Window > No icons, Icons > Clean Up), that GFOpenBench's own writes coming back change nothing, and the
  * shared signal's look at IconLabels and IconLayout.
  *   test_ob_show
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 

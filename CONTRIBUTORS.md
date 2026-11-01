@@ -13,7 +13,7 @@ We are The AmiCradle Team, who build AmiCradle alongside SacredTrees:
 
 ## Copyright holder
 
-GFOpenBench's code and documents are Copyright (c) 2026 AmigaChrome Team, released under the MIT licence (`LICENSE`).
+GFOpenBench's code and documents are Copyright (c) 2026 AmiCradle Team, released under the MIT licence (`LICENSE`).
 
 ## Work we learned from
 

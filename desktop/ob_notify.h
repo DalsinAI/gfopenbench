@@ -10,7 +10,7 @@
  *     changed = ob_notify_add(changed, nm->nm_NReq->nr_UserData);   then ReplyMsg
  * and then ob_notify_todo(changed) says what to do, as each file's own signal did.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_NOTIFY_H
 #define OB_NOTIFY_H
 

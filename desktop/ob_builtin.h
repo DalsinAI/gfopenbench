@@ -14,7 +14,7 @@
  *  - it returns from its main() when it is done, everything freed, and quits on Ctrl-C (GFOpenBench sends it
  *    when it quits).
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_BUILTIN_H
 #define OB_BUILTIN_H
 

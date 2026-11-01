@@ -1,4 +1,4 @@
-/* ob_builtin: see ob_builtin.h. MIT, Copyright (c) 2026 AmigaChrome Team. */
+/* ob_builtin: see ob_builtin.h. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
 #include <exec/memory.h>
 #include <dos/dos.h>

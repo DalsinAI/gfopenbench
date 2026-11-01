@@ -11,7 +11,7 @@
  * or something else) aren't icons; when the file is written again they are kept as they were, empty ones left out.
  * No file reads as an empty one.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_BACKDROP_H
 #define OB_BACKDROP_H
 

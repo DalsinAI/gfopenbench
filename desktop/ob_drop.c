@@ -40,7 +40,7 @@
  * its icon, so it shows. Each drop runs in a process of its own, so the desktop never waits for
  * a disk (3.2.3's Workbench waits for its copy); when it is done, the drawers it touched are read again.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 #include <exec/memory.h>

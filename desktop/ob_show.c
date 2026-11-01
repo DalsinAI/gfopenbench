@@ -1,5 +1,5 @@
 /* ob_show.c: the desktop's No icons, what GFOpenBench does when the setting changes (ob_show.h).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
 
 #include "ob_show.h"

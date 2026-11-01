@@ -17,7 +17,7 @@
  * first cell in a drawer), where it goes back to, exactly. Lines starting with # are comments. Names are matched
  * without regard to case, as AmigaDOS does.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_SNAP_H
 #define OB_SNAP_H
 

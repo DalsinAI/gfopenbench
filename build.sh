@@ -6,7 +6,7 @@
 # The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16 (as desktop/build.sh); it stops
 # when given an older GCC (the os32 stove's GCC 6.5.0b merges a word clear and the long clear after it into one
 # clr.l at -O2), and builds -fno-tree-loop-distribute-patterns (GCC 16.2.0b's loop-shift trap).
-# MIT, Copyright (c) 2026 AmigaChrome Team.
+# MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the

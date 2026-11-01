@@ -1,7 +1,7 @@
 /* ob_snap's host test: Snapshot's record (GFOpenBench 0.1.38), its text read and written, which .info places GFOpenBench
  * keeps (only those it wrote, and only while the .info still says them), and what Icons > Clean Up takes out.
  *   test_ob_snap
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 

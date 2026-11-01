@@ -172,7 +172,7 @@
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. AROS's Wanderer and Directory Opus 5 were read for how, and no
+ * MIT, Copyright (c) 2026 AmiCradle Team. AROS's Wanderer and Directory Opus 5 were read for how, and no
  * code was taken from them or from Hyperion's. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -244,7 +244,7 @@
 #include "ogt_font.h"
 
 #define OPENBENCH_VERSION "0.1.44"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (27.10.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (27.10.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -3085,7 +3085,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 break;
             case M_ABOUT:
                 ask("About GFOpenBench", "GFOpenBench " OPENBENCH_VERSION "\n\nOur own Workbench for AmigaOS 3.2.\n"
-                    "MIT, Copyright (c) 2026 AmigaChrome Team.", "OK");
+                    "MIT, Copyright (c) 2026 AmiCradle Team.", "OK");
                 break;
             case M_LOADWB:
             case M_QUIT:

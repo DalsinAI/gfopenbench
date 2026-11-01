@@ -22,7 +22,7 @@
  *   alohaprobe OPEN path  GFOpenBench asked to open path (a drawer opens in a drawer window), as the dock asks it
  *                         (openamigaprefs Common/obmsg.h)
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -41,7 +41,7 @@
 #include <proto/graphics.h>
 
 static const char version[] __attribute__((used)) =
-    "$VER: alohaprobe 0.1 (12.10.2026) GFOpenBench, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: alohaprobe 0.1 (12.10.2026) GFOpenBench, MIT, Copyright (c) 2026 AmiCradle Team";
 
 #define TEMPLATE "INFO/S,PROBE/S,RESET/S,WAIT/K/N,WINDOW/S,WBWINDOW/S,MENU/S,PICK/K,OPEN/K"
 enum { A_INFO, A_PROBE, A_RESET, A_WAIT, A_WINDOW, A_WBWINDOW, A_MENU, A_PICK, A_OPEN, A_COUNT };

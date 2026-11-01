@@ -1,7 +1,7 @@
 .key DUMMY
 ; Hyperion's workbench.library and icon.library back in LIBS:, from
 ; SYS:Storage/GFOpenUp-Superseded, where Install-R1 kept them.
-; MIT, Copyright (c) 2026 AmigaChrome Team.
+; MIT, Copyright (c) 2026 AmiCradle Team.
 FailAt 21
 If NOT EXISTS SYS:Storage/GFOpenUp-Superseded/workbench.library
   Echo "Hyperion's workbench.library isn't in SYS:Storage/GFOpenUp-Superseded."

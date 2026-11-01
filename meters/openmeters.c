@@ -62,7 +62,7 @@
  * card's video RAM (the AutoConfig board's size, AmiCradle Team $DA15 product 9 or 15) with no fill.
  *
  * Built with opengadtools' theme reader (lib/ogt_theme.c) and openamigaprefs' Common/wbclose.h (meters/build.sh).
- * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <dos/dos.h>
@@ -102,7 +102,7 @@
 #include "wbclose.h"
 
 #define OPENMETERS_VERSION "0.2.8"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (1.11.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (1.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;

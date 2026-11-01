@@ -1,5 +1,5 @@
 /* wb_core: the Team's workbench.library lists, in portable C. See wb_core.h.
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include "wb_core.h"
 
 /* the tags, workbench/workbench.h */
