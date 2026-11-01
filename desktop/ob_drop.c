@@ -652,7 +652,10 @@ static int job_run(job *j)
     struct Process *p;
     j->msg.mn_Length = sizeof *j;
     Forbid();
-    p = CreateNewProcTags(NP_Entry, (ULONG)job_entry, NP_StackSize, 32768, NP_Name, (ULONG)"OpenBench copying",
+    /* 64 KB, as OpenFiles' own job worker: the engine goes down a drawer at a time (about 170 bytes a level once
+     * openamigafilemanager #41 is in, 2 KB before), with EasyRequest and the job window's drawing on top (1 Nov
+     * 2026: on 32 KB a drawer 12 deep overflowed it) */
+    p = CreateNewProcTags(NP_Entry, (ULONG)job_entry, NP_StackSize, 65536, NP_Name, (ULONG)"OpenBench copying",
                           TAG_DONE);
     if (p) {
         p->pr_Task.tc_UserData = j;
