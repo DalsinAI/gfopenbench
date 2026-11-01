@@ -1,5 +1,5 @@
 /* ob_snap.c: Snapshot's record, the icon places GFOpenBench wrote (ob_snap.h).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

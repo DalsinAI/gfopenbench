@@ -1,7 +1,7 @@
 /* spyfmt: one recorded call as a line of text (wbspy SAVE). Plain C, so the
  * host tests can check it (tests/host/test_spyfmt.c).
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef SPYFMT_H
 #define SPYFMT_H
 

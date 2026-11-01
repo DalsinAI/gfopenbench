@@ -9,7 +9,7 @@
 # ../../openamigaprefs), as desktop/build.sh does.
 # 0.2.5 draws in the icons' font: with no Workbench icon font in Font prefs, the theme's, through opengadtools'
 # lib/ogt_font.c, as GFOpenBench's icon labels.
-# MIT, Copyright (c) 2026 AmigaChrome Team.
+# MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the

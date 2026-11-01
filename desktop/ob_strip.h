@@ -4,7 +4,7 @@
  * top through its last row (openamigaprefs TitleBar/src/opentitle.c, see_backed): ob_covers_bar is that test.
  * Plain C, all static inline, so openbench.c and the host test (tests/host/test_ob_strip.c) share it.
  * bar_height is the screen's BarHeight, one less than the bar's rows, as Intuition keeps it.
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_STRIP_H
 #define OB_STRIP_H
 

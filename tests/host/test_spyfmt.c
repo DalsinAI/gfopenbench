@@ -1,5 +1,5 @@
 /* Host test: wbspy's lines (tools/spyfmt.c).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 #include "spyfmt.h"

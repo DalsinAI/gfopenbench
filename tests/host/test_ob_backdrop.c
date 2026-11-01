@@ -2,7 +2,7 @@
  * Icons > Put Away's taken out: the lines, a CR, empty and other lines, a name twice, no file at all, and a path
  * that can't be a line.
  *   test_ob_backdrop
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 

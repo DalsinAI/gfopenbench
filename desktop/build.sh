@@ -10,7 +10,7 @@
 # script stops when given a GCC older than 16. GCC 16.2.0b has a trap of its own: at -O2 it can turn a loop
 # that shifts an array up into a forward copy, so everything here is built -fno-tree-loop-distribute-patterns,
 # as GFOpenFTP and GFOpenFiles are (the stove leaves it on).
-# MIT, Copyright (c) 2026 AmigaChrome Team.
+# MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the

@@ -2,7 +2,7 @@
  * a volume mounted or dismounted, renamed (a new case too), with another date or in another drive is a change; and on
  * a run of 2-second ticks the desktop is scanned again only on the ticks after the list changed.
  *   test_ob_vols
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

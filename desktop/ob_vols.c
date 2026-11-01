@@ -1,5 +1,5 @@
 /* ob_vols.c: the mounted volumes' fingerprint (ob_vols.h).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include "ob_vols.h"
 
 /* unsigned is 32 bits on the 68k and on the host */

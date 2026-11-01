@@ -2,7 +2,7 @@
  * nr_UserData asks for, that user data naming no file is left out, and that the labels' look still lays the icons
  * out again only when IconLabels or IconLayout changed (0.1.37's rule, with ob_show's ob_seen).
  *   test_ob_notify
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 

@@ -24,7 +24,7 @@
  * down before the action and up after it, and every event of the action carries it as a qualifier.
  * Coordinates are the front screen's (DragTest LIST names it).
  *
- * For lab instances only. MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * For lab instances only. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,6 +1,6 @@
 /* ob_drop: icons let go on the desktop's windows (W67; Dale, 18 October 2026: "dragging icons 'into'
  * windows"; 24 October 2026: icons dragged between windows, as OS 3.2.3's Workbench does it). See ob_drop.c.
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_DROP_H
 #define OB_DROP_H
 

@@ -1,5 +1,5 @@
 /* ob_notify.c: the ENV: files GFOpenBench follows, and what a change of each asks for (ob_notify.h).
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include "ob_notify.h"
 
 unsigned ob_notify_add(unsigned changed, unsigned long user_data)

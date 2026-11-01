@@ -8,7 +8,7 @@
 # fork's: a fork's code never runs on the Team's machine.
 # The stove is $OS32_GCC16 on the runner, else ~/AmiCradle/stoves/os32-gcc16
 # (build.sh stops when given the os32 stove's GCC 6.5).
-# MIT, Copyright (c) 2026 AmigaChrome Team.
+# MIT, Copyright (c) 2026 AmiCradle Team.
 name: Build on the stove
 on:
   pull_request:

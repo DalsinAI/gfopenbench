@@ -2,7 +2,7 @@
  * the title bar as GFOpenTitle's see-through bar needs (see_backed), the root not, and the two meeting with no gap
  * and no overlap.
  *   test_ob_strip
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 
 #include "ob_strip.h"

@@ -8,7 +8,7 @@
  * on one port (ob_notify.h), and a change of any of the three asks for one look: the desktop's icons are read again
  * only when IconLabels or IconLayout did change (ob_seen_changed).
  *
- * MIT, Copyright (c) 2026 AmigaChrome Team. */
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OB_SHOW_H
 #define OB_SHOW_H
 
