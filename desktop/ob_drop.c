@@ -481,10 +481,19 @@ static const char *err_text(int e)
 /* A disk's contents into a new drawer in dst named after the disk ("Work 2" when "Work" is taken) */
 typedef struct names { char **v; int n, cap; } names;
 
+/* OpenFiles' engine gives each name with what its listing found out about it (OF_LIST_STAT), or, before that, the
+ * name alone: built against either */
+#ifdef OF_LIST_STAT
+static int name_add(void *user, const char *name, const of_stat *st)
+#else
 static int name_add(void *user, const char *name)
+#endif
 {
     names *l = user;
     char *s;
+#ifdef OF_LIST_STAT
+    (void)st;
+#endif
     if (l->n == l->cap) {
         char **nv = AllocVec((ULONG)(l->cap + 32) * sizeof *nv, MEMF_ANY);
         if (!nv) return 1;
