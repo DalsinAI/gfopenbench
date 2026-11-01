@@ -18,8 +18,8 @@ PROXY_START();
 #define REVISION 42
 
 static const char name[] = "workbench.library";
-static const char id[] = "workbench.library 47.42 (9.10.2026) OpenBench R1 (forwards to the original)\r\n";
-static const char ver[] __attribute__((used)) = "$VER: workbench.library 47.42 (9.10.2026) OpenBench R1, MIT, Copyright (c) 2026 AmigaChrome Team";
+static const char id[] = "workbench.library 47.42 (9.10.2026) GFOpenBench R1 (forwards to the original)\r\n";
+static const char ver[] __attribute__((used)) = "$VER: workbench.library 47.42 (9.10.2026) GFOpenBench R1, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 /* Each entry: its name, and what the spy copies (proxy.h). */
 static const struct spy_func funcs[] = {
@@ -46,7 +46,7 @@ static const struct spy_func funcs[] = {
 #define NFUNCS (sizeof funcs / sizeof funcs[0])
 
 const struct ProxyDef proxy_def = {
-    name, "OpenUp.original.workbench.library", id, VERSION, REVISION, NFUNCS, funcs
+    name, "GFOpenUp.original.workbench.library", id, VERSION, REVISION, NFUNCS, funcs
 };
 
 PROXY_STUB(0, 30);

@@ -1,4 +1,4 @@
-/* ob_snap's host test: Snapshot's record (OpenBench 0.1.38), its text read and written, which .info places OpenBench
+/* ob_snap's host test: Snapshot's record (GFOpenBench 0.1.38), its text read and written, which .info places GFOpenBench
  * keeps (only those it wrote, and only while the .info still says them), and what Icons > Clean Up takes out.
  *   test_ob_snap
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
@@ -21,10 +21,10 @@ static void split(void)
 {
     char v[OB_SNAP_VOL], p[OB_SNAP_PATH], longname[400];
     CHECK(ob_snap_split("Work:", v, sizeof v, p, sizeof p) && !strcmp(v, "Work") && !p[0], "a disk: its name, no path");
-    CHECK(ob_snap_split("Work:Tools/OpenMeters", v, sizeof v, p, sizeof p) && !strcmp(v, "Work") &&
-          !strcmp(p, "Tools/OpenMeters"), "a file in a drawer");
+    CHECK(ob_snap_split("Work:Tools/GFOpenMeters", v, sizeof v, p, sizeof p) && !strcmp(v, "Work") &&
+          !strcmp(p, "Tools/GFOpenMeters"), "a file in a drawer");
     CHECK(ob_snap_split("System:Tools/", v, sizeof v, p, sizeof p) && !strcmp(p, "Tools"), "a drawer with its slash");
-    CHECK(!ob_snap_split("Tools/OpenMeters", v, sizeof v, p, sizeof p), "no volume");
+    CHECK(!ob_snap_split("Tools/GFOpenMeters", v, sizeof v, p, sizeof p), "no volume");
     CHECK(!ob_snap_split(":Tools", v, sizeof v, p, sizeof p), "the current volume's root: no name");
     CHECK(!ob_snap_split("AVolumeNameMuchLongerThanThirtyOneCharacters:x", v, sizeof v, p, sizeof p), "too long a name");
     memset(longname, 'a', sizeof longname);
@@ -41,9 +41,9 @@ static void set_find_forget(void)
     unsigned long g;
     ob_snap_init(&s);
     CHECK(ob_snap_set(&s, "Work", "", OB_SNAP_DESK, 20, 30, 0, 0) == 1, "a disk snapshotted");
-    CHECK(ob_snap_set(&s, "Work", "Tools/OpenMeters", OB_SNAP_DRAWER, 130, 60, 126, 0) == 1, "a drawer's icon");
+    CHECK(ob_snap_set(&s, "Work", "Tools/GFOpenMeters", OB_SNAP_DRAWER, 130, 60, 126, 0) == 1, "a drawer's icon");
     CHECK(s.n == 2, "two kept");
-    CHECK((e = ob_snap_find(&s, "WORK", "tools/openmeters")) && e->x == 130 && e->gx == 126, "found, case aside");
+    CHECK((e = ob_snap_find(&s, "WORK", "tools/gfopenmeters")) && e->x == 130 && e->gx == 126, "found, case aside");
     g = s.gen;
     CHECK(ob_snap_set(&s, "Work", "", OB_SNAP_DESK, 20, 30, 0, 0) == 0 && s.gen == g, "the same again: no change");
     CHECK(ob_snap_set(&s, "Work", "", OB_SNAP_DESK, 20, 130, 0, 100) == 1 && s.n == 2 && s.gen != g, "moved: replaced");
@@ -56,7 +56,7 @@ static void set_find_forget(void)
     CHECK(ob_snap_set(&s, "Work", "x", OB_SNAP_DESK, OB_SNAP_NOPOS, 1, 0, 0) == -1, "no place: not kept");
     CHECK(ob_snap_forget(&s, "WORK", "") == 1 && s.n == 1 && !ob_snap_find(&s, "Work", ""), "unsnapshotted: gone");
     CHECK(ob_snap_forget(&s, "Work", "") == 0, "again: nothing there");
-    CHECK(ob_snap_find(&s, "Work", "Tools/OpenMeters") != NULL, "the other kept");
+    CHECK(ob_snap_find(&s, "Work", "Tools/GFOpenMeters") != NULL, "the other kept");
     for (i = 0; i < OB_SNAP_MAX + 5; i++) {
         char p[32];
         snprintf(p, sizeof p, "Many/%d", i);
@@ -68,7 +68,7 @@ static void set_find_forget(void)
     CHECK(s.n == 0 && !s.e, "freed");
 }
 
-/* Which places OpenBench keeps when it starts (Salvor's list, item 53: Disk.info places are kept only when OpenBench
+/* Which places GFOpenBench keeps when it starts (Salvor's list, item 53: Disk.info places are kept only when GFOpenBench
  * put them there) */
 static void honour(void)
 {
@@ -77,22 +77,22 @@ static void honour(void)
     ob_snap_init(&s);
     parse(&s, "Work\t\tD\t20 30\t0 108\n"
               "System\tTools\tW\t110 22\t126 0\n"
-              "System\tTools/OpenMeters\tD\t400 300\t512 216\n");
+              "System\tTools/GFOpenMeters\tD\t400 300\t512 216\n");
     CHECK(ob_snap_honour(&s, "Work", "", OB_SNAP_DESK, 20, 30, &gx, &gy) && gx == 0 && gy == 108,
-          "a disk OpenBench snapshotted: back on its cell");
+          "a disk GFOpenBench snapshotted: back on its cell");
     CHECK(ob_snap_honour(&s, "work", "", OB_SNAP_DESK, 20, 30, &gx, &gy), "the disk's name in another case");
     CHECK(!ob_snap_honour(&s, "Work", "", OB_SNAP_DESK, 20, 31, &gx, &gy),
           "its Disk.info says another place (3.2.3 snapshotted it since): passed over");
     CHECK(!ob_snap_honour(&s, "Work", "", OB_SNAP_DESK, 21, 30, &gx, &gy), "another place across only: passed over");
     CHECK(!ob_snap_honour(&s, "Work", "", OB_SNAP_DESK, OB_SNAP_NOPOS, OB_SNAP_NOPOS, &gx, &gy),
           "unsnapshotted by 3.2.3 since: passed over");
-    CHECK(!ob_snap_honour(&s, "DH2", "", OB_SNAP_DESK, 9, 74, &gx, &gy), "a 3.2.3 Disk.info place OpenBench never wrote");
+    CHECK(!ob_snap_honour(&s, "DH2", "", OB_SNAP_DESK, 9, 74, &gx, &gy), "a 3.2.3 Disk.info place GFOpenBench never wrote");
     CHECK(!ob_snap_honour(&s, "System", "Prefs", OB_SNAP_DRAWER, 9, 74, &gx, &gy), "a 3.2.3 drawer icon's place");
     CHECK(ob_snap_honour(&s, "System", "Tools", OB_SNAP_DRAWER, 110, 22, &gx, &gy) && gx == 126 && gy == 0,
-          "an icon in its drawer OpenBench snapshotted");
-    CHECK(!ob_snap_honour(&s, "System", "Tools/OpenMeters", OB_SNAP_DRAWER, 400, 300, &gx, &gy),
+          "an icon in its drawer GFOpenBench snapshotted");
+    CHECK(!ob_snap_honour(&s, "System", "Tools/GFOpenMeters", OB_SNAP_DRAWER, 400, 300, &gx, &gy),
           "snapshotted left out on the desktop: not a place in its drawer");
-    CHECK(ob_snap_honour(&s, "System", "Tools/OpenMeters", OB_SNAP_DESK, 400, 300, &gx, &gy) && gx == 512,
+    CHECK(ob_snap_honour(&s, "System", "Tools/GFOpenMeters", OB_SNAP_DESK, 400, 300, &gx, &gy) && gx == 512,
           "left out on the desktop again: kept there");
     CHECK(!ob_snap_honour(&s, "System", "Tools", OB_SNAP_DESK, 110, 22, &gx, &gy), "a drawer's place isn't the desktop's");
     ob_snap_free(&s);
@@ -127,13 +127,13 @@ static void parse_text(void)
     CHECK(parse(&s, "Work\t\tD\t1 2\t3 4\nWork\t\tD\t5 6\t7 8\n") == 2 && s.n == 1 && ob_snap_find(&s, "Work", "")->x == 5,
           "a name twice: the later line");
 
-    parse(&s, "Work\t\tD\t20 30\t0 108\nSystem\tTools/OpenMeters\tW\t130 60\t126 0\nRAM Disk\t\tD\t-4 6\t-10 0\n");
+    parse(&s, "Work\t\tD\t20 30\t0 108\nSystem\tTools/GFOpenMeters\tW\t130 60\t126 0\nRAM Disk\t\tD\t-4 6\t-10 0\n");
     n = ob_snap_text(&s, buf, sizeof buf);
     CHECK(n > 0 && n == (long)strlen(buf), "written whole (%ld)", n);
-    CHECK(buf[0] == '#' && strstr(buf, "\nWork\t\tD\t20 30\t0 108\n") && strstr(buf, "\nSystem\tTools/OpenMeters\tW\t130 60\t126 0\n"),
+    CHECK(buf[0] == '#' && strstr(buf, "\nWork\t\tD\t20 30\t0 108\n") && strstr(buf, "\nSystem\tTools/GFOpenMeters\tW\t130 60\t126 0\n"),
           "its lines as read");
     CHECK(parse(&t, buf) == 3 && t.n == 3, "read back: all three");
-    CHECK(ob_snap_find(&t, "RAM Disk", "")->gx == -10 && ob_snap_find(&t, "System", "Tools/OpenMeters")->where == OB_SNAP_DRAWER,
+    CHECK(ob_snap_find(&t, "RAM Disk", "")->gx == -10 && ob_snap_find(&t, "System", "Tools/GFOpenMeters")->where == OB_SNAP_DRAWER,
           "the same entries");
     m = ob_snap_text(&s, small, sizeof small);
     CHECK(m == n && strlen(small) == sizeof small - 1, "too small a buffer: the length it needs, what fits, ended");
@@ -150,13 +150,13 @@ static void count_in(void)
     ob_snap_init(&s);
     parse(&s, "System\tTools\tW\t1 1\t0 0\n"
               "System\tPrefs\tW\t1 1\t0 0\n"
-              "System\tTools/OpenMeters\tW\t1 1\t0 0\n"
+              "System\tTools/GFOpenMeters\tW\t1 1\t0 0\n"
               "System\tTools/Commodities/Exchange\tW\t1 1\t0 0\n"
               "System\tTools/Left\tD\t1 1\t0 0\n"
               "System\t\tD\t1 1\t0 0\n"
               "Work\tTools/Other\tW\t1 1\t0 0\n");
     CHECK(ob_snap_count_in(&s, "System", "", OB_SNAP_DRAWER) == 2, "the volume's top: Tools and Prefs");
-    CHECK(ob_snap_count_in(&s, "system", "tools", OB_SNAP_DRAWER) == 1, "Tools: OpenMeters only, case aside");
+    CHECK(ob_snap_count_in(&s, "system", "tools", OB_SNAP_DRAWER) == 1, "Tools: GFOpenMeters only, case aside");
     CHECK(ob_snap_count_in(&s, "System", "Tools/Commodities", OB_SNAP_DRAWER) == 1, "a drawer in a drawer");
     CHECK(ob_snap_count_in(&s, "System", "Tool", OB_SNAP_DRAWER) == 0, "a name's start isn't the drawer");
     CHECK(ob_snap_count_in(&s, "System", "Fonts", OB_SNAP_DRAWER) == 0, "another drawer of the same length");
@@ -171,20 +171,20 @@ static void cleanup(void)
 {
     ob_snap s;
     /* System:Tools is left out on the desktop too, with its place in its drawer's window snapshotted */
-    const char *shown[] = { "Work:", "System:", "System:Tools/OpenMeters", "Ram Disk:", "System:Tools", NULL };
+    const char *shown[] = { "Work:", "System:", "System:Tools/GFOpenMeters", "Ram Disk:", "System:Tools", NULL };
     unsigned long g;
     int gx, gy;
     ob_snap_init(&s);
     parse(&s, "Work\t\tD\t20 30\t0 0\n"
               "System\t\tD\t20 130\t0 108\n"
-              "System\tTools/OpenMeters\tD\t400 300\t512 216\n"    /* left out on the desktop */
+              "System\tTools/GFOpenMeters\tD\t400 300\t512 216\n"    /* left out on the desktop */
               "System\tTools\tW\t110 22\t126 0\n"                  /* an icon in a drawer's window */
               "DF0\t\tD\t20 230\t0 216\n");                        /* a disk not in a drive now */
     g = s.gen;
     CHECK(ob_snap_cleanup(&s, shown, 6) == 3, "the three on the desktop with snapshots");
     CHECK(s.gen != g, "a change, to be written");
     CHECK(!ob_snap_honour(&s, "Work", "", OB_SNAP_DESK, 20, 30, &gx, &gy), "Work goes on the grid now");
-    CHECK(!ob_snap_find(&s, "System", "Tools/OpenMeters"), "the icon left out too");
+    CHECK(!ob_snap_find(&s, "System", "Tools/GFOpenMeters"), "the icon left out too");
     CHECK(ob_snap_honour(&s, "System", "Tools", OB_SNAP_DRAWER, 110, 22, &gx, &gy), "a drawer's icon keeps its place");
     CHECK(ob_snap_honour(&s, "DF0", "", OB_SNAP_DESK, 20, 230, &gx, &gy), "a disk Clean Up didn't lay out keeps its");
     g = s.gen;

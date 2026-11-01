@@ -1,12 +1,12 @@
 /* iconprobe: our icon.library beside Hyperion's (step R2, design section
- * 7). It opens icon.library and openicon.library, makes the same calls
+ * 7). It opens icon.library and gfopenicon.library, makes the same calls
  * through both and prints each difference, then a count. For lab
  * instances only.
  *
  *   iconprobe [DIRS dir ...] [TEMP dir] [ALL]
  *
  * DIRS: the drawers whose icons are read (SYS:, SYS:Prefs, SYS:Utilities,
- * SYS:System, SYS:Tools and SYS:Storage/OpenBench-Icons by default).
+ * SYS:System, SYS:Tools and SYS:Storage/GFOpenBench-Icons by default).
  * TEMP: where the written icons go (T:). ALL: print the cases that match
  * as well.
  *
@@ -38,7 +38,7 @@
 #include <proto/intuition.h>
 
 static const char version[] __attribute__((used)) =
-    "$VER: iconprobe 0.8 (12.10.2026) OpenBench R3, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: iconprobe 0.8 (12.10.2026) GFOpenBench R3, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 struct Library *IconBase;
 struct GfxBase *GfxBase;
@@ -51,7 +51,7 @@ static ULONG cases, diffs, extras;
 enum { A_DIRS, A_TEMP, A_ALL, A_COUNT };
 
 static const char *const default_dirs[] = {
-    "SYS:", "SYS:Prefs", "SYS:Utilities", "SYS:System", "SYS:Tools", "SYS:Storage/OpenBench-Icons", NULL
+    "SYS:", "SYS:Prefs", "SYS:Utilities", "SYS:System", "SYS:Tools", "SYS:Storage/GFOpenBench-Icons", NULL
 };
 
 /* ---- reporting ---- */
@@ -384,7 +384,7 @@ static const char *shown(char *buf, ULONG size)
 static void tool_types(void)
 {
     static const char *const tt_src[] = {
-        "DONOTWAIT", "FILE=S:Startup-Sequence", "Tool=OpenEdit", "(OFF)", "OFFX=1", "EMPTY=", "  SPACE=1",
+        "DONOTWAIT", "FILE=S:Startup-Sequence", "Tool=GFOpenEdit", "(OFF)", "OFFX=1", "EMPTY=", "  SPACE=1",
         "a=b=c", "=novalue", "LONG=" "0123456789012345678901234567890123456789", "\tTAB=1", " SP AFTER =2",
         "TRAIL =3", NULL
     };
@@ -590,7 +590,7 @@ static void globals(const char *temp)
     IconControl(NULL, ICONCTRLA_GetGlobalNewIconsSupport, &was[1], TAG_DONE);
     IconControl(NULL, ICONCTRLA_SetGlobalNewIconsSupport, TRUE, TAG_DONE);
     {
-        const char *n = "SYS:Storage/OpenBench-Icons/newicons";
+        const char *n = "SYS:Storage/GFOpenBench-Icons/newicons";
         LONG ea, eb;
         struct DiskObject *a = get(os_base, n, &ea), *b = get(our_base, n, &eb);
         num("read", "NewIcons on", a != NULL, b != NULL);
@@ -787,8 +787,8 @@ static void review_cases(const char *temp)
                                       ICONDUPA_DuplicateImageData, ICONDUPA_DuplicateImages };
         ULONG k;
         LONG e;
-        struct DiskObject *srca = get(os_base, "SYS:Storage/OpenBench-Icons/classic_drawer", &e);
-        struct DiskObject *srcb = get(our_base, "SYS:Storage/OpenBench-Icons/classic_drawer", &e);
+        struct DiskObject *srca = get(os_base, "SYS:Storage/GFOpenBench-Icons/classic_drawer", &e);
+        struct DiskObject *srcb = get(our_base, "SYS:Storage/GFOpenBench-Icons/classic_drawer", &e);
         for (k = 0; srca && srcb && k < sizeof dups / sizeof dups[0]; k++) {
             struct TagItem t[2];
             struct DiskObject *a, *b;
@@ -871,8 +871,8 @@ static void review_cases(const char *temp)
         IconBase = our_base;
         IconControl(NULL, ICONCTRLA_GetGlobalColorIconSupport, &was[1], ICONCTRLA_SetGlobalColorIconSupport, FALSE,
                     TAG_DONE);
-        a = get(os_base, "SYS:Storage/OpenBench-Icons/glow_19", &e);
-        b = get(our_base, "SYS:Storage/OpenBench-Icons/glow_19", &e);
+        a = get(os_base, "SYS:Storage/GFOpenBench-Icons/glow_19", &e);
+        b = get(our_base, "SYS:Storage/GFOpenBench-Icons/glow_19", &e);
         num("read", "colour icons off", a != NULL, b != NULL);
         if (a && b)
             colour_pictures("colour icons off", os_base, a, our_base, b);
@@ -988,8 +988,8 @@ static void one_drawing(const char *name, struct DiskObject *a, struct DiskObjec
 static void drawing(void)
 {
     static const char *const icons[] = {
-        "SYS:Storage/OpenBench-Icons/classic_tool", "SYS:Storage/OpenBench-Icons/classic_drawer",
-        "SYS:Storage/OpenBench-Icons/glow_19", NULL
+        "SYS:Storage/GFOpenBench-Icons/classic_tool", "SYS:Storage/GFOpenBench-Icons/classic_drawer",
+        "SYS:Storage/GFOpenBench-Icons/glow_19", NULL
     };
     static const ULONG states[] = { IDS_NORMAL, IDS_SELECTED, IDS_DISABLED };
     struct Screen *scr = NULL;
@@ -1123,9 +1123,9 @@ int main(void)
     if (args[A_TEMP])
         temp = (const char *)args[A_TEMP];
     os_base = OpenLibrary((CONST_STRPTR)"icon.library", 44);
-    our_base = OpenLibrary((CONST_STRPTR)"openicon.library", 47);
+    our_base = OpenLibrary((CONST_STRPTR)"gfopenicon.library", 47);
     if (!os_base || !our_base) {
-        printf("iconprobe needs icon.library 44 and openicon.library 47 (copy it to LIBS:)\n");
+        printf("iconprobe needs icon.library 44 and gfopenicon.library 47 (copy it to LIBS:)\n");
         if (os_base) CloseLibrary(os_base);
         if (our_base) CloseLibrary(our_base);
         FreeArgs(rd);

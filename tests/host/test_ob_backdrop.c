@@ -1,4 +1,4 @@
-/* ob_backdrop's host test: a disk's .backdrop (OpenBench 0.1.41), read, with Icons > Leave Out's line added and
+/* ob_backdrop's host test: a disk's .backdrop (GFOpenBench 0.1.41), read, with Icons > Leave Out's line added and
  * Icons > Put Away's taken out: the lines, a CR, empty and other lines, a name twice, no file at all, and a path
  * that can't be a line.
  *   test_ob_backdrop
@@ -42,10 +42,10 @@ static void reading(void)
     char longline[400];
     CHECK(parse(NULL) == 0 && !got[0], "no file: no icons");
     CHECK(parse("") == 0, "an empty file: no icons");
-    CHECK(parse(":Tools/OpenMeters\n:Prefs/Font\n") == 2 && !strcmp(got, "Tools/OpenMeters|Prefs/Font"),
+    CHECK(parse(":Tools/GFOpenMeters\n:Prefs/Font\n") == 2 && !strcmp(got, "Tools/GFOpenMeters|Prefs/Font"),
           "two lines, in order: [%s]", got);
-    CHECK(parse(":Tools/OpenMeters") == 1 && !strcmp(got, "Tools/OpenMeters"), "no line feed at the end: [%s]", got);
-    CHECK(parse(":Tools/OpenMeters\r\n:Prefs/Font\r\n") == 2 && !strcmp(got, "Tools/OpenMeters|Prefs/Font"),
+    CHECK(parse(":Tools/GFOpenMeters") == 1 && !strcmp(got, "Tools/GFOpenMeters"), "no line feed at the end: [%s]", got);
+    CHECK(parse(":Tools/GFOpenMeters\r\n:Prefs/Font\r\n") == 2 && !strcmp(got, "Tools/GFOpenMeters|Prefs/Font"),
           "CRs taken off: [%s]", got);
     CHECK(parse("\n\n:Shell\n\nnot an icon\n:\n::odd\n:Utilities/Clock\n") == 2 && !strcmp(got, "Shell|Utilities/Clock"),
           "empty lines, other text, a colon alone and two colons aren't icons: [%s]", got);
@@ -56,8 +56,8 @@ static void reading(void)
     longline[0] = ':';
     memcpy(longline + sizeof longline - 9, "\n:Shell\n", 9);
     CHECK(parse(longline) == 1 && !strcmp(got, "Shell"), "a path too long to hand on is passed over: [%s]", got);
-    CHECK(ob_backdrop_has(":Tools/OpenMeters\n", 18, "tools/openmeters"), "has: without regard to case");
-    CHECK(!ob_backdrop_has(":Tools/OpenMeters\n", 18, "Tools"), "has: a whole line, not its start");
+    CHECK(ob_backdrop_has(":Tools/GFOpenMeters\n", 20, "tools/gfopenmeters"), "has: without regard to case");
+    CHECK(!ob_backdrop_has(":Tools/GFOpenMeters\n", 20, "Tools"), "has: a whole line, not its start");
     CHECK(!ob_backdrop_has(NULL, 0, "Tools"), "has: no file");
 }
 
@@ -65,17 +65,17 @@ static void leave_out(void)
 {
     int changed;
     long n;
-    n = edit(NULL, "Tools/OpenMeters", 1, &changed);
-    CHECK(changed && n == 18 && !strcmp(out, ":Tools/OpenMeters\n"), "no file: made with its line: [%s]", out);
-    n = edit("", "Tools/OpenMeters", 1, &changed);
-    CHECK(changed && !strcmp(out, ":Tools/OpenMeters\n"), "an empty file: its line: [%s]", out);
-    n = edit(":Shell\n:Prefs/Font\n", "Tools/OpenMeters", 1, &changed);
-    CHECK(changed && n == (long)strlen(out) && !strcmp(out, ":Shell\n:Prefs/Font\n:Tools/OpenMeters\n"),
+    n = edit(NULL, "Tools/GFOpenMeters", 1, &changed);
+    CHECK(changed && n == 20 && !strcmp(out, ":Tools/GFOpenMeters\n"), "no file: made with its line: [%s]", out);
+    n = edit("", "Tools/GFOpenMeters", 1, &changed);
+    CHECK(changed && !strcmp(out, ":Tools/GFOpenMeters\n"), "an empty file: its line: [%s]", out);
+    n = edit(":Shell\n:Prefs/Font\n", "Tools/GFOpenMeters", 1, &changed);
+    CHECK(changed && n == (long)strlen(out) && !strcmp(out, ":Shell\n:Prefs/Font\n:Tools/GFOpenMeters\n"),
           "added at the end, the others kept in order: [%s]", out);
-    n = edit(":Shell\n:Prefs/Font", "Tools/OpenMeters", 1, &changed);
-    CHECK(changed && !strcmp(out, ":Shell\n:Prefs/Font\n:Tools/OpenMeters\n"),
+    n = edit(":Shell\n:Prefs/Font", "Tools/GFOpenMeters", 1, &changed);
+    CHECK(changed && !strcmp(out, ":Shell\n:Prefs/Font\n:Tools/GFOpenMeters\n"),
           "the last line's feed put back first: [%s]", out);
-    edit(":Shell\n:TOOLS/openmeters\n", "Tools/OpenMeters", 1, &changed);
+    edit(":Shell\n:TOOLS/gfopenmeters\n", "Tools/GFOpenMeters", 1, &changed);
     CHECK(!changed, "already there in another case: nothing to write");
     edit(":Shell\r\n\r\n\nsomething else\r\n:Shell\n", "Clock", 1, &changed);
     CHECK(changed && !strcmp(out, ":Shell\nsomething else\n:Clock\n"),
@@ -86,20 +86,20 @@ static void put_away(void)
 {
     int changed;
     long n;
-    n = edit(":Shell\n:Tools/OpenMeters\n:Prefs/Font\n", "tools/openmeters", 0, &changed);
+    n = edit(":Shell\n:Tools/GFOpenMeters\n:Prefs/Font\n", "tools/gfopenmeters", 0, &changed);
     CHECK(changed && !strcmp(out, ":Shell\n:Prefs/Font\n"), "its line out, without regard to case: [%s]", out);
-    n = edit(":Tools/OpenMeters\n:Shell\n:Tools/OpenMeters\r\n", "Tools/OpenMeters", 0, &changed);
+    n = edit(":Tools/GFOpenMeters\n:Shell\n:Tools/GFOpenMeters\r\n", "Tools/GFOpenMeters", 0, &changed);
     CHECK(changed && !strcmp(out, ":Shell\n"), "every line naming it out: [%s]", out);
-    n = edit(":Tools/OpenMeters\n", "Tools/OpenMeters", 0, &changed);
+    n = edit(":Tools/GFOpenMeters\n", "Tools/GFOpenMeters", 0, &changed);
     CHECK(changed && n == 0 && !out[0], "the last line out: nothing left, the file to be deleted (%ld)", n);
-    n = edit(":Tools/OpenMeters\n\n\n", "Tools/OpenMeters", 0, &changed);
+    n = edit(":Tools/GFOpenMeters\n\n\n", "Tools/GFOpenMeters", 0, &changed);
     CHECK(changed && n == 0, "only empty lines left: deleted too (%ld)", n);
-    edit(":Shell\n", "Tools/OpenMeters", 0, &changed);
+    edit(":Shell\n", "Tools/GFOpenMeters", 0, &changed);
     CHECK(!changed, "not there: nothing to write");
-    n = edit(NULL, "Tools/OpenMeters", 0, &changed);
+    n = edit(NULL, "Tools/GFOpenMeters", 0, &changed);
     CHECK(!changed && n == 0, "no file: nothing to write");
-    n = edit(":Tools/OpenMeters/Sub\n:Tools\n", "Tools/OpenMeters", 0, &changed);
-    CHECK(!changed && !strcmp(out, ":Tools/OpenMeters/Sub\n:Tools\n"), "only a whole line goes: [%s]", out);
+    n = edit(":Tools/GFOpenMeters/Sub\n:Tools\n", "Tools/GFOpenMeters", 0, &changed);
+    CHECK(!changed && !strcmp(out, ":Tools/GFOpenMeters/Sub\n:Tools\n"), "only a whole line goes: [%s]", out);
 }
 
 /* Leave Out three, Put Away the middle one, Leave Out it again: as a disk's file goes through a run */

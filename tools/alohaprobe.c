@@ -1,5 +1,5 @@
 /* alohaprobe: what Intuition tells a Workbench, and when (the native screen mode's step 4, 12 October 2026).
- * For the lab only. The design asked, before OpenBench took Intuition's Workbench messages: does Intuition
+ * For the lab only. The design asked, before GFOpenBench took Intuition's Workbench messages: does Intuition
  * send WBENCHCLOSE before it looks for other programs' windows, and WBENCHOPEN again when the close fails?
  * Is that the same on OS 3.2.3?
  *
@@ -8,7 +8,7 @@
  *                         CloseWorkBench() and then OpenWorkBench(), and lists in order every message Intuition
  *                         sends, each call's result, and whether the screen was there at each step; then gives
  *                         Intuition's Workbench port back (AlohaWorkbench(NULL)). Only where no Workbench is
- *                         registered: not with LoadWB's Workbench, nor an OpenBench from 0.1.22 on
+ *                         registered: not with LoadWB's Workbench, nor a GFOpenBench from 0.1.22 on
  *   alohaprobe RESET      CloseWorkBench() and then OpenWorkBench() from the Shell, as IPrefs does for a new
  *                         screen mode, and their results
  *   ... WAIT n            seconds PROBE waits for each call (20): a call stuck in a requester is reported
@@ -19,7 +19,7 @@
  *   alohaprobe MENU       the Workbench screen's backdrop window's menus (the desktop's), each item enabled or not
  *   alohaprobe PICK m/i   item i of menu m of that window picked, as the mouse would (an IDCMP_MENUPICK sent to
  *                         the window's port): the lab's input can click but not hold the menu button
- *   alohaprobe OPEN path  OpenBench asked to open path (a drawer opens in a drawer window), as the dock asks it
+ *   alohaprobe OPEN path  GFOpenBench asked to open path (a drawer opens in a drawer window), as the dock asks it
  *                         (openamigaprefs Common/obmsg.h)
  *
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
@@ -41,7 +41,7 @@
 #include <proto/graphics.h>
 
 static const char version[] __attribute__((used)) =
-    "$VER: alohaprobe 0.1 (12.10.2026) OpenBench, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: alohaprobe 0.1 (12.10.2026) GFOpenBench, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 #define TEMPLATE "INFO/S,PROBE/S,RESET/S,WAIT/K/N,WINDOW/S,WBWINDOW/S,MENU/S,PICK/K,OPEN/K"
 enum { A_INFO, A_PROBE, A_RESET, A_WAIT, A_WINDOW, A_WBWINDOW, A_MENU, A_PICK, A_OPEN, A_COUNT };
@@ -325,7 +325,7 @@ static int pick(const char *what)
     return ok ? RETURN_OK : RETURN_WARN;
 }
 
-/* OpenBench's message (openamigaprefs Common/obmsg.h: the layout is OpenBench's) */
+/* GFOpenBench's message (openamigaprefs Common/obmsg.h: the layout is GFOpenBench's) */
 struct ob_msg { struct Message m; ULONG magic; LONG ok; char path[256]; };
 
 static int ob_open(const char *path)
@@ -339,13 +339,13 @@ static int ob_open(const char *path)
         m->magic = 0x4F424D31UL;
         strncpy(m->path, path, sizeof m->path - 1);
         Forbid();
-        if ((ob = FindPort((CONST_STRPTR)"OPENBENCH"))) PutMsg(ob, &m->m);
+        if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) PutMsg(ob, &m->m);
         Permit();
         if (ob) { WaitPort(reply); GetMsg(reply); ok = m->ok ? 1 : 0; }
     }
     if (m) FreeVec(m);
     if (reply) DeleteMsgPort(reply);
-    say("OpenBench %s %s\n", ok < 0 ? (LONG)"isn't there to open" : ok ? (LONG)"opened" : (LONG)"couldn't open", (LONG)path);
+    say("GFOpenBench %s %s\n", ok < 0 ? (LONG)"isn't there to open" : ok ? (LONG)"opened" : (LONG)"couldn't open", (LONG)path);
     return ok > 0 ? RETURN_OK : RETURN_WARN;
 }
 

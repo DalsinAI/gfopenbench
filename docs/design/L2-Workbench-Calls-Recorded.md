@@ -19,13 +19,13 @@
 
 ## 1. How it was recorded
 
-- **The lab.** `wbl2`, copied from Instance-32 (AmigaOS 3.2.3, Kickstart 3.2.3 47.115). R1's proxy was built from this branch with the os32 stove (`build.sh`, `-Werror`, `-fno-delete-null-pointer-checks`) and copied to `LIBS:workbench.library`. OS 3.2's own `workbench.library` 47.42 (1.1.2025) was moved to `SYS:Storage/OpenUp-Superseded/`, where R1 loads it from.
+- **The lab.** `wbl2`, copied from Instance-32 (AmigaOS 3.2.3, Kickstart 3.2.3 47.115). R1's proxy was built from this branch with the os32 stove (`build.sh`, `-Werror`, `-fno-delete-null-pointer-checks`) and copied to `LIBS:workbench.library`. OS 3.2's own `workbench.library` 47.42 (1.1.2025) was moved to `SYS:Storage/GFOpenUp-Superseded/`, where R1 loads it from.
 - **No hidden entries.** The original's RomTag gives 19 entries and a base of 6,120 bytes (measured, read on the host). R1's 19 stubs cover every entry it has.
-- **The spy.** `ENV:OpenBench/Spy-workbench.library` was set to 8192, so every call is kept from the first open at boot. Between steps: `wbspy SAVE`, then `STOP` and `START`, so each log holds one step.
+- **The spy.** `ENV:GFOpenBench/Spy-workbench.library` was set to 8192, so every call is kept from the first open at boot. Between steps: `wbspy SAVE`, then `STOP` and `START`, so each log holds one step.
 - **wbspy 0.2.** The spy now also keeps 12 bytes behind each tag's data, before the call and after it. That shows the strings and structures IPrefs passes, and what a Get tag was answered.
 - **Three kinds of boot.**
-  1. **OpenBench's boot**, as the Startup-Sequence runs it today: `SYS:System/OpenBench`, no `LoadWB`. OS 3.2's library answers with no Workbench running.
-  2. **`LoadWB` at boot**, with OpenBench moved aside in the lab. OS 3.2's Workbench fails as it starts (section 2).
+  1. **GFOpenBench's boot**, as the Startup-Sequence runs it today: `SYS:System/GFOpenBench`, no `LoadWB`. OS 3.2's library answers with no Workbench running.
+  2. **`LoadWB` at boot**, with GFOpenBench moved aside in the lab. OS 3.2's Workbench fails as it starts (section 2).
   3. **No desktop at boot, then `LoadWB` by hand** with `r1swap` (section 2). OS 3.2's Workbench runs, and R1 records what programs call it.
 - **Workbench.prefs variants.** `mkprefs.py` wrote four files. Each field has a value that can be told apart. Copying one to `ENV:Sys/Workbench.prefs` makes IPrefs apply it, so each tag is matched to its field.
 
@@ -43,11 +43,11 @@
 - **OS 3.2's Workbench fails to start while R1 answers to `workbench.library`** (measured twice, with and without the version fix). `LoadWB` calls `StartWorkbench`, which answers TRUE. Then the Workbench process fails: "Program failed (error #80000006)". The lab's task guard reports a jump to the odd address $4EF900E1 in that process. In the first run the lab then reset.
 - **With `r1swap` it starts** (measured). `r1swap ORIGINAL` lets the original answer to "workbench.library" for a moment. `LoadWB` starts the Workbench. `r1swap R1` gives the name back. The Workbench ran normally from then on (its WBStartup, its windows, the Information window), and every other program's calls went through R1.
 - **Why** (inferred): as it starts, OS 3.2's Workbench finds "workbench.library" by name and uses that base as its own. R1's base is 132 bytes, not 6,120, so it reads past it. The Team didn't read OS 3.2's code to check this. The A/B result above is the evidence.
-- **For the Team's library this is no constraint.** OpenBench as `workbench.library` has one base, its own. It does mean that the Workbench's start under `r1swap` is not recorded. `LoadWB`'s own `StartWorkbench` is recorded at boot, since it answers before the Workbench fails.
+- **For the Team's library this is no constraint.** GFOpenBench as `workbench.library` has one base, its own. It does mean that the Workbench's start under `r1swap` is not recorded. `LoadWB`'s own `StartWorkbench` is recorded at boot, since it answers before the Workbench fails.
 
 ## 3. What each program called
 
-The answers are OS 3.2's (measured). "No Workbench" is OpenBench's boot. "Workbench" is OS 3.2's Workbench running.
+The answers are OS 3.2's (measured). "No Workbench" is GFOpenBench's boot. "Workbench" is OS 3.2's Workbench running.
 
 ### 3.1 IPrefs (47.32)
 
@@ -124,16 +124,16 @@ IPrefs calls the library at boot, before any desktop. It calls it again each tim
 | `C:DefIcons` (47.9) | nothing | | It works through icon.library only |
 | WBCtrl | not recorded | | Not part of OS 3.2.3: not in the lab, and not on Workbench3.2.adf, Update3.2.3 or the 3.2 CD. The CD's notes mention `WBCtrl LABELSHADOW` and `LABELOUTLINE` for icon.library 47.3, and its FAQ says not to use WBCtrl any more. Nothing was downloaded |
 
-### 3.5 OpenBench 0.1.22 and the Team's tools, as they run today
+### 3.5 GFOpenBench 0.1.22 and the Team's tools, as they run today
 
 | Caller | Entry | Tags | Answer, no Workbench | Answer, Workbench |
 | --- | --- | --- | --- | --- |
-| OpenBench (its main process) | nothing | | | |
-| OpenBench's dock (`OpenBench Dock`) | `AddAppWindowA` | none | NULL | not run |
-| `C:OpenUpMenu` | `AddAppMenuItemA` "OpenUp", then "Preferences" | `WBAPPMENUA_GetKey` (+65) | NULL; it tries again every 2 s | a menu item, whose key is written back |
-| `C:OpenUpMenu` | `AddAppMenuItemA` for each sub-item ("OpenFiles" to "OpenUp Setup") | `WBAPPMENUA_UseKey` (+66) | not reached | a menu item each |
-| `C:OpenDock` | `AddAppWindowA`; `RemoveAppWindow` and a new `AddAppWindowA` when the screen changes | none | NULL | an AppWindow |
-| `C:OpenDock` | `OpenWorkbenchObjectA` "SYS:Utilities/OpenPuTTY/OpenPuTTY" (a click on the dock) | none | FALSE | not tried |
+| GFOpenBench (its main process) | nothing | | | |
+| GFOpenBench's dock (`GFOpenBench Dock`) | `AddAppWindowA` | none | NULL | not run |
+| `C:GFOpenUpMenu` | `AddAppMenuItemA` "GFOpenUp", then "Preferences" | `WBAPPMENUA_GetKey` (+65) | NULL; it tries again every 2 s | a menu item, whose key is written back |
+| `C:GFOpenUpMenu` | `AddAppMenuItemA` for each sub-item ("GFOpenFiles" to "GFOpenUp Setup") | `WBAPPMENUA_UseKey` (+66) | not reached | a menu item each |
+| `C:GFOpenDock` | `AddAppWindowA`; `RemoveAppWindow` and a new `AddAppWindowA` when the screen changes | none | NULL | an AppWindow |
+| `C:GFOpenDock` | `OpenWorkbenchObjectA` "SYS:Utilities/GFOpenPuTTY/GFOpenPuTTY" (a click on the dock) | none | FALSE | not tried |
 | `window.class` (ReAction) | `WorkbenchControlA` | `WBCTRLA_AddSetupCleanupHook` (+78) | TRUE | TRUE |
 
 ## 4. The private calls
@@ -150,7 +150,7 @@ IPrefs calls the library at boot, before any desktop. It calls it again each tim
 
 | Call | It must |
 | --- | --- |
-| `StartWorkbench(0, BPTR)` | Start OpenBench and answer TRUE. While it runs, answer FALSE and do nothing else, so `LoadWB` ends with 5 as on OS 3.2. D1 isn't needed to start it (what the BPTR is for is unknown) |
+| `StartWorkbench(0, BPTR)` | Start GFOpenBench and answer TRUE. While it runs, answer FALSE and do nothing else, so `LoadWB` ends with 5 as on OS 3.2. D1 isn't needed to start it (what the BPTR is for is unknown) |
 | `WBConfig(1, p)`, `WBConfig(2, p)` | Keep the pattern IPrefs gives for the root window (1) and the drawers (2); 0 clears it. Answer the value it held before (0 the first time) |
 | `WBConfig(3, p)`, `WBConfig(4, p)` | Keep the icon font (3) and the system font (4). Answer the value held before: IPrefs gets back the pointer it gave last time |
 | `WBConfig(5, 0)` | Accept it and answer 0 |
@@ -159,14 +159,14 @@ IPrefs calls the library at boot, before any desktop. It calls it again each tim
 | `Reserved26`, `Reserved27` (+84, +85) | Answer TRUE and leave 0 in both longwords, as OS 3.2 did (what they ask is unknown) |
 | `Reserved19`, `Reserved11` (+64, +56) | Accept them and answer TRUE (meaning unknown) |
 | `GetHiddenDeviceList`, `FreeHiddenDeviceList` | As the design's 2.5 (built in L1) |
-| `AddAppMenuItemA` with `GetKey` and `UseKey` | Build the sub-menu: write the key at the `GetKey` pointer, and accept it with `UseKey`. Keep them before the desktop is up, so OpenUpMenu's first try succeeds and it stops retrying |
-| `AddAppWindowA`, `RemoveAppWindow` | As the design's 2.1 and 2.2. OpenDock, OpenBench's dock and Prefs/Workbench add theirs with no tags |
+| `AddAppMenuItemA` with `GetKey` and `UseKey` | Build the sub-menu: write the key at the `GetKey` pointer, and accept it with `UseKey`. Keep them before the desktop is up, so GFOpenUpMenu's first try succeeds and it stops retrying |
+| `AddAppWindowA`, `RemoveAppWindow` | As the design's 2.1 and 2.2. GFOpenDock, GFOpenBench's dock and Prefs/Workbench add theirs with no tags |
 | `OpenWorkbenchObjectA(path)` | Open or start it, and answer TRUE |
 | `WBInfo(lock, name, screen)` | Open the library's own Information window, and answer TRUE once it closes |
 | `WorkbenchControlA` `AddSetupCleanupHook` | As the design's 2.5 (built in L1) |
 | `QuoteWorkbench` | Nothing in OS 3.2.3's own programs needs it. Answer as the design's 2.1 says |
 
-`Workbench.prefs`' copy buffer size never reaches the library. If OpenBench wants it, it has to come another way (a question for L3).
+`Workbench.prefs`' copy buffer size never reaches the library. If GFOpenBench wants it, it has to come another way (a question for L3).
 
 ## 6. Not recorded, and why
 
@@ -180,9 +180,9 @@ IPrefs calls the library at boot, before any desktop. It calls it again each tim
 ## 7. Doing it again
 
 1. Build with `build.sh` (os32 stove). Make a lab copy of an instance; never use an instance.
-2. In the lab: `Rename LIBS:workbench.library SYS:Storage/OpenUp-Superseded/workbench.library`. Copy R1's `workbench.library` to `LIBS:`, and `wbspy` and `r1swap` to `C:`. `SetEnv SAVE OpenBench/Spy-workbench.library 8192`. Reboot.
+2. In the lab: `Rename LIBS:workbench.library SYS:Storage/GFOpenUp-Superseded/workbench.library`. Copy R1's `workbench.library` to `LIBS:`, and `wbspy` and `r1swap` to `C:`. `SetEnv SAVE GFOpenBench/Spy-workbench.library 8192`. Reboot.
 3. Record with `wbspy WORKBENCH SAVE file STOP`, then `wbspy WORKBENCH START ENTRIES 8192` before the next step.
 4. For OS 3.2's Workbench: boot with no desktop, then `r1swap ORIGINAL`, `Run >NIL: C:LoadWB`, wait, `r1swap R1`.
-5. To undo: copy `SYS:Storage/OpenUp-Superseded/workbench.library` back to `LIBS:` and reboot.
+5. To undo: copy `SYS:Storage/GFOpenUp-Superseded/workbench.library` back to `LIBS:` and reboot.
 
 MIT, Copyright (c) 2026 AmigaChrome Team.

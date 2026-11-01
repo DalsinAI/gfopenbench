@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""OpenMeters' icon, as the Open family makes them (openamigaup ICONS.md): an
+"""GFOpenMeters' icon, as the GFOpen family makes them (openamigaup ICONS.md): an
 OS 3.5 GlowIcon with two frames, the panel at rest and the one shown while the
 icon is chosen, from art/OpenMeters.png and art/OpenMeters-selected.png.
 
-    python3 meters/make_icon.py AMIGACHROME OUT.info [STACK]
+    python3 meters/make_icon.py AMICRADLE OUT.info [STACK]
 
-AMIGACHROME is an amigachrome checkout (its scripts/amiga_icon.py writes the
-icon). As OpenUp's pack does it: each 64 x 64 picture is shown at 85 per
+AMICRADLE is an amigachrome checkout (its scripts/amiga_icon.py writes the
+icon). As GFOpenUp's pack does it: each 64 x 64 picture is shown at 85 per
 cent, every pixel solid or see-through, dithered for a 16-bit screen, and the
 chosen frame gets the OS 3.5 glow. The icon is a tool, left unplaced so
-Workbench puts it where there is room, with the tooltypes OpenMeters' own
+Workbench puts it where there is room, with the tooltypes GFOpenMeters' own
 MAKEICON writes: they are read from openmeters.c (make_icon), so the two
 always agree. MAKEICON run on the program later keeps this picture and writes
 the tooltypes again.

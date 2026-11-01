@@ -1,5 +1,5 @@
 #!/bin/sh
-# OpenBench host tests: wbspy's lines (tools/spyfmt.c), workbench.library's
+# GFOpenBench host tests: wbspy's lines (tools/spyfmt.c), workbench.library's
 # lists (workbench/wb_core.c), the desktop's No icons (desktop/ob_show.c), Snapshot's
 # record (desktop/ob_snap.c), the ENV: files the desktop follows (desktop/ob_notify.c), the mounted volumes'
 # fingerprint (desktop/ob_vols.c), a disk's .backdrop (desktop/ob_backdrop.c), the backdrop windows' places (desktop/ob_strip.h), and icon.library's core
@@ -25,32 +25,32 @@ cc -std=gnu99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/icon" "$HERE/icon/icon_
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/workbench" "$HERE/workbench/wb_core.c" \
   "$HERE/tests/host/test_wb_core.c" -o "$OUT/test_wb_core"
 "$OUT/test_wb_core"
-# ob_show: the desktop's No icons (OpenBench 0.1.37)
+# ob_show: the desktop's No icons (GFOpenBench 0.1.37)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_show.c" \
   "$HERE/tests/host/test_ob_show.c" -o "$OUT/test_ob_show"
 "$OUT/test_ob_show"
-# ob_snap: Snapshot's record, the icon places OpenBench keeps (OpenBench 0.1.38)
+# ob_snap: Snapshot's record, the icon places GFOpenBench keeps (GFOpenBench 0.1.38)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_snap.c" \
   "$HERE/tests/host/test_ob_snap.c" -o "$OUT/test_ob_snap"
 "$OUT/test_ob_snap"
-# ob_notify: the ENV: files the desktop follows on one notify port, what each asks for (OpenBench 0.1.39)
+# ob_notify: the ENV: files the desktop follows on one notify port, what each asks for (GFOpenBench 0.1.39)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_notify.c" "$HERE/desktop/ob_show.c" \
   "$HERE/tests/host/test_ob_notify.c" -o "$OUT/test_ob_notify"
 "$OUT/test_ob_notify"
-# ob_vols: the mounted volumes' fingerprint, a volume mounted or dismounted with no disk event (OpenBench 0.1.40)
+# ob_vols: the mounted volumes' fingerprint, a volume mounted or dismounted with no disk event (GFOpenBench 0.1.40)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_vols.c" \
   "$HERE/tests/host/test_ob_vols.c" -o "$OUT/test_ob_vols"
 "$OUT/test_ob_vols"
-# ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (OpenBench 0.1.41)
+# ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_backdrop.c" \
   "$HERE/tests/host/test_ob_backdrop.c" -o "$OUT/test_ob_backdrop"
 "$OUT/test_ob_backdrop"
-# ob_strip: the root and the strip under the screen's title bar (OpenBench 0.1.43)
+# ob_strip: the root and the strip under the screen's title bar (GFOpenBench 0.1.43)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/desktop" "$HERE/tests/host/test_ob_strip.c" -o "$OUT/test_ob_strip"
 "$OUT/test_ob_strip"
 

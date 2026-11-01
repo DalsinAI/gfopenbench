@@ -1,4 +1,4 @@
-/* ob_notify.c: the ENV: files OpenBench follows, and what a change of each asks for (ob_notify.h).
+/* ob_notify.c: the ENV: files GFOpenBench follows, and what a change of each asks for (ob_notify.h).
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
 #include "ob_notify.h"
 

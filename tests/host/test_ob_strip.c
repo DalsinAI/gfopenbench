@@ -1,5 +1,5 @@
-/* ob_strip's host test: OpenBench's root and strip (OpenBench 0.1.43) on the screens they meet, the strip covering
- * the title bar as OpenTitle's see-through bar needs (see_backed), the root not, and the two meeting with no gap
+/* ob_strip's host test: GFOpenBench's root and strip (GFOpenBench 0.1.43) on the screens they meet, the strip covering
+ * the title bar as GFOpenTitle's see-through bar needs (see_backed), the root not, and the two meeting with no gap
  * and no overlap.
  *   test_ob_strip
  * MIT, Copyright (c) 2026 AmigaChrome Team. */

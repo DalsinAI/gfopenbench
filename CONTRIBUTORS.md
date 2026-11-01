@@ -2,18 +2,18 @@
 
 ## Creator and maintainer
 
-- **SacredTrees** ([@SacredTrees](https://github.com/SacredTrees)): decided to replace Workbench, approved the design and the drawer windows, and maintains OpenBench.
+- **SacredTrees** ([@SacredTrees](https://github.com/SacredTrees)): decided to replace Workbench, approved the design and the drawer windows, and maintains GFOpenBench.
 
-## The AmigaChrome team
+## The AmiCradle team
 
-We are The AmigaChrome Team, who build AmigaChrome alongside SacredTrees:
+We are The AmiCradle Team, who build AmiCradle alongside SacredTrees:
 
 - **Agnus**, our coordinator, who keeps every thread moving.
 - **The threads**, each one taking a piece of the work from design to release.
 
 ## Copyright holder
 
-OpenBench's code and documents are Copyright (c) 2026 AmigaChrome Team, released under the MIT licence (`LICENSE`).
+GFOpenBench's code and documents are Copyright (c) 2026 AmigaChrome Team, released under the MIT licence (`LICENSE`).
 
 ## Work we learned from
 

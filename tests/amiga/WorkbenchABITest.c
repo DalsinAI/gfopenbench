@@ -1,6 +1,6 @@
 /* WorkbenchABITest: the Team's workbench.library lists beside OS 3.2's (step L1
  * of docs/design/Design-Open-Workbench-Library.md). It opens the system's
- * workbench.library and openbench.library (the Team's, under its test name), makes
+ * workbench.library and gfopenbench.library (the Team's, under its test name), makes
  * the same calls through each, and prints each difference, then a count.
  * The Team's keeps App objects added before a desktop is up (the user's
  * decision 3), where OS 3.2's refuses them: with no Workbench running the
@@ -10,7 +10,7 @@
  *
  *   WorkbenchABITest [LIB path] [ALL] [NOLIMITS] [RISKY]
  *
- * LIB: the Team's library (LIBS:openbench.library by default). ALL: print the cases
+ * LIB: the Team's library (LIBS:gfopenbench.library by default). ALL: print the cases
  * that match too. NOLIMITS: skip filling the menus to their limits.
  * RISKY: also the calls that may crash OS 3.2's library (NULL labels,
  * NULL DiskObjects, a drop zone on no AppWindow, a handle removed twice).
@@ -40,7 +40,7 @@
 #include <proto/wb.h>
 
 static const char version[] __attribute__((used)) =
-    "$VER: WorkbenchABITest 0.1 (13.10.2026) OpenBench L1, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: WorkbenchABITest 0.1 (13.10.2026) GFOpenBench L1, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 struct Library *WorkbenchBase, *IconBase;
 struct IntuitionBase *IntuitionBase;
@@ -356,7 +356,7 @@ static void menu_limits(struct MsgPort *port)
     int n;
 
     /* The limit counts every program's items. OS 3.2's Tools menu has
-     * Workbench's own ResetWB and whatever other programs added (OpenUpMenu's
+     * Workbench's own ResetWB and whatever other programs added (GFOpenUpMenu's
      * two on Instance-32), so those are counted back in for OS 3.2; the Team's
      * starts empty. */
     n = fill("WBABITest tool", port, NULL, FILL);
@@ -581,7 +581,7 @@ int main(void)
     LONG args[A_COUNT] = { 0 };
     struct RDArgs *rda;
     struct Library *os = NULL, *ours = NULL;
-    const char *path = "LIBS:openbench.library";
+    const char *path = "LIBS:gfopenbench.library";
     struct Window *win;
     struct MsgPort *port;
     struct DiskObject *dobj;

@@ -255,12 +255,12 @@ static void test_inflate(const char *dir)
 
 static void test_tooltypes(void)
 {
-    char *tt[] = { "DONOTWAIT", "FILE=S:Startup-Sequence", "Tool=OpenEdit", "(OFF)", "OFFX=1", "EMPTY=", NULL };
+    char *tt[] = { "DONOTWAIT", "FILE=S:Startup-Sequence", "Tool=GFOpenEdit", "(OFF)", "OFFX=1", "EMPTY=", NULL };
     char newname[64];
     CHECK(ic_find_tool_type(tt, "DONOTWAIT") && *ic_find_tool_type(tt, "DONOTWAIT") == 0, "a bare tool type");
     CHECK(ic_find_tool_type(tt, "donotwait") != NULL, "case");
     CHECK(strcmp(ic_find_tool_type(tt, "FILE"), "S:Startup-Sequence") == 0, "FILE=");
-    CHECK(strcmp(ic_find_tool_type(tt, "TOOL"), "OpenEdit") == 0, "Tool=");
+    CHECK(strcmp(ic_find_tool_type(tt, "TOOL"), "GFOpenEdit") == 0, "Tool=");
     CHECK(ic_find_tool_type(tt, "OFF") == NULL, "(OFF) is switched off");
     CHECK(ic_find_tool_type(tt, "FIL") == NULL, "a prefix is not a match");
     CHECK(strcmp(ic_find_tool_type(tt, "OFFX"), "1") == 0, "OFFX");

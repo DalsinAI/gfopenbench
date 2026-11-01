@@ -1,7 +1,7 @@
-/* ob_info: OpenBench's Information window (ob_info.h). Each window runs in a process of its own, started with
- * the path in a message, and frees everything before it ends; OpenBench waits for them before it quits (their
- * code is OpenBench's). GadTools gadgets, the screen's font; the window is opened first and the gadgets laid out
- * inside its real borders (OpenFrames draws its own). Workbench 3.x's Information window, read for what it holds
+/* ob_info: GFOpenBench's Information window (ob_info.h). Each window runs in a process of its own, started with
+ * the path in a message, and frees everything before it ends; GFOpenBench waits for them before it quits (their
+ * code is GFOpenBench's). GadTools gadgets, the screen's font; the window is opened first and the gadgets laid out
+ * inside its real borders (GFOpenFrames draws its own). Workbench 3.x's Information window, read for what it holds
  * (no code taken): name, type, size, date; Script, Archived, Readable, Writable, Executable, Deletable; comment;
  * a project's (or a disk's) default tool; a tool's or a project's tool types; Save and Cancel.
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
@@ -216,7 +216,7 @@ static WORD text_len(struct Screen *s, const char *t)
 
 /* The tags after flags, to TAG_DONE (at most 7 pairs), are copied with va_arg. gad() used to hand
  * CreateGadgetA &tag1 as the list, which holds only while gad() is a call of its own with its arguments
- * on the stack: GCC 16 (OpenBench's compiler since #31) inlines it, and every gadget of the window
+ * on the stack: GCC 16 (GFOpenBench's compiler since #31) inlines it, and every gadget of the window
  * got a list of whatever was beside the copy of tag1 (no text, a name of 0xFF bytes, a hung window). */
 static struct Gadget *gad(info *in, struct Gadget *prev, ULONG kind, int id, WORD x, WORD y, WORD w, WORD h,
                           const char *label, ULONG flags, ...)
@@ -537,7 +537,7 @@ static void info_entry(void)
         FreeVec(in);
     }
     FreeVec(st);
-    Forbid();                         /* ends in dos.library under Forbid: OpenBench waits for info_task to clear */
+    Forbid();                         /* ends in dos.library under Forbid: GFOpenBench waits for info_task to clear */
     info_task[slot] = NULL;
     info_win[slot] = NULL;
 }
@@ -568,7 +568,7 @@ int ob_info_open(struct Screen *scr, const char *path)
     st->slot = slot;
     strncpy(st->path, path, PATH_LEN - 1);
     st->msg.mn_Length = sizeof *st;
-    p = CreateNewProcTags(NP_Entry, (ULONG)info_entry, NP_Name, (ULONG)"OpenBench Information", NP_StackSize, 16384, TAG_DONE);
+    p = CreateNewProcTags(NP_Entry, (ULONG)info_entry, NP_Name, (ULONG)"GFOpenBench Information", NP_StackSize, 16384, TAG_DONE);
     if (!p) { FreeVec(st); info_task[slot] = NULL; return 0; }
     info_task[slot] = (struct Task *)p;
     PutMsg(&p->pr_MsgPort, &st->msg);

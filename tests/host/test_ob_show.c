@@ -1,5 +1,5 @@
-/* ob_show's host test: the desktop's No icons (OpenBench 0.1.37), what each way of changing it does (the variable's
- * notify, Window > No icons, Icons > Clean Up), that OpenBench's own writes coming back change nothing, and the
+/* ob_show's host test: the desktop's No icons (GFOpenBench 0.1.37), what each way of changing it does (the variable's
+ * notify, Window > No icons, Icons > Clean Up), that GFOpenBench's own writes coming back change nothing, and the
  * shared signal's look at IconLabels and IconLayout.
  *   test_ob_show
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
@@ -24,7 +24,7 @@ static void start(void)
     CHECK(s.none == 1, "any true value is no icons");
 }
 
-/* OpenPrefs' Icons page (Use, Save, Test, Cancel after a Test) through the notify */
+/* GFOpenPrefs' Icons page (Use, Save, Test, Cancel after a Test) through the notify */
 static void from_prefs(void)
 {
     ob_show s;
@@ -99,7 +99,7 @@ static void seen(void)
     CHECK(ob_seen_changed(&s, longer, NULL), "a long one");
     CHECK(s.labels[OB_SEEN_MAX - 1] == 0 && strlen(s.labels) == OB_SEEN_MAX - 1, "kept to its size");
     longer[OB_SEEN_MAX + 10] = 'b';
-    CHECK(!ob_seen_changed(&s, longer, NULL), "a change past what is kept isn't seen (OpenBench reads less)");
+    CHECK(!ob_seen_changed(&s, longer, NULL), "a change past what is kept isn't seen (GFOpenBench reads less)");
     longer[5] = 'b';
     CHECK(ob_seen_changed(&s, longer, NULL), "a change within it is");
 }

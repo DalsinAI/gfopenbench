@@ -24,7 +24,7 @@
 #include "../proxy/proxy.h"
 
 static const char version[] __attribute__((used)) =
-    "$VER: r1swap 0.1 (13.10.2026) OpenBench L2 lab tool, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: r1swap 0.1 (13.10.2026) GFOpenBench L2 lab tool, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 extern struct ExecBase *SysBase;
 

@@ -40,7 +40,7 @@ static void builtin_entry(void)
     builtins[i].entry(0, NULL);
     Forbid();
     running_task[i] = NULL;
-    /* ends in dos.library under Forbid: OpenBench waits for running_task before it goes */
+    /* ends in dos.library under Forbid: GFOpenBench waits for running_task before it goes */
 }
 
 /* 1 when path's directory is dir ("SYS:Prefs"): the same place, whatever the path is spelt with. */
@@ -63,8 +63,8 @@ static int in_dir(const char *path, const char *dir)
 }
 
 /* Where a built-in may be asked for (Kestrel, Wren and Finch, 11 October 2026: by its name alone, a drawer called
- * Work:Windows or ENVARC:OpenInput would have started an editor): by its bare name ("OpenSound"), or as a file in
- * SYS:Prefs, or in SYS:WBStartup (OpenUp-Setup's first start). Never a drawer. */
+ * Work:Windows or ENVARC:GFOpenInput would have started an editor): by its bare name ("GFOpenSound"), or as a file in
+ * SYS:Prefs, or in SYS:WBStartup (GFOpenUp-Setup's first start). Never a drawer. */
 static int builtin_place(const char *path)
 {
     BPTR l;
