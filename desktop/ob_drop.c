@@ -13,7 +13,8 @@
  *     exists", Replace, Replace all, Skip, Skip all, Cancel; on a move within the volume no question and no
  *     requester: the icon stays and the screen's title says "Error while moving name: (203) object already exists"
  *     until the next click (0.1.44; lab t4-dnd, W151, 27 October 2026: it stayed there 15 seconds and more, and a
- *     click in another drawer window gave the usual title back);
+ *     click in another drawer window gave the usual title back); a drawer onto a drawer of the same name too: it
+ *     stays as a whole, nothing in it moves (move_leave_taken);
  *   - onto a trashcan's icon: what is on its volume goes into it; from another volume nothing happens;
  *   - onto the desktop's own space: left out there for this run (gone from its drawer, back in it after a
  *     reboot; .backdrop isn't written: only Icons > Leave Out writes it, ":drawer/name" a line);
@@ -338,6 +339,28 @@ static void job_report_clash(job *j, const char *src)
     snprintf(j->said, sizeof j->said, "Error while moving %s: (203) object already exists", of_path_name(src));
 }
 
+/* A move within the volume onto a name that is taken, before the engine starts: OS 3.2.3 refuses the rename as a
+ * whole, a drawer onto a drawer of the same name too ("(203) object already exists"; the drawer stays where it is,
+ * nothing in it moves). The engine would merge such a drawer into the one there, each thing in it on its own, so
+ * whatever's name is taken in dst is left out of the move here, and the screen's title says so (job_report_clash).
+ * In the job's process (no file system asks there). */
+static void move_leave_taken(job *j, of_fs *fs)
+{
+    int i, k = 0;
+    for (i = 0; i < j->n; i++) {
+        char to[OF_PATH_MAX];
+        of_stat st;
+        if (of_path_join(to, j->dst, of_path_name(j->src[i])) && fs->stat(fs, to, &st) == OF_OK &&
+            st.type != OF_NONE) {
+            job_report_clash(j, j->src[i]);
+            FreeVec(j->src[i]);
+            continue;
+        }
+        j->src[k++] = j->src[i];
+    }
+    j->n = k;
+}
+
 /* A name that is taken. A copy asks as OS 3.2.3's Workbench asks (its words and its five answers; Replace sends
  * the old one to the trash, the engine's rule). A move within the volume isn't asked about, as on 3.2.3: that
  * one stays where it is, and the screen's title says why (job_report_clash). */
@@ -622,6 +645,7 @@ static void job_entry(void)
     /* no file system asks in this process: a full or write-protected disk is asked about by the job (retry_write) */
     ((struct Process *)FindTask(NULL))->pr_WindowPtr = (APTR)-1;
     CurrentTime(&j->t0s, &j->t0m);
+    if (j->op == OP_MOVE) move_leave_taken(j, &fs);
     if (j->op == OP_DISK) j->rc = copy_volume(&c, j);
     else if (j->op == OP_TRASH && is_engine_trash(&c, j->dst)) j->rc = of_delete(&c, (const char *const *)j->src, j->n);
     else if (j->op == OP_MOVE || j->op == OP_TRASH) j->rc = of_move(&c, (const char *const *)j->src, j->n, j->dst);
