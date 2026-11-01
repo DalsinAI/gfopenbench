@@ -1229,6 +1229,88 @@ static void lout_drop(int i)
     nlouts--;
 }
 
+/* ---- a file written whole or not at all (1 Nov 2026) ----------------------------------------------------------
+ * ENVARC:OpenBench/Snapshots and a disk's .backdrop were opened with MODE_NEWFILE, which cuts them to nothing first:
+ * a full disk or a reset part way lost every remembered icon place, or every icon left out for good. Now the new
+ * text goes to a short name in the same drawer, Write and Close are checked, and only then the old file steps aside
+ * (.bak), the new one takes its name (with the old one's protection bits and comment) and the .bak goes; if the new
+ * one can't take the name, the old one gets it back. As OpenUpTool does since openamigaup #179. The caller has
+ * pr_WindowPtr at -1 (no DOS requester). */
+
+/* Two free names beside path: the new copy's (.tmp) and the old file's while the new one takes its name (.bak).
+ * "OB", the task's address and a count in hex: 16 characters. 0, or DOS's error. */
+static LONG whole_names(const char *path, char *temp, char *backup, int size)
+{
+    static const char hex[] = "0123456789abcdef";
+    static UBYTE count;
+    ULONG id = (ULONG)FindTask(NULL);
+    int dir = (int)strlen(path), tries, i;
+    while (dir && path[dir - 1] != '/' && path[dir - 1] != ':') dir--;
+    if (dir + 17 > size) return ERROR_LINE_TOO_LONG;
+    for (tries = 0; tries < 256; tries++) {
+        unsigned n = count++;
+        char *name = temp + dir;
+        BPTR l;
+        LONG e1, e2 = ERROR_OBJECT_NOT_FOUND;
+        memcpy(temp, path, (size_t)dir);
+        name[0] = 'O';
+        name[1] = 'B';
+        for (i = 0; i < 8; i++) name[2 + i] = hex[(id >> (28 - 4 * i)) & 15];
+        name[10] = hex[(n >> 4) & 15];
+        name[11] = hex[n & 15];
+        strcpy(name + 12, ".tmp");
+        strcpy(backup, temp);
+        strcpy(backup + dir + 12, ".bak");
+        if ((l = Lock((CONST_STRPTR)temp, ACCESS_READ))) { UnLock(l); continue; }
+        if ((e1 = IoErr()) != ERROR_OBJECT_NOT_FOUND) return e1;
+        if ((l = Lock((CONST_STRPTR)backup, ACCESS_READ))) { UnLock(l); continue; }
+        if ((e2 = IoErr()) != ERROR_OBJECT_NOT_FOUND) return e2;
+        return 0;
+    }
+    return ERROR_OBJECT_EXISTS;
+}
+
+/* len bytes of data as the whole of path: 0, or DOS's error (path as it was then, nothing left beside it) */
+static LONG whole_write(const char *path, const char *data, LONG len)
+{
+    char temp[OB_SNAP_PATH + 32], backup[OB_SNAP_PATH + 32];
+    struct FileInfoBlock *fib;
+    BPTR fh, l;
+    LONG err;
+    if ((err = whole_names(path, temp, backup, sizeof temp))) return err;
+    if (!(fh = Open((CONST_STRPTR)temp, MODE_NEWFILE))) return IoErr() ? IoErr() : ERROR_OBJECT_NOT_FOUND;
+    if (Write(fh, (APTR)data, len) != len) err = IoErr() ? IoErr() : ERROR_DISK_FULL;
+    if (!Close(fh) && !err) err = IoErr() ? IoErr() : ERROR_DISK_FULL;
+    if (err) {
+        DeleteFile((CONST_STRPTR)temp);
+        return err;
+    }
+    if (!(l = Lock((CONST_STRPTR)path, ACCESS_READ))) {        /* nothing there yet: the new one takes the name */
+        if (!Rename((CONST_STRPTR)temp, (CONST_STRPTR)path)) err = IoErr() ? IoErr() : ERROR_OBJECT_EXISTS;
+    } else if (!(fib = AllocDosObject(DOS_FIB, NULL))) {
+        UnLock(l);
+        err = ERROR_NO_FREE_STORE;
+    } else {
+        if (!Examine(l, fib)) err = IoErr() ? IoErr() : ERROR_OBJECT_WRONG_TYPE;
+        else if (fib->fib_DirEntryType >= 0) err = ERROR_OBJECT_WRONG_TYPE;
+        else if (fib->fib_Protection & (FIBF_WRITE | FIBF_DELETE)) err = ERROR_WRITE_PROTECTED;
+        UnLock(l);
+        if (!err) {
+            SetProtection((CONST_STRPTR)temp, fib->fib_Protection & ~FIBF_ARCHIVE);
+            if (fib->fib_Comment[0]) SetComment((CONST_STRPTR)temp, (CONST_STRPTR)fib->fib_Comment);
+            if (!Rename((CONST_STRPTR)path, (CONST_STRPTR)backup)) err = IoErr() ? IoErr() : ERROR_OBJECT_IN_USE;
+            else if (!Rename((CONST_STRPTR)temp, (CONST_STRPTR)path)) {
+                err = IoErr() ? IoErr() : ERROR_OBJECT_EXISTS;
+                Rename((CONST_STRPTR)backup, (CONST_STRPTR)path);
+            } else
+                DeleteFile((CONST_STRPTR)backup);
+        }
+        FreeDosObject(DOS_FIB, fib);
+    }
+    if (err) DeleteFile((CONST_STRPTR)temp);
+    return err;
+}
+
 /* A disk's .backdrop, whole, as AllocVec'd text (NUL-terminated), or NULL when the disk has none or it is empty.
  * *err: 0, or DOS's error when it is there and couldn't be read (then it isn't written over either). No DOS
  * requester while it looks. */
@@ -1318,15 +1400,8 @@ static LONG backdrop_change(const char *path, int add)
     me->pr_WindowPtr = (APTR)-1;
     if (!need) {
         if (!DeleteFile((CONST_STRPTR)p) && IoErr() != ERROR_OBJECT_NOT_FOUND) err = IoErr();
-    } else {
-        BPTR fh = Open((CONST_STRPTR)p, MODE_NEWFILE);
-        if (!fh)
-            err = IoErr() ? IoErr() : ERROR_OBJECT_NOT_FOUND;
-        else {
-            if (Write(fh, out, need) != need) err = IoErr() ? IoErr() : ERROR_DISK_FULL;
-            if (!Close(fh) && !err) err = IoErr();
-        }
-    }
+    } else
+        err = whole_write(p, out, need);           /* written whole or not at all */
     me->pr_WindowPtr = was;
     FreeVec(out);
     return err;
@@ -2350,17 +2425,12 @@ static LONG snaps_save(void)
     long need = ob_snap_text(&snaps, NULL, 0);
     char *buf = AllocVec((ULONG)need + 1, MEMF_ANY);
     LONG err = 0;
-    BPTR f, l;
+    BPTR l;
     if (!buf) return ERROR_NO_FREE_STORE;
     ob_snap_text(&snaps, buf, need + 1);
     me->pr_WindowPtr = (APTR)-1;
     if ((l = Lock((CONST_STRPTR)SNAPS_DIR, ACCESS_READ)) || (l = CreateDir((CONST_STRPTR)SNAPS_DIR))) UnLock(l);
-    if (!(f = Open((CONST_STRPTR)SNAPS_FILE, MODE_NEWFILE)))
-        err = IoErr() ? IoErr() : ERROR_OBJECT_NOT_FOUND;
-    else {
-        if (Write(f, buf, (LONG)need) != (LONG)need) err = IoErr() ? IoErr() : ERROR_DISK_FULL;
-        if (!Close(f) && !err) err = IoErr();
-    }
+    err = whole_write(SNAPS_FILE, buf, (LONG)need);     /* written whole or not at all */
     me->pr_WindowPtr = was;
     FreeVec(buf);
     return err;
