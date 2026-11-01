@@ -2291,14 +2291,35 @@ static int leave_out(const char *const *paths, int n, WORD sx, WORD sy)
     return 1;
 }
 
+/* 1 when the volume path is on is in a drive: a volume of that name in the DOS list with its file system */
+static int volume_in(const char *path)
+{
+    const char *c = strchr(path, ':');
+    char v[64];
+    struct DosList *dl;
+    int in = 0, n = c ? (int)(c - path) : 0;
+    if (n <= 0 || n >= (int)sizeof v) return 0;
+    memcpy(v, path, (size_t)n);
+    v[n] = 0;
+    dl = LockDosList(LDF_VOLUMES | LDF_READ);
+    while (!in && (dl = FindDosEntry(dl, (CONST_STRPTR)v, LDF_VOLUMES))) in = dl->dol_Task != NULL;
+    UnLockDosList(LDF_VOLUMES | LDF_READ);
+    return in;
+}
+
 /* 0.1.35: a job has ended (ob_drop's env): an icon left out whose file has gone (moved into a drawer, to the trash)
- * goes from the desktop, and from its disk's .backdrop */
+ * goes from the desktop, and from its disk's .backdrop. One whose disk is out is left alone (it comes back with
+ * it), and no DOS requester asks for that disk: this runs after every drop. */
 static void leftouts_check(void)
 {
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR was = me->pr_WindowPtr;
     int i, gone = 0;
+    me->pr_WindowPtr = (APTR)-1;
     for (i = 0; i < nlouts; i++) {
-        BPTR l = Lock((CONST_STRPTR)louts[i].path, ACCESS_READ);
-        if (l) {
+        BPTR l;
+        if (!volume_in(louts[i].path)) continue;
+        if ((l = Lock((CONST_STRPTR)louts[i].path, ACCESS_READ))) {
             UnLock(l);
             continue;
         }
@@ -2307,6 +2328,7 @@ static void leftouts_check(void)
         lout_drop(i--);
         gone = 1;
     }
+    me->pr_WindowPtr = was;
     if (gone && root) {
         scan_volumes();
         redraw_all();
