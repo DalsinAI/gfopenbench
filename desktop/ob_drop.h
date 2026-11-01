@@ -15,7 +15,7 @@ enum { OB_DESK_NONE = 0,
        OB_DESK_TRASH,                           /* a trashcan left out: to the trash */
        OB_DESK_FILE };                          /* a tool or a project left out: the desktop's space */
 
-/* What OpenBench shares with it: its statics, read at each drop (the screen and the root window change when
+/* What GFOpenBench shares with it: its statics, read at each drop (the screen and the root window change when
  * the Workbench screen is reset), and the desktop's icons. */
 typedef struct ob_drop_env {
     struct Screen **scr;                        /* the Workbench screen */

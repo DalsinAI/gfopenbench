@@ -1,6 +1,6 @@
 .key DUMMY
-; OpenBench R1 into this Amiga: our workbench.library and icon.library, which
-; forward every call to Hyperion's, kept in SYS:Storage/OpenUp-Superseded.
+; GFOpenBench R1 into this Amiga: our workbench.library and icon.library, which
+; forward every call to Hyperion's, kept in SYS:Storage/GFOpenUp-Superseded.
 ; For lab instances only (amigachrome docs/development/labs.md): never a
 ; live one. Run it from the drawer that holds the build. Uninstall-R1 puts
 ; Hyperion's back.
@@ -9,40 +9,40 @@
 FailAt 21
 CPU >NIL: CHECK 68020
 If WARN
-  Echo "OpenBench needs a 68020 or better. Nothing was installed."
+  Echo "GFOpenBench needs a 68020 or better. Nothing was installed."
   Quit 20
 EndIf
 If NOT EXISTS workbench.library
-  Echo "Run Install-R1 from the drawer that holds OpenBench's build."
+  Echo "Run Install-R1 from the drawer that holds GFOpenBench's build."
   Quit 20
 EndIf
-If NOT EXISTS SYS:Storage/OpenUp-Superseded
-  MakeDir SYS:Storage/OpenUp-Superseded
+If NOT EXISTS SYS:Storage/GFOpenUp-Superseded
+  MakeDir SYS:Storage/GFOpenUp-Superseded
 EndIf
-; Hyperion's own are kept there, never ours: ours say "OpenBench" in their version
-Search >NIL: LIBS:workbench.library "OpenBench" QUIET
+; Hyperion's own are kept there, never ours: ours say "GFOpenBench" in their version
+Search >NIL: LIBS:workbench.library "GFOpenBench" QUIET
 If WARN
-  Copy LIBS:workbench.library SYS:Storage/OpenUp-Superseded/ CLONE QUIET
+  Copy LIBS:workbench.library SYS:Storage/GFOpenUp-Superseded/ CLONE QUIET
   If ERROR
     Echo "Keeping Hyperion's workbench.library failed. Nothing was installed."
     Quit 20
   EndIf
 EndIf
-Search >NIL: LIBS:icon.library "OpenBench" QUIET
+Search >NIL: LIBS:icon.library "GFOpenBench" QUIET
 If WARN
-  Copy LIBS:icon.library SYS:Storage/OpenUp-Superseded/ CLONE QUIET
+  Copy LIBS:icon.library SYS:Storage/GFOpenUp-Superseded/ CLONE QUIET
   If ERROR
     Echo "Keeping Hyperion's icon.library failed. Nothing was installed."
     Quit 20
   EndIf
 EndIf
 ; without the originals our libraries have nothing to forward to: stop here
-If NOT EXISTS SYS:Storage/OpenUp-Superseded/workbench.library
-  Echo "Hyperion's workbench.library isn't in SYS:Storage/OpenUp-Superseded. Nothing was installed."
+If NOT EXISTS SYS:Storage/GFOpenUp-Superseded/workbench.library
+  Echo "Hyperion's workbench.library isn't in SYS:Storage/GFOpenUp-Superseded. Nothing was installed."
   Quit 20
 EndIf
-If NOT EXISTS SYS:Storage/OpenUp-Superseded/icon.library
-  Echo "Hyperion's icon.library isn't in SYS:Storage/OpenUp-Superseded. Nothing was installed."
+If NOT EXISTS SYS:Storage/GFOpenUp-Superseded/icon.library
+  Echo "Hyperion's icon.library isn't in SYS:Storage/GFOpenUp-Superseded. Nothing was installed."
   Quit 20
 EndIf
 Copy workbench.library LIBS: CLONE QUIET
@@ -60,4 +60,4 @@ If ERROR
   Echo "The libraries are in, but wbspy couldn't be copied to C:."
   Quit 10
 EndIf
-Echo "OpenBench R1 is in. Reboot to use it. Uninstall-R1 puts Hyperion's libraries back."
+Echo "GFOpenBench R1 is in. Reboot to use it. Uninstall-R1 puts Hyperion's libraries back."

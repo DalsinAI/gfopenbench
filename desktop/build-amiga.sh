@@ -1,12 +1,12 @@
 #!/bin/sh
-# OpenBench for Cradle's stove_build (target desktop): Cradle checks out this repo alone and sets STOVE and OUT, so
+# GFOpenBench for Cradle's stove_build (target desktop): Cradle checks out this repo alone and sets STOVE and OUT, so
 # this fetches the checkouts desktop/build.sh needs beside it (opengadtools, openamigaprefs, openamigafilemanager and,
 # when it can, openamigatata) at main into $OUT/deps, says which commit each was, then runs build.sh. A local build
 # can still run build.sh itself with OGT, OAP, FILES and TATA set (Team 5, 25 October 2026).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT=${OUT:-$HERE/../build/os3}
-STOVE=${STOVE:-$HOME/AmigaChrome/stoves/os32-gcc16}
+STOVE=${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}
 DEPS=${DEPS:-$OUT/deps}
 GIT_BASE=${AMIGACHROME_GIT_BASE:-https://github.com/}
 mkdir -p "$DEPS"

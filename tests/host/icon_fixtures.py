@@ -440,7 +440,7 @@ def main(out_dir):
              (4, 8, False), (4, 16, True)]
     for i, (ctype, depth, inter) in enumerate(cases):
         w, h = R.randrange(1, 70), R.randrange(1, 70)
-        o = {"type": [3, 4, 2, 1][i % 4], "tool": "Work:Tools/OpenEdit" if i % 2 else None,
+        o = {"type": [3, 4, 2, 1][i % 4], "tool": "Work:Tools/GFOpenEdit" if i % 2 else None,
              "tooltypes": ["A=1", "B"] if i % 3 else None, "toolwin": "CON:" if i % 5 == 0 else None,
              "x": NO_POS if i % 4 == 0 else 100 + i, "y": NO_POS if i % 4 == 0 else 7, "stack": 4096 + i,
              "drawer": dict(drawer) if i % 4 == 2 else None, "planar": []}
@@ -470,7 +470,7 @@ def main(out_dir):
             elif kind == 1:
                 data = bytes(R.choice(b"abcde ") for _ in range(n))
             else:
-                data = (b"OpenBench " * (n // 10 + 1))[:n]
+                data = (b"GFOpenBench " * (n // 10 + 1))[:n]
             strategy = [zlib.Z_DEFAULT_STRATEGY, zlib.Z_FIXED, zlib.Z_HUFFMAN_ONLY, zlib.Z_RLE, zlib.Z_FILTERED][i % 5]
             c = zlib.compressobj(R.randrange(10), zlib.DEFLATED, -15, 9, strategy)
             z = c.compress(data) + c.flush()

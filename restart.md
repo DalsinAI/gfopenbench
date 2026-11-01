@@ -1,10 +1,10 @@
-# Restart: OpenBench
+# Restart: GFOpenBench
 
 _Written 9 October 2026, when the repository was made. Read this first when work resumes; the live PR list wins if they disagree._
 
 ## What this repo is
 
-Our own `workbench.library`, `icon.library` and desktop (OpenBench), replacing Hyperion's on AmigaOS 3.2. The design is amigachrome `docs/design/Design-Workbench-Replacement.md`. The shape, the repository and the name were decided on 9 October 2026.
+Our own `workbench.library`, `icon.library` and desktop (GFOpenBench), replacing Hyperion's on AmigaOS 3.2. The design is amigachrome `docs/design/Design-Workbench-Replacement.md`. The shape, the repository and the name were decided on 9 October 2026.
 
 ## Where it stands
 
@@ -18,7 +18,7 @@ Step R1, first cut: both libraries forward every entry to Hyperion's originals, 
 
 ## workbench.library (13 October 2026)
 
-`docs/design/Design-Open-Workbench-Library.md` (0.2) is the design of the Team's own `workbench.library`. The user decided on 13 October: OS 3.2's library is retired and `workbench.library` is OpenBench itself, version 48, with the Team's calls after OS 3.2's 19; Shift at boot gives OS 3.2's library and `LoadWB` for that boot only, as a rescue. Step L1 is built and hooks nothing: `workbench/wb_core.c` (the lists and settings), `openbench.library` (under its test name) and `tests/amiga/WorkbenchABITest`. Next is L2: R1 in a lab copy, so that `wbspy` records the private calls (approved).
+`docs/design/Design-Open-Workbench-Library.md` (0.2) is the design of the Team's own `workbench.library`. The user decided on 13 October: OS 3.2's library is retired and `workbench.library` is GFOpenBench itself, version 48, with the Team's calls after OS 3.2's 19; Shift at boot gives OS 3.2's library and `LoadWB` for that boot only, as a rescue. Step L1 is built and hooks nothing: `workbench/wb_core.c` (the lists and settings), `gfopenbench.library` (under its test name) and `tests/amiga/WorkbenchABITest`. Next is L2: R1 in a lab copy, so that `wbspy` records the private calls (approved).
 
 ## Decisions still open (design §10)
 

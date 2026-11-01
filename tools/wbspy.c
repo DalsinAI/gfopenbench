@@ -10,7 +10,7 @@
  *   wbspy STOP                   the spy off, and its memory given back
  *   ... WORKBENCH or ICON        one library only (both without either)
  *
- * To record the boot as well: SetEnv SAVE OpenBench/Spy-workbench.library 4096
+ * To record the boot as well: SetEnv SAVE GFOpenBench/Spy-workbench.library 4096
  * (and Spy-icon.library), reboot, then wbspy SAVE.
  *
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
@@ -29,7 +29,7 @@
 #include "spyfmt.h"
 
 static const char version[] __attribute__((used)) =
-    "$VER: wbspy 0.2 (13.10.2026) OpenBench R1, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: wbspy 0.2 (13.10.2026) GFOpenBench R1, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 #define TEMPLATE "STATUS/S,START/S,ENTRIES/K/N,SAVE/K,STOP/S,WORKBENCH/S,ICON/S"
 enum { A_STATUS, A_START, A_ENTRIES, A_SAVE, A_STOP, A_WORKBENCH, A_ICON, A_COUNT };
@@ -52,7 +52,7 @@ static struct ProxyBase *open_proxy(const char *name)
         return NULL;
     }
     if (b->magic != PB_MAGIC || b->layout != PB_VERSION) {
-        Printf((CONST_STRPTR)"wbspy: %s isn't OpenBench's R1 library\n", (LONG)name);
+        Printf((CONST_STRPTR)"wbspy: %s isn't GFOpenBench's R1 library\n", (LONG)name);
         CloseLibrary(&b->lib);
         return NULL;
     }

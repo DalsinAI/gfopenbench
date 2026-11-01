@@ -1,7 +1,7 @@
-/* ob_vols.h: the mounted volumes' fingerprint (OpenBench 0.1.40), how OpenBench sees a volume come or go when no
+/* ob_vols.h: the mounted volumes' fingerprint (GFOpenBench 0.1.40), how GFOpenBench sees a volume come or go when no
  * disk event tells it. Plain C with no Amiga headers, tested on the host (tests/host/test_ob_vols.c).
  *
- * Up to 0.1.39 OpenBench read the DOS list's volumes when it started, on Intuition's IDCMP_DISKINSERTED and
+ * Up to 0.1.39 GFOpenBench read the DOS list's volumes when it started, on Intuition's IDCMP_DISKINSERTED and
  * IDCMP_DISKREMOVED, on Window > Update, and when Workbench's settings or the Icons page changed. Intuition's disk
  * events come only from a handler that posts IECLASS_DISKINSERTED or _DISKREMOVED to input.device. A volume added to
  * the list by one that posts none (a Mount DH2: or a RAD: while running, a drive Cradle adds) got no icon until a
@@ -9,7 +9,7 @@
  * workbench.library call tells of a new volume: UpdateWorkbench names a file or a drawer (and the open library's does
  * nothing yet), and the disk info hook (WBCTRLA_SetDiskInfoHook) is Workbench asking a program about a disk.
  *
- * Since 0.1.40 each scan of the volumes keeps their fingerprint, and OpenBench's 2-second tick takes one again (the
+ * Since 0.1.40 each scan of the volumes keeps their fingerprint, and GFOpenBench's 2-second tick takes one again (the
  * list locked for reading only if no one is writing it, else the next tick) and compares the two: the same, nothing
  * more is done; different, the volumes are scanned and drawn again, as after a disk event.
  *

@@ -1,6 +1,6 @@
-/* ob_strip.h: where OpenBench's two backdrop windows go on the Workbench screen (OpenBench 0.1.43): the root, under
+/* ob_strip.h: where GFOpenBench's two backdrop windows go on the Workbench screen (GFOpenBench 0.1.43): the root, under
  * the screen's title bar, as it always was, and the strip, over the bar's rows, so the backdrop goes on behind the
- * bar. OpenTitle makes the bar see-through only where one layer behind it covers it all, left to right and from the
+ * bar. GFOpenTitle makes the bar see-through only where one layer behind it covers it all, left to right and from the
  * top through its last row (openamigaprefs TitleBar/src/opentitle.c, see_backed): ob_covers_bar is that test.
  * Plain C, all static inline, so openbench.c and the host test (tests/host/test_ob_strip.c) share it.
  * bar_height is the screen's BarHeight, one less than the bar's rows, as Intuition keeps it.

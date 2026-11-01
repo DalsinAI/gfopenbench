@@ -1,7 +1,7 @@
-/* openbench.library: the Team's workbench.library list calls, at
+/* gfopenbench.library: the Team's workbench.library list calls, at
  * workbench.library's LVOs, under its test name (step L1 of
  * docs/design/Design-Open-Workbench-Library.md). workbench.library is
- * OpenBench itself, version 48 (the user's decisions of 13 October 2026);
+ * GFOpenBench itself, version 48 (the user's decisions of 13 October 2026);
  * this test build holds only its lists. It is opened beside the system's
  * workbench.library by tests/amiga/WorkbenchABITest, which makes every call
  * through both and lists each difference. Nothing opens it by the name
@@ -50,7 +50,7 @@
 #define REG(r, decl) register decl __asm(#r)
 
 #ifndef LIBNAME
-#define LIBNAME "openbench.library"
+#define LIBNAME "gfopenbench.library"
 #endif
 #define VERSION 48                  /* OS 3.2's 19 entries, the Team's after them (the user's decision 6) */
 #define REVISION 1
@@ -59,9 +59,9 @@
 __asm("\t.text\n\t.globl _owb_start\n_owb_start:\n\tmoveq #-1,d0\n\trts\n");
 
 static const char lib_name[] = LIBNAME;
-static const char lib_id[] = "openbench.library 48.1 (13.10.2026) OpenBench L1 (the Team's lists, for the side-by-side test)\r\n";
+static const char lib_id[] = "gfopenbench.library 48.1 (13.10.2026) GFOpenBench L1 (the Team's lists, for the side-by-side test)\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: openbench.library 48.1 (13.10.2026) OpenBench L1, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: gfopenbench.library 48.1 (13.10.2026) GFOpenBench L1, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 /* wb_core's AppMessage offsets are the NDK's */
 #define CHECK_OFF(f, o) typedef char check_##f[offsetof(struct AppMessage, f) == (o) ? 1 : -1]

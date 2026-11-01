@@ -1,13 +1,13 @@
-/* ob_snap.h: Snapshot's record (OpenBench 0.1.38; Salvor's OS list, item 53): the icon places OpenBench itself wrote
+/* ob_snap.h: Snapshot's record (GFOpenBench 0.1.38; Salvor's OS list, item 53): the icon places GFOpenBench itself wrote
  * into .info files, so that it keeps those and no others. Plain C with no Amiga headers, tested on the host
  * (tests/host/test_ob_snap.c).
  *
  * Icons > Snapshot writes an icon's place into its .info (do_CurrentX and do_CurrentY, as OS 3.2.3's Snapshot does,
- * so 3.2.3 reads it too), and a line here. A .info's place counts only while this record says OpenBench wrote that
+ * so 3.2.3 reads it too), and a line here. A .info's place counts only while this record says GFOpenBench wrote that
  * very place there: places from before (made for 3.2.3's small icons, 71 pixels apart, which put the labels into
  * the icons under them) and places another Workbench wrote since are passed over, and the icon goes on the grid.
  *
- * The record is one file, ENVARC:OpenBench/Snapshots, read once when OpenBench starts and written when a Snapshot,
+ * The record is one file, ENVARC:GFOpenBench/Snapshots, read once when GFOpenBench starts and written when a Snapshot,
  * an Unsnapshot or a Clean Up changes it. One line for each icon:
  *
  *   volume <tab> path on the volume ("" for its Disk.info) <tab> D or W <tab> x y <tab> gx gy
@@ -32,7 +32,7 @@ typedef struct ob_snap_ent {
     char vol[OB_SNAP_VOL];
     char path[OB_SNAP_PATH];
     char where;                             /* OB_SNAP_DESK or OB_SNAP_DRAWER */
-    long x, y;                              /* what OpenBench wrote into the .info */
+    long x, y;                              /* what GFOpenBench wrote into the .info */
     int gx, gy;                             /* its cell's place on the grid */
 } ob_snap_ent;
 
@@ -53,8 +53,8 @@ int ob_snap_parse(ob_snap *s, const char *text, long len);
  * out holds what fitted, as snprintf). */
 long ob_snap_text(const ob_snap *s, char *out, long n);
 
-/* A full path as a disk names it ("Work:Tools/OpenMeters", "Work:") into its volume and the path on it ("Tools/
- * OpenMeters", ""). 0 when it has no volume, or a part is too long. */
+/* A full path as a disk names it ("Work:Tools/GFOpenMeters", "Work:") into its volume and the path on it ("Tools/
+ * GFOpenMeters", ""). 0 when it has no volume, or a part is too long. */
 int ob_snap_split(const char *full, char *vol, int vn, char *path, int pn);
 
 /* The entry for this icon, or NULL. */
@@ -67,8 +67,8 @@ int ob_snap_set(ob_snap *s, const char *vol, const char *path, int where, long x
 /* An icon unsnapshotted: its line taken out. 1 when there was one. */
 int ob_snap_forget(ob_snap *s, const char *vol, const char *path);
 
-/* 1 when OpenBench keeps the icon where it was snapshotted: the record has it, in the same kind of window (where), and
- * its .info still says the place OpenBench wrote (info_x, info_y); its cell's place then in *gx, *gy. */
+/* 1 when GFOpenBench keeps the icon where it was snapshotted: the record has it, in the same kind of window (where), and
+ * its .info still says the place GFOpenBench wrote (info_x, info_y); its cell's place then in *gx, *gy. */
 int ob_snap_honour(const ob_snap *s, const char *vol, const char *path, int where, long info_x, long info_y, int *gx,
                    int *gy);
 

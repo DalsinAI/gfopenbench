@@ -1,89 +1,89 @@
-/* OpenBench 0.1: the desktop, in place of Workbench (amigachrome docs/design/Design-Workbench-Replacement.md,
+/* GFOpenBench 0.1: the desktop, in place of Workbench (amigachrome docs/design/Design-Workbench-Replacement.md,
  * section 5; the user, 11 October 2026: "surely us replacing it was the ask", "so you just boot openbench").
  *
- * The Startup-Sequence runs OpenBench where it ran LoadWB. OpenBench is then the desktop:
+ * The Startup-Sequence runs GFOpenBench where it ran LoadWB. GFOpenBench is then the desktop:
  *   - the root window, a backdrop on the Workbench screen: IPrefs' root picture (ENV:Sys/WBPattern.prefs),
  *     rendered the way IPrefs renders it for Workbench, in a process of its own so the desktop shows at
  *     once, centred over the theme's desktop gradient; the mounted volumes on it, down the left, at the
  *     places their Disk.info keep (a volume without one gets the default icon for its kind of drive, 0.1.17:
  *     def_Harddisk for a hard disk such as a new instance's Work:, which showed as a floppy before);
- *   - drawers, in the drawer windows approved and built as OpenDrawer (opengadtools workbench/wb_drawer);
+ *   - drawers, in the drawer windows approved and built as GFOpenDrawer (opengadtools workbench/wb_drawer);
  *   - starting things as Workbench starts them: a tool with LoadSeg and a WBStartup message, a project
  *     through its default tool, a drawer or disk in a drawer window; SYS:WBStartup at the start;
  *   - the Open preferences built in (0.1.14; the Team, 11 October 2026: "the open preferences into openbench
- *     natively"; Kestrel, Wren and Finch): OpenUp-Setup (and Tata's window, below) run as processes of
- *     OpenBench's when opened from SYS:Prefs (ob_builtin.c, ob_builtin_list.h). The editors OpenPrefs has as
- *     pages (Look, Windows, TitleBar, Menus, OpenDock's editor, OpenDateTime, OpenGamepads, OpenInput, OpenSound,
- *     OpenTypes, OpenSerial) were built in up to 0.1.31; since 0.1.32 their old names open OpenPrefs at their page
+ *     natively"; Kestrel, Wren and Finch): GFOpenUp-Setup (and Tata's window, below) run as processes of
+ *     GFOpenBench's when opened from SYS:Prefs (ob_builtin.c, ob_builtin_list.h). The editors GFOpenPrefs has as
+ *     pages (Look, Windows, TitleBar, Menus, GFOpenDock's editor, GFOpenDateTime, GFOpenGamepads, GFOpenInput, GFOpenSound,
+ *     GFOpenTypes, GFOpenSerial) were built in up to 0.1.31; since 0.1.32 their old names open GFOpenPrefs at their page
  *     (old_prefs_open);
- *   - Tata built in (0.1.15; the Team, 11 October 2026: Tata a built-in feature of OpenBench): before OpenBench
+ *   - Tata built in (0.1.15; the Team, 11 October 2026: Tata a built-in feature of GFOpenBench): before GFOpenBench
  *     runs a program or opens a project it asks Tata's own inspection, linked in (openamigatata
  *     src/tata_inspect.c), and runs it, asks Tata's question, or refuses; no patch. Tata's window is a built-in,
- *     SYS:Prefs/OpenTata. C:Tata's patches stay for every other program, and the question is asked once;
+ *     SYS:Prefs/GFOpenTata. C:Tata's patches stay for every other program, and the question is asked once;
  *   - Information (0.1.13, ob_info.c): its own window for any icon, a drawer's or the desktop's (Icons >
  *     Information...), as workbench.library's WBInfo() does nothing while Workbench isn't running;
- *   - the screen's title, "OpenBench 0.1 - Chip, Fast, GPU = 1, CPU = 1 (m68k)", kept up to date, with
+ *   - the screen's title, "GFOpenBench 0.1 - Chip, Fast, GPU = 1, CPU = 1 (m68k)", kept up to date, with
  *     "+ 10 (m68k/x64)" when the CPU cores board is fitted: 68k code on the host's x86-64 cores (0.1.36, the
- *     user, 25 October 2026: "perhaps m68k/x64", "so lets do that blend"; barlogo_isas), after room for OpenTitle's logo worked out from the logo's width and the bar's font (0.1.12,
- *     Common/barlogo.h in openamigaprefs, shared with OpenTitle: the bigger logo covered the first letter).
+ *     user, 25 October 2026: "perhaps m68k/x64", "so lets do that blend"; barlogo_isas), after room for GFOpenTitle's logo worked out from the logo's width and the bar's font (0.1.12,
+ *     Common/barlogo.h in openamigaprefs, shared with GFOpenTitle: the bigger logo covered the first letter).
  *   - Workbench's settings (0.1.19): ENV:Sys/Workbench.prefs, Prefs/Workbench's file, read at the start and again
  *     whenever it changes: a tool started from an icon gets at least its default stack, and the devices it
  *     hides have no icon on the desktop. ENV:Sys/WBPattern.prefs is watched too: a new root picture (or
  *     none) shows at once, and the old picture's file is let go;
- *   - IPrefs' reset of the Workbench screen (0.1.19; Font prefs' Use, a screen mode): told through OpenLook's
- *     close notice (Common/wbclose.h, as the dock and OpenMeters are), OpenBench closes its root window, its
+ *   - IPrefs' reset of the Workbench screen (0.1.19; Font prefs' Use, a screen mode): told through GFOpenLook's
+ *     close notice (Common/wbclose.h, as the dock and GFOpenMeters are), GFOpenBench closes its root window, its
  *     drawers and its Information windows and lets go of the screen, then opens them again on the new one;
- *   - quitting (0.1.19): programs started from OpenBench (OpenMeters from SYS:WBStartup, say) are asked to quit
- *     with Ctrl-C, which they answer, as their code is OpenBench's to unload; before, quitting waited for them
+ *   - quitting (0.1.19): programs started from GFOpenBench (GFOpenMeters from SYS:WBStartup, say) are asked to quit
+ *     with Ctrl-C, which they answer, as their code is GFOpenBench's to unload; before, quitting waited for them
  *     for ever;
  *   - picture thumbnails and icon sizes in the drawers (0.1.20, 0.1.21; Dale, 12 October 2026: "using datatypes to
- *     display picture thumbnails and variable size icons", the mockup approved the same evening): OpenDrawer's
- *     (opengadtools workbench/wb_thumb.c), its process started here and stopped before OpenBench ends;
- *   - Intuition's Workbench (0.1.22, the native screen mode's step 4): OpenBench gives Intuition its port
+ *     display picture thumbnails and variable size icons", the mockup approved the same evening): GFOpenDrawer's
+ *     (opengadtools workbench/wb_thumb.c), its process started here and stopped before GFOpenBench ends;
+ *   - Intuition's Workbench (0.1.22, the native screen mode's step 4): GFOpenBench gives Intuition its port
  *     (AlohaWorkbench) and marks its windows as the Workbench's, so CloseWorkBench() asks it to close them
- *     (WBENCHCLOSE) and OpenWorkBench() says the screen is back (WBENCHOPEN), with or without OpenLook's close
+ *     (WBENCHCLOSE) and OpenWorkBench() says the screen is back (WBENCHOPEN), with or without GFOpenLook's close
  *     notice. Its drawers come back where they were, moved in if they would now fall off the screen, and the
  *     backdrop is made for the new size. ScreenMode prefs' Use takes effect without a reboot;
- *   - Resize to Window (0.1.22): on a Native mode (openrtg.library 0.17), OpenBench > Resize to Window reopens
+ *   - Resize to Window (0.1.22): on a Native mode (gfopenrtg.library 0.17), GFOpenBench > Resize to Window reopens
  *     the Workbench screen at the size the host's window asks for, and the 2-second timer does it when a page
  *     asks the Amiga to follow now (openrtg's ASK). Another program's window blocks it, as it blocks any
  *     reset: a requester names them, with Try Again and Cancel;
- *   - the dock (0.1.23; the user, 17 October 2026): no longer built in: OpenDock, a program of its own (C:OpenDock),
- *     is started by name when ENV:OpenDock/Dock is there. (0.1.23 to 0.1.31 also listed ROM:Prefs's editors in
+ *   - the dock (0.1.23; the user, 17 October 2026): no longer built in: GFOpenDock, a program of its own (C:GFOpenDock),
+ *     is started by name when ENV:GFOpenDock/Dock is there. (0.1.23 to 0.1.31 also listed ROM:Prefs's editors in
  *     SYS:Prefs's window; the ROM has no ROM: volume since the no-ROM-volume design of 24 October 2026);
- * Window frames are OpenFrames' (OpenLook), as on every window.
+ * Window frames are GFOpenFrames' (GFOpenLook), as on every window.
  *
- * RTG first (the user, 11 October 2026): OpenBench is made for true-colour screens, where windows and
+ * RTG first (the user, 11 October 2026): GFOpenBench is made for true-colour screens, where windows and
  * screens live on the graphics card and chip RAM is hardly used: its own buffers come from fast RAM. The backdrop is a
  * screen-sized ARGB picture written with cybergraphics, icons are drawn with their alpha, colours are the
  * theme's exact ones. A palette screen (AGA) is the fallback: the backdrop is then pen 0 and the rest is
  * drawn with the pens the theme obtains.
  *
  * It never leaves the machine without a desktop: Shift held as it starts, or a start that fails, runs
- * C:LoadWB instead (the design's proxy rule, section 4). A machine whose OpenRTG reports no RTG (no
- * openrtg.library, or a Workbench screen that isn't a true-colour RTG one) gets Workbench as usual
+ * C:LoadWB instead (the design's proxy rule, section 4). A machine whose GFOpenRTG reports no RTG (no
+ * gfopenrtg.library, or a Workbench screen that isn't a true-colour RTG one) gets Workbench as usual
  * (the user, 11 October 2026). Where LoadWB starts no Workbench of its own (0.1.24: the open ROM, whose
- * LoadWB starts OpenBench), OpenBench is the desktop there too, on the palette fallback. OpenBench patches nothing.
+ * LoadWB starts GFOpenBench), GFOpenBench is the desktop there too, on the palette fallback. GFOpenBench patches nothing.
  *
  *   - drag and drop (0.1.26, W67; Dale, 18 October 2026: "dragging icons 'into' windows"): icons dragged out of
  *     a drawer window (its own picture under the pointer, several at once when several are selected) into
  *     another drawer window or onto a drawer's or a disk's icon are moved on one volume and copied to
- *     another, with OpenFiles' engine (openamigafilemanager engine/), in a process of its own with a Stop
+ *     another, with GFOpenFiles' engine (openamigafilemanager engine/), in a process of its own with a Stop
  *     button; a disk's icon dragged from the desktop into a drawer window has its contents copied; icons
  *     let go over a program's AppWindow reach it as an AppMessage, as from OS 3.2.3's Workbench
- *     (ob_drop.c; workbench.library takes AddAppWindowA while OpenBench says it delivers them).
+ *     (ob_drop.c; workbench.library takes AddAppWindowA while GFOpenBench says it delivers them).
  *   - labels close to the image (0.1.30; the user's solid OS list, 24 October 2026): with icon.library's setting
- *     on (ENV:Sys/IconLabels "close", OpenLook's Workbench tab) a desktop icon's label goes where icon.library
- *     puts it, 2 rows under the lowest row of its picture that isn't empty, instead of OpenBench's own 4 under the
+ *     on (ENV:Sys/IconLabels "close", GFOpenLook's Workbench tab) a desktop icon's label goes where icon.library
+ *     puts it, 2 rows under the lowest row of its picture that isn't empty, instead of GFOpenBench's own 4 under the
  *     icon's whole box; when the setting changes the desktop's icons are read again;
  *   - the icons' labels in Font prefs' Workbench icon text font (0.1.31; the user's solid OS list, 24 October
- *     2026): on the desktop and in the drawers (wb_look.label_font), when Font prefs sets one, as OpenMeters
+ *     2026): on the desktop and in the drawers (wb_look.label_font), when Font prefs sets one, as GFOpenMeters
  *     draws in it; with none, in the theme's font as before. A change comes back with the screen IPrefs resets,
  *     or, when it doesn't reset it, with the desktop and its drawers opened again two seconds later;
  *   - the ROM without ROM: (0.1.32; the no-ROM-volume design of 24 October 2026, section 7.3): a tool icon with
- *     no file runs the resident of its name (OpenMonitor's icon, the ROM's OpenMonitor), a user one first, then
+ *     no file runs the resident of its name (GFOpenMonitor's icon, the ROM's GFOpenMonitor), a user one first, then
  *     a system one, while a disk file of that name still wins (resident_tool); a project's default tool is
- *     looked for in SYS:Preferences too, OpenPrefs's drawer; SYS:Prefs's window no longer lists ROM:Prefs;
+ *     looked for in SYS:Preferences too, GFOpenPrefs's drawer; SYS:Prefs's window no longer lists ROM:Prefs;
  *   - the desktop's grid (0.1.33; the user's solid OS list, 24 October 2026): every desktop icon in a cell of one
  *     grid measured on the icons' boxes and their labels in the labels' font, so a label never runs into the
  *     icon under it; a Disk.info's place is kept as the cell nearest it; an icon let go of on the desktop goes
@@ -92,7 +92,7 @@
  *     an odd-sized icon taking its own height and a wide one widening its column, from the left or the right, in
  *     the Clean Up order (name, kind, size or date); an icon let go of stays the user's for the run, snapped to the
  *     grid, and the others go round it; Disk.info places are no longer used; ENV:Sys/IconLayout and IconLabels
- *     (OpenPrefs' Icons page; labels close by default) followed at once, the drawers too (opengadtools wb_grid.c);
+ *     (GFOpenPrefs' Icons page; labels close by default) followed at once, the drawers too (opengadtools wb_grid.c);
  *     the desktop's labels light on a dark backdrop and dark on a light one, as the picture's .tone says;
  *   - drag and drop as OS 3.2.3's Workbench does it (0.1.35; the user, 24 October 2026: icons dragged between
  *     windows), measured on lab t4-dnd (ob_drop.c has the table): no qualifier key changes a drop; a copy onto a
@@ -108,7 +108,7 @@
  *     new DH2 at the top put RAM Disk over System; the columns are now measured at their final widths, opengadtools
  *     wb_grid.c, and a drop takes the next free cell);
  *   - no icons on the desktop (0.1.37; Salvor's OS list, item 59; the user, 24 October 2026, 21:08: "offer a no-icons
- *     mode too... for workbench itself"): with ENV:Sys/DesktopIcons "none" (OpenPrefs' Icons page, or Window > No icons
+ *     mode too... for workbench itself"): with ENV:Sys/DesktopIcons "none" (GFOpenPrefs' Icons page, or Window > No icons
  *     here; openamigaprefs Common/deskicons.h) the desktop shows no icons at all, disks, icons left out and AppIcons
  *     alike, and they take no clicks; the backdrop, the bar, the dock and the meters stay. Disks still mount (their
  *     icons are kept, unseen), drawers still open from the dock, the bar or a Shell, and an icon let go of on the
@@ -119,8 +119,8 @@
  *     writes the selected icons' places into their .info files (do_CurrentX and do_CurrentY, through icon.library's
  *     ICONPUTA_OnlyUpdatePosition, so the rest of each file stays as it was), a disk's into its Disk.info; Icons >
  *     Unsnapshot writes NO_ICON_POSITION; Window > Snapshot > All does every icon, and in a drawer > Window keeps the
- *     window's place in the drawer's icon (opengadtools wb_drawer.c, with the icons through wb_look's snap). OpenBench
- *     keeps only the places it wrote itself: ENVARC:OpenBench/Snapshots, read once at the start, lists each with the
+ *     window's place in the drawer's icon (opengadtools wb_drawer.c, with the icons through wb_look's snap). GFOpenBench
+ *     keeps only the places it wrote itself: ENVARC:GFOpenBench/Snapshots, read once at the start, lists each with the
  *     place written (ob_snap.c), and a .info whose place isn't the one listed (made for 3.2.3's small icons, or
  *     written by 3.2.3 since) goes on the grid as before. A snapshotted icon stays on its cell and the others go
  *     round it, as round one let go of; Icons > Clean Up lays every desktop icon out and takes their snapshots out
@@ -128,11 +128,11 @@
  *     named in a requester with DOS's reason, and the rest is still written;
  *   - the drawers' thumbnails on again (0.1.39): a task has 16 signals of its own, and 0.1.38's process asked for 17,
  *     so the last, the thumbnails' (opengadtools wb_thumb.c), failed and they were quietly off (Instance-32). The
- *     ENV: files OpenBench follows (Workbench.prefs, WBPattern.prefs, IconLabels with DesktopIcons, IconLayout,
+ *     ENV: files GFOpenBench follows (Workbench.prefs, WBPattern.prefs, IconLabels with DesktopIcons, IconLayout,
  *     font.prefs) had a signal each; their notifies now send messages to one port, each request's nr_UserData naming
  *     its file (ob_notify.c), which frees four signals and leaves three for what takes one for a moment (a
  *     requester's window, a Delay on the open ROM's dos). Each change does what its signal did. A signal or a port
- *     run() can't have is said on the Shell, as OpenBench's other lines are;
+ *     run() can't have is said on the Shell, as GFOpenBench's other lines are;
  *   - a drive mounted while running gets its icon (0.1.40; Salvor's checks, 25 October 2026): a volume added to the DOS
  *     list with no disk event (a Mount DH2:, a RAD:, a drive Cradle adds: their handlers post no IECLASS_DISKINSERTED)
  *     had no icon until a disk went in or out somewhere. Each scan of the volumes keeps their fingerprint (ob_vols.c:
@@ -142,34 +142,34 @@
  *     a NextDosEntry for each volume and one more, and an UnLockDosList;
  *   - Leave Out (0.1.41; Team 4's checks, 25 October 2026), as OS 3.2.3's: Icons > Leave Out in a drawer (opengadtools
  *     wb_drawer.c, through wb_look's leave_out) puts the selected icons on the desktop for good, each one's line
- *     (":Tools/OpenMeters") written into its disk's .backdrop, so they are left out at every start and gone from their
+ *     (":Tools/GFOpenMeters") written into its disk's .backdrop, so they are left out at every start and gone from their
  *     drawer; on the desktop it does the same for an icon left out there for the run. Icons > Put Away sends icons
  *     left out back, their lines taken out of .backdrop (the file deleted when none is left). A disk can't be left
  *     out (a beep, as for a drawer with nothing selected). What can't be written (a write-protected disk) is named in
  *     a requester with DOS's reason, and that icon stays as it was. The file's text is read and edited in plain C
  *     (ob_backdrop.c, tested on the host). Icons left out are desktop icons: Snapshot keeps their places, Clean Up
  *     lays them out;
- *   - OpenLook's close notice found again (0.1.42; W128's scan of the GCC 16 builds, 25 October 2026): OpenAmigaGCC
+ *   - GFOpenLook's close notice found again (0.1.42; W128's scan of the GCC 16 builds, 25 October 2026): GFOpenAmigaGCC
  *     16.2.0-open3's late-combine pass made wbclose.h's strcpy(r->name, "OpenWBNotify") a copy that stored each
- *     byte one place late ("move.b (a1)+,(a1,d0.l)"), so the root semaphore OpenBench made was named "" and
- *     FindSemaphore("OpenWBNotify") (OpenLook's patch, wbn_root here) never found it. desktop/build.sh turns the pass
- *     off on a compiler that has it, until OpenAmigaGCC open4 (openamigagcc #29); no source changed;
+ *     byte one place late ("move.b (a1)+,(a1,d0.l)"), so the root semaphore GFOpenBench made was named "" and
+ *     FindSemaphore("OpenWBNotify") (GFOpenLook's patch, wbn_root here) never found it. desktop/build.sh turns the pass
+ *     off on a compiler that has it, until GFOpenAmigaGCC open4 (openamigagcc #29); no source changed;
  *   - the backdrop under the screen's title bar (0.1.43; Dale, 26 October 2026: "Why isn't the screen title
  *     translucent?"): a second backdrop window, the strip, over the bar's rows, filled by the root window's own
  *     backfill (the gradient and the picture, in screen coordinates), and ShowTitle(screen, TRUE) so the bar stays in
- *     front of it. OpenTitle 0.7.5 on makes the bar see-through only where a layer behind it covers it all
- *     (opentitle.c, see_backed), and the root window starts under the bar: with OpenBench alone only the
+ *     front of it. GFOpenTitle 0.7.5 on makes the bar see-through only where a layer behind it covers it all
+ *     (opentitle.c, see_backed), and the root window starts under the bar: with GFOpenBench alone only the
  *     compositor's black was behind it, and the bar stayed solid. The strip has no IDCMP and is never active; it is
  *     a Workbench window (WFLG_WBENCHWINDOW), closed and opened with the root (openamigaprefs TitleBar/DESIGN.md, "Not
  *     yet");
  *   - a move within a volume onto a name that is taken says so in the screen's title, as OS 3.2.3 does, not in a
  *     requester (0.1.44; W151's lab t4-dnd, 27 October 2026: 3.2.3's title said "Error while moving x.txt: (203)
- *     object already exists" for 15 seconds and more, until a click in a drawer window; OpenBench 0.1.43 put up a
+ *     object already exists" for 15 seconds and more, until a click in a drawer window; GFOpenBench 0.1.43 put up a
  *     requester instead). ob_drop hands the words over when the job ends (ob_drop_env.say); say_title keeps them in
- *     the title of every OpenBench window, the 2-second tick leaves them there, and the next click (the left button
- *     pressed in any OpenBench window) gives the usual title back;
+ *     the title of every GFOpenBench window, the 2-second tick leaves them there, and the next click (the left button
+ *     pressed in any GFOpenBench window) gives the usual title back;
  *
- * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to OpenBench, as
+ * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
  *
  * MIT, Copyright (c) 2026 AmigaChrome Team. AROS's Wanderer and Directory Opus 5 were read for how, and no
@@ -244,7 +244,7 @@
 #include "ogt_font.h"
 
 #define OPENBENCH_VERSION "0.1.44"
-static const char version[] __attribute__((used)) = "$VER: OpenBench " OPENBENCH_VERSION " (27.10.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (27.10.2026) MIT, Copyright (c) 2026 AmigaChrome Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -260,8 +260,8 @@ static struct Library *CyberGfxBase;
 #define CYBRMATTR_DEPTH 0x80000007UL
 #define CYBRMATTR_ISCYBERGFX 0x80000008UL
 
-/* openrtg.library 0.17 (openamigartg include/openrtg/openrtg.h): the size the host's window asks for, read through
- * OpenRTG (OpenBench never reads a board itself), and the Native modes' ModeIDs (place 0x22 of OpenRTG's table) */
+/* gfopenrtg.library 0.17 (openamigartg include/openrtg/openrtg.h): the size the host's window asks for, read through
+ * GFOpenRTG (GFOpenBench never reads a board itself), and the Native modes' ModeIDs (place 0x22 of GFOpenRTG's table) */
 struct ob_native_size {
     UWORD width, height;                    /* asked for; 0 x 0 when nothing is */
     ULONG gen;                              /* up by one at each new size */
@@ -273,12 +273,12 @@ struct ob_native_size {
     LP2(0x7e, BOOL, ORTG_NativeSize, ULONG, (monitor), d0, struct ob_native_size *, (out), a0, , (base))
 #define OB_IS_NATIVE(id) ((((id) >> 16) & 0xFFUL) == 0x22 && ((id) & 0x1000UL) && ((id) >> 28) == 6)
 
-/* The windows run on 32 KB, however OpenBench is started (Run in the Startup-Sequence gives the boot
- * Shell's stack): libnix's __stack where its swap works, else a process of our own (as OpenDrawer). */
+/* The windows run on 32 KB, however GFOpenBench is started (Run in the Startup-Sequence gives the boot
+ * Shell's stack): libnix's __stack where its swap works, else a process of our own (as GFOpenDrawer). */
 #define STACK_NEED 32768
 unsigned long __stack = STACK_NEED;
 
-#define PORT_NAME "OPENBENCH"
+#define PORT_NAME "GFOPENBENCH"
 #define MAX_WINDOWS 24
 #define MAX_VOLUMES 24
 #define MAX_LEFTOUT 64                      /* 0.1.35: icons left out on the desktop */
@@ -309,7 +309,7 @@ static char label_name[128], label_asked_name[128];
 static int label_set;
 static char screen_title[160];
 
-/* ---- the theme, as OpenDrawer reads it ------------------------------------------------------- */
+/* ---- the theme, as GFOpenDrawer reads it ------------------------------------------------------- */
 
 static char *load_text(const char *path)
 {
@@ -328,7 +328,7 @@ static char *load_text(const char *path)
     return buf;
 }
 
-struct ol_port_view {               /* OpenLook's public port: only the fields read here */
+struct ol_port_view {               /* GFOpenLook's public port: only the fields read here */
     struct MsgPort mp;
     ULONG magic;
     APTR rectfill, text;
@@ -336,7 +336,7 @@ struct ol_port_view {               /* OpenLook's public port: only the fields r
     UBYTE mode;
     char theme[48];
 };
-#define OL_PORT_NAME "OpenLook"
+#define OL_PORT_NAME "GFOpenLook"
 #define OL_MAGIC 0x4f4c3036UL
 #define OL_PORT_PRI 5
 
@@ -356,7 +356,7 @@ static int look_mode_now(void)
 static int load_theme(int *mode)
 {
     char name[80] = "Open", path[200], err[96];
-    char *prefs = load_text("ENV:OpenGadTools/Look"), *text;
+    char *prefs = load_text("ENV:GFOpenGadTools/Look"), *text;
     ogt_rgb accent;
     int has_accent = 0, now;
     *mode = OGT_LIGHT;
@@ -407,9 +407,9 @@ static void thousands(char *out, int n, ULONG v)
     out[k] = 0;
 }
 
-/* The boards AmigaChrome presents through AutoConfig (AmigaChrome Team $DA15): product 9 or 15 a graphics card (ACRTG,
+/* The boards AmiCradle presents through AutoConfig (AmiCradle Team $DA15): product 9 or 15 a graphics card (ACRTG,
  * the 16 MiB board or the 64 MiB one; before 0.1.18 only 9 counted, so a 64 MiB machine showed GPU = 0),
- * product 7 the CPU cores board (ACSV block, CLASS 2, UNITS its cores). As OpenTitle 0.6.15 counts them. */
+ * product 7 the CPU cores board (ACSV block, CLASS 2, UNITS its cores). As GFOpenTitle 0.6.15 counts them. */
 static ULONG gpus, cores, isas;           /* isas: what the cores run (ISAS, $28; bit 0 m68k always) */
 
 static void count_boards(void)
@@ -439,7 +439,7 @@ static int make_title(void)
     count_boards();                           /* each time: the cores board may give its cores after we start */
     thousands(chip, sizeof chip, AvailMem(MEMF_CHIP) >> 10);
     thousands(fast, sizeof fast, AvailMem(MEMF_FAST) >> 10);
-    barlogo_pad(look.scr, pad);               /* made again each time: OpenLook may make the bar taller after we start */
+    barlogo_pad(look.scr, pad);               /* made again each time: GFOpenLook may make the bar taller after we start */
     if (cores)
         snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s KB, Fast %s KB, GPU = %lu, CPU = 1 (m68k) + %lu (%s)",
                  pad, chip, fast, (unsigned long)gpus, (unsigned long)cores, barlogo_isas(isas));
@@ -464,11 +464,11 @@ struct backfill_msg { struct Layer *layer; struct Rectangle bounds; LONG ox, oy;
 
 /* The backdrop picture (0.1.6): read through datatypes, the Amiga's way, as ARGB pixels (PMODE_V43,
  * PDTM_READPIXELARRAY sent with DoMethodA) and cut and scaled to cover the screen; a PNG comes through
- * openpng.datatype (openamigaimage), our own decoder. 0.1 and 0.1.1 sent that read with DoDTMethodA, which
+ * gfopenpng.datatype (openamigaimage), our own decoder. 0.1 and 0.1.1 sent that read with DoDTMethodA, which
  * puts a GadgetInfo (NULL, with no window) where the pixel array's address goes: picture.datatype then
  * wrote the picture from address 0 up through Chip RAM, which was the boot crash on Instance-32 (found on
  * 11 October 2026; picture.datatype itself is fine). 0.1.3 to 0.1.5 went round it (IPrefs' render, then
- * ob_png, a reader of OpenBench's own). The IPrefs render (PDTA_Remap, DTM_PROCLAYOUT, a bitmap in the
+ * ob_png, a reader of GFOpenBench's own). The IPrefs render (PDTA_Remap, DTM_PROCLAYOUT, a bitmap in the
  * screen's format, blitted centred) stays as the fallback when a datatype can't give its pixels. */
 static Object *volatile pic_obj;
 static struct BitMap *volatile pic_bm;
@@ -512,10 +512,10 @@ static ULONG bf_entry(register struct Hook *h __asm("a0"), register struct RastP
 
 /* 0.1.43: the strip, the backdrop under the screen's title bar: its rows (BarHeight + 1, from the top), with the
  * root's backfill, so the backdrop goes on under the bar as it is behind the root. ShowTitle keeps the bar in
- * front of it (a backdrop window over the bar's rows hides the bar otherwise). OpenTitle's see-through bar shows
- * it then (OpenTitle 0.7.5 on, a composited 32-bit screen with an Intuition that takes ICTRL_BarOpacity); anywhere
+ * front of it (a backdrop window over the bar's rows hides the bar otherwise). GFOpenTitle's see-through bar shows
+ * it then (GFOpenTitle 0.7.5 on, a composited 32-bit screen with an Intuition that takes ICTRL_BarOpacity); anywhere
  * else the solid bar covers it. No IDCMP: it is never active and takes no input (the bar is in front of all of
- * it). Without it OpenBench is as before. */
+ * it). Without it GFOpenBench is as before. */
 static void strip_open(void)
 {
     ob_box b;
@@ -596,7 +596,7 @@ static int root_picture(char *out, int n)
 /* Workbench's settings (ENV:Sys/Workbench.prefs, Prefs/Workbench's file, which IPrefs hands to Hyperion's
  * Workbench), the ones the desktop has a use for: the default stack size (the WBNC chunk's first long word),
  * which a tool gets when its icon asks for less, and the hidden devices (a WBHD chunk each, the device's
- * name), whose volumes get no icon. Before 0.1.19 OpenBench read none of it. */
+ * name), whose volumes get no icon. Before 0.1.19 GFOpenBench read none of it. */
 #define MAX_HIDDEN 16
 static ULONG wb_stack = 8192;
 static char wb_hidden[MAX_HIDDEN][32];
@@ -661,8 +661,8 @@ static struct Process *picture_proc;        /* 0.1.34: the picture's process whi
 static int picture_ticks;
 
 /* 0.1.34: the picture's process, still decoding, on at priority 0 (it starts at -1, under everything else). In the lab
- * a backdrop chosen while OpenBench ran never came: its process sat ready at -1 behind Shell commands that never wait
- * at 0, and OpenBench, waiting for it to end before the next picture, stopped too. */
+ * a backdrop chosen while GFOpenBench ran never came: its process sat ready at -1 behind Shell commands that never wait
+ * at 0, and GFOpenBench, waiting for it to end before the next picture, stopped too. */
 static void picture_hurry(void)
 {
     Forbid();
@@ -673,8 +673,8 @@ static void picture_hurry(void)
 static char picture_path[256];
 static struct Screen *picture_scr;
 
-/* The picture's screen-sized twin, when OpenUp put one beside it: "...-1600x1200.png" has
- * "...-1920x1080.png" for a 1920 x 1080 screen (OpenUpTool BACKDROP names them so). 1 when there is one. */
+/* The picture's screen-sized twin, when GFOpenUp put one beside it: "...-1600x1200.png" has
+ * "...-1920x1080.png" for a 1920 x 1080 screen (GFOpenUpTool BACKDROP names them so). 1 when there is one. */
 static int screen_twin(const char *path, LONG w, LONG h, char *out, int n)
 {
     int len = (int)strlen(path), i, j;
@@ -803,14 +803,14 @@ static void picture_entry(void)
     }
     picture_busy = 0;
     Signal(main_task, 1UL << picture_sig);
-    /* ends in dos.library under Forbid: OpenBench waits for picture_busy before it goes */
+    /* ends in dos.library under Forbid: GFOpenBench waits for picture_busy before it goes */
 }
 
 /* ---- the desktop's icons --------------------------------------------------------------------- */
 
 typedef struct dicon {
     char name[64];                          /* the volume's name, the label (0.1.35: a left-out icon's file's) */
-    char path[256];                         /* "Work:" (0.1.35: a left-out icon's file, "Work:Tools/OpenMeters") */
+    char path[256];                         /* "Work:" (0.1.35: a left-out icon's file, "Work:Tools/GFOpenMeters") */
     const char *kind;                       /* its drive's default icon, def_<kind>, when it has no Disk.info */
     struct DiskObject *dobj;
     LONG x, y, w, h;                        /* the picture's box in the root window */
@@ -820,7 +820,7 @@ typedef struct dicon {
     struct DateStamp date;                  /* 0.1.34: the volume's date, for Clean Up by date */
     int selected;
     int lo;                                 /* 0.1.35: a left-out icon's louts[] entry; -1: a disk */
-    int snapped;                            /* 0.1.38: snapshotted by OpenBench, its .info still so: on cell sgx, sgy */
+    int snapped;                            /* 0.1.38: snapshotted by GFOpenBench, its .info still so: on cell sgx, sgy */
     int sgx, sgy;
 } dicon;
 
@@ -836,8 +836,8 @@ static ob_show show;
 
 /* 0.1.34: the desktop's column grid (the user, 24 October 2026: "the grid should behave the way the Masonry
  * JavaScript layout engine works", then "the screen is arranged in 'columns', and the grid follows a standard size,
- * until a bigger or smaller icon sits in the column"), with OpenDrawer's engine (opengadtools workbench/wb_grid.c).
- * A standard cell comes from the icons (their usual size, or the size OpenPrefs' Icons page sets): the picture, its
+ * until a bigger or smaller icon sits in the column"), with GFOpenDrawer's engine (opengadtools workbench/wb_grid.c).
+ * A standard cell comes from the icons (their usual size, or the size GFOpenPrefs' Icons page sets): the picture, its
  * label close under it (icon.library's place, 2 rows under the picture's lowest row that shows) and the label's
  * height. The icons go down the columns from the left (or the right, as the Icons page says) in the Clean Up order;
  * each takes the standard height unless its picture is taller or a quarter shorter, and each column is as wide as
@@ -846,7 +846,7 @@ static ob_show show;
  * round it; Icons > Clean Up lets them all flow again. A Disk.info's own place isn't used: made for another screen
  * and other icons, it is what put the labels into the icons under them (0.1.32); 0.1.33 kept the cell nearest it.
  * Places let go of are kept by name for the run; 0.1.38's Snapshot keeps them for good (ob_snap.h): a .info's place
- * is used only when OpenBench wrote it, and the icon goes back on the cell it had, as one let go of there. */
+ * is used only when GFOpenBench wrote it, and the icon goes back on the cell it had, as one let go of there. */
 #define GRID_X 16                           /* the grid's corner, from the root window's */
 #define GRID_Y 12
 static wb_iconprefs ip;                     /* the icons' settings: ENV:Sys/IconLabels, ENV:Sys/IconLayout */
@@ -865,13 +865,13 @@ typedef struct dplace {
 static dplace places[MAX_PLACES];
 static int nplaces;
 
-/* 0.1.38: Snapshot's record (ob_snap.h): the places OpenBench wrote into .info files, the only ones it keeps. Read
- * from ENVARC:OpenBench/Snapshots once, when OpenBench starts, and written there when it changes. */
-#define SNAPS_DIR "ENVARC:OpenBench"
+/* 0.1.38: Snapshot's record (ob_snap.h): the places GFOpenBench wrote into .info files, the only ones it keeps. Read
+ * from ENVARC:GFOpenBench/Snapshots once, when GFOpenBench starts, and written there when it changes. */
+#define SNAPS_DIR "ENVARC:GFOpenBench"
 #define SNAPS_FILE SNAPS_DIR "/Snapshots"
 static ob_snap snaps;
 
-/* The icons' settings, as OpenPrefs' Icons page writes them. Labels close to the picture by default (0.1.30 had
+/* The icons' settings, as GFOpenPrefs' Icons page writes them. Labels close to the picture by default (0.1.30 had
  * them under the whole box unless ENV:Sys/IconLabels said "close"): icon.library then ends an icon's box gap - 1
  * rows under its picture's lowest row that shows, and the label's text goes where icon.library says
  * (GetIconRectangle with the label, in the labels' font). Read when the desktop's icons are read, as icon.library
@@ -906,8 +906,8 @@ static void icon_extent(dicon *ic, LONG *x0, LONG *y0, LONG *x1, LONG *y1)
 }
 
 /* 0.1.34: the desktop's labels in the colour the backdrop asks for (the background pack's lab, 24 October 2026: dark
- * labels on the dark backdrops were hard to read). OpenUp's backdrops have a sidecar beside the picture,
- * <picture>.tone, "dark" or "light" (OpenUpTool RECONCILE reads it for Font prefs' pens, which OpenBench doesn't
+ * labels on the dark backdrops were hard to read). GFOpenUp's backdrops have a sidecar beside the picture,
+ * <picture>.tone, "dark" or "light" (GFOpenUpTool RECONCILE reads it for Font prefs' pens, which GFOpenBench doesn't
  * draw with): on a dark picture the labels are light with a dark shadow, on a light one dark. With no .tone, no
  * picture, or the Icons page's "The theme's" (ENV:Sys/IconLayout labelcolour=theme), the theme's icon.text as before.
  * Read when the desktop comes up and when the root picture changes (ENV:Sys/WBPattern.prefs). */
@@ -920,7 +920,7 @@ static void read_tone(void)
     LONG n;
     int k;
     label_tone = 0;
-    if (Lock_exists("ENV:OpenBench/NoPicture") || !root_picture(path, (int)sizeof path - 6)) return;
+    if (Lock_exists("ENV:GFOpenBench/NoPicture") || !root_picture(path, (int)sizeof path - 6)) return;
     strcat(path, ".tone");
     if (!(f = Open((CONST_STRPTR)path, MODE_OLDFILE))) return;
     n = Read(f, buf, sizeof buf - 1);
@@ -1090,7 +1090,7 @@ static void place_icons(int clean)
 }
 
 /* An icon let go of on the desktop: its place the user's for the run, on the grid's nearest place when snapping is
- * on (OpenPrefs' Icons page), and the others round it. */
+ * on (GFOpenPrefs' Icons page), and the others round it. */
 static void drop_on_desktop(dicon *ic)
 {
     int i = (int)(ic - icons), x, y;
@@ -1128,7 +1128,7 @@ static int ci_cmp(const char *a, const char *b)
     return (unsigned char)*a - (unsigned char)*b;
 }
 
-/* 0.1.34: the Clean Up order (OpenPrefs' Icons page): by name, by kind of drive, by size (the smallest first), by
+/* 0.1.34: the Clean Up order (GFOpenPrefs' Icons page): by name, by kind of drive, by size (the smallest first), by
  * date (the oldest first); by name among equals */
 static int by_order(const void *a, const void *b)
 {
@@ -1194,12 +1194,12 @@ static int volume_hidden(struct DosList *start, const struct DosList *vol)
 /* ---- icons left out on the desktop (0.1.35) -------------------------------------------------------------
  * As OS 3.2.3 has them (measured, lab t4-dnd, 24 October 2026): an icon let go of on the desktop's space is left out
  * there for this run, gone from its drawer's window and back in it after a reboot; Icons > Leave Out (3.2.3's,
- * OpenFiles', or since 0.1.41 OpenBench's own) writes a line ":drawer/name" into the disk's .backdrop, and those are
+ * GFOpenFiles', or since 0.1.41 GFOpenBench's own) writes a line ":drawer/name" into the disk's .backdrop, and those are
  * left out at every start; Icons > Put Away puts either kind back, taking its line out of .backdrop (and the file
  * away when no line is left, as 3.2.3 does). A left-out icon opens what it stands for, and dragged into a drawer,
  * onto a disk or onto the trash its file goes there, as from a drawer. */
 typedef struct leftout {
-    char path[256];                         /* "Work:Tools/OpenMeters" */
+    char path[256];                         /* "Work:Tools/GFOpenMeters" */
     UBYTE permanent;                        /* named in its disk's .backdrop */
 } leftout;
 static leftout louts[MAX_LEFTOUT];
@@ -1230,11 +1230,11 @@ static void lout_drop(int i)
 }
 
 /* ---- a file written whole or not at all (1 Nov 2026) ----------------------------------------------------------
- * ENVARC:OpenBench/Snapshots and a disk's .backdrop were opened with MODE_NEWFILE, which cuts them to nothing first:
+ * ENVARC:GFOpenBench/Snapshots and a disk's .backdrop were opened with MODE_NEWFILE, which cuts them to nothing first:
  * a full disk or a reset part way lost every remembered icon place, or every icon left out for good. Now the new
  * text goes to a short name in the same drawer, Write and Close are checked, and only then the old file steps aside
  * (.bak), the new one takes its name (with the old one's protection bits and comment) and the .bak goes; if the new
- * one can't take the name, the old one gets it back. As OpenUpTool does since openamigaup #179. The caller has
+ * one can't take the name, the old one gets it back. As GFOpenUpTool does since openamigaup #179. The caller has
  * pr_WindowPtr at -1 (no DOS requester). */
 
 /* Two free names beside path: the new copy's (.tmp) and the old file's while the new one takes its name (.bak).
@@ -1370,10 +1370,10 @@ static void backdrop_read(const char *vol)
     FreeVec(buf);
 }
 
-/* 0.1.41: path (as its disk names it, "Work:Tools/OpenMeters") added to its disk's .backdrop (add: Icons > Leave
+/* 0.1.41: path (as its disk names it, "Work:Tools/GFOpenMeters") added to its disk's .backdrop (add: Icons > Leave
  * Out) or taken out of it (Icons > Put Away), as OS 3.2.3 writes it (ob_backdrop.h): its line at the end, or every
  * line naming it gone, and the file deleted when no line is left. Nothing is written when nothing changes. No DOS
- * requester while it writes (OpenBench's names the icon). 0, or DOS's error. */
+ * requester while it writes (GFOpenBench's names the icon). 0, or DOS's error. */
 static LONG backdrop_change(const char *path, int add)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -1444,7 +1444,7 @@ static void leftouts_add(void)
         ic->kind = "";
         ic->lo = i;
         ic->dobj = GetIconTags((CONST_STRPTR)ic->path, ICONGETA_Screen, (ULONG)look.scr, TAG_DONE);
-        if (ic->dobj) {                             /* 0.1.38: snapshotted on the desktop by OpenBench */
+        if (ic->dobj) {                             /* 0.1.38: snapshotted on the desktop by GFOpenBench */
             char vol[OB_SNAP_VOL], rest[OB_SNAP_PATH];
             ic->snapped = ob_snap_split(ic->path, vol, sizeof vol, rest, sizeof rest) &&
                           ob_snap_honour(&snaps, vol, rest, OB_SNAP_DESK, ic->dobj->do_CurrentX, ic->dobj->do_CurrentY,
@@ -1569,7 +1569,7 @@ static void scan_volumes(void)
         snprintf(dpath, sizeof dpath, "%s:Disk", ic->name);
         ic->selected = 0;
         ic->dobj = GetIconTags((CONST_STRPTR)dpath, ICONGETA_FailIfUnavailable, TRUE, ICONGETA_Screen, (ULONG)look.scr, TAG_DONE);
-        /* 0.1.38: a Disk.info's place only when OpenBench snapshotted it there (ob_snap.h); 3.2.3's are passed over */
+        /* 0.1.38: a Disk.info's place only when GFOpenBench snapshotted it there (ob_snap.h); 3.2.3's are passed over */
         ic->snapped = ic->dobj && ob_snap_honour(&snaps, ic->name, "", OB_SNAP_DESK, ic->dobj->do_CurrentX,
                                                  ic->dobj->do_CurrentY, &ic->sgx, &ic->sgy);
         if (!ic->dobj)                              /* no Disk.info: def_<kind>, or the default disk icon */
@@ -1634,7 +1634,7 @@ static BPTR parent_and_name(const char *path, char *name, int n)
     if (!l) {
         /* 0.1.25: a project that is only its icon, as SYS:System/Shell is (Shell.info, default tool
          * SYS:System/CLI, no file Shell): its WBArg is its drawer and its name, as Workbench gives it. Before,
-         * no lock meant no start: OpenDock's "wb System:System/Shell" button and a double-click on the Shell
+         * no lock meant no start: GFOpenDock's "wb System:System/Shell" button and a double-click on the Shell
          * icon opened nothing (lab t5-events, W53, Dale's disk: ob_open answered 0) */
         char dir[256];
         int k = (int)((const char *)PathPart((STRPTR)path) - path);
@@ -1652,8 +1652,8 @@ static BPTR parent_and_name(const char *path, char *name, int n)
 }
 
 /* 0.1.32 (the no-ROM-volume design of 24 October 2026, section 7.3): a tool icon with no file runs the resident
- * of its name, as the Shell runs a resident command. OpenMonitor is the open ROM's, a system resident shell.library
- * makes, and only its icon is on the disk (SYS:Utilities/OpenMonitor.info); "Resident NAME file PURE" makes a user
+ * of its name, as the Shell runs a resident command. GFOpenMonitor is the open ROM's, a system resident shell.library
+ * makes, and only its icon is on the disk (SYS:Utilities/GFOpenMonitor.info); "Resident NAME file PURE" makes a user
  * one. Only when the tool's file isn't there (LoadSeg's ERROR_OBJECT_NOT_FOUND): a disk file of that name wins.
  * A user resident is looked for first, then a system one, as the Shell does (FindSegment, under Forbid); a user
  * one's count goes up while it runs, so Resident REMOVE leaves it, and back down at the end (resident_done). The
@@ -1782,9 +1782,9 @@ static void running_names(char *out, int n)
     }
 }
 
-/* 0.1.19: the tools started from OpenBench are asked to quit, with Ctrl-C as a Shell's Break asks, and waited
- * for up to secs seconds. Their code is OpenBench's to unload, so it can't go before them: OpenMeters from
- * SYS:WBStartup kept OpenBench's quit waiting for ever. 1 when none is left. */
+/* 0.1.19: the tools started from GFOpenBench are asked to quit, with Ctrl-C as a Shell's Break asks, and waited
+ * for up to secs seconds. Their code is GFOpenBench's to unload, so it can't go before them: GFOpenMeters from
+ * SYS:WBStartup kept GFOpenBench's quit waiting for ever. 1 when none is left. */
 static int ask_running_to_quit(int secs)
 {
     launch *L;
@@ -1817,7 +1817,7 @@ static int is_program(const char *path)
  * project, then where Workbench's own tools are. 1 when found. */
 static int find_tool(const char *project, const char *tool, char *out, int n)
 {
-    /* SYS:Preferences (0.1.32): OpenPrefs's drawer since the no-ROM-volume design (section 8), before SYS:Prefs */
+    /* SYS:Preferences (0.1.32): GFOpenPrefs's drawer since the no-ROM-volume design (section 8), before SYS:Prefs */
     static const char *const places[] = { "", "C:", "SYS:Utilities/", "SYS:Tools/", "SYS:System/", "SYS:Preferences/",
                                           "SYS:Prefs/", "SYS:Tools/Commodities/", "SYS:Apps/", NULL };
     char try_[300];
@@ -1880,24 +1880,24 @@ static int tata_lets(const char *path, int data)
 #endif
 }
 
-/* ---- the old editors' names: OpenPrefs at their pages (0.1.32) ------------------------------------------------
+/* ---- the old editors' names: GFOpenPrefs at their pages (0.1.32) ------------------------------------------------
  *
- * Every editor of ours is a page of OpenPrefs, SYS:Preferences/OpenPrefs, with an icon per page by its plain name
- * (the no-ROM-volume design of 24 October 2026, section 8). OpenUp archives the old names' stubs in SYS:Prefs, and
- * OpenBench no longer has those editors built in (0.1.14 to 0.1.31). A dock button, an icon or a program that
- * still asks for one by its old name (SYS:Prefs/OpenSound, or OpenSound) opens OpenPrefs at that page, as a
- * double-click on the page's icon does: OpenPrefs with SYS:Preferences/<page> as its project, whose SECTION tool
+ * Every editor of ours is a page of GFOpenPrefs, SYS:Preferences/GFOpenPrefs, with an icon per page by its plain name
+ * (the no-ROM-volume design of 24 October 2026, section 8). GFOpenUp archives the old names' stubs in SYS:Prefs, and
+ * GFOpenBench no longer has those editors built in (0.1.14 to 0.1.31). A dock button, an icon or a program that
+ * still asks for one by its old name (SYS:Prefs/GFOpenSound, or GFOpenSound) opens GFOpenPrefs at that page, as a
+ * double-click on the page's icon does: GFOpenPrefs with SYS:Preferences/<page> as its project, whose SECTION tool
  * type (or, with no icon, its name) picks the page. A file of that name in SYS:Prefs still runs itself. */
 static const struct { const char *old, *page; } old_prefs[] = {
-    { "Look", "Theme" }, { "OpenLook", "Theme" }, { "Windows", "Windows" }, { "TitleBar", "Title Bar" },
-    { "Menus", "Menus" }, { "OpenDock", "Dock" }, { "OpenSound", "Sound" }, { "OpenInput", "Input" },
-    { "OpenGamepads", "Gamepads" }, { "OpenDateTime", "Date & Time" }, { "OpenSerial", "Serial" },
-    { "OpenTypes", "File Types" }, { "OpenSystem", "System" }, { "OpenScreenMode", "Screen Mode" },
-    { "OpenPointer", "Pointer" }, { "OpenFonts", "Fonts" }, { "OpenColours", "Colours" },
-    { "OpenBackdrops", "Backdrops" }, { "OpenWorkbench", "Workbench" }, { "OpenFileRequesters", "File Requesters" },
-    { "OpenBlanker", "Blanker" }, { "OpenIControl", "IControl" },
+    { "Look", "Theme" }, { "GFOpenLook", "Theme" }, { "Windows", "Windows" }, { "TitleBar", "Title Bar" },
+    { "Menus", "Menus" }, { "GFOpenDock", "Dock" }, { "GFOpenSound", "Sound" }, { "GFOpenInput", "Input" },
+    { "GFOpenGamepads", "Gamepads" }, { "GFOpenDateTime", "Date & Time" }, { "GFOpenSerial", "Serial" },
+    { "GFOpenTypes", "File Types" }, { "GFOpenSystem", "System" }, { "GFOpenScreenMode", "Screen Mode" },
+    { "GFOpenPointer", "Pointer" }, { "GFOpenFonts", "Fonts" }, { "GFOpenColours", "Colours" },
+    { "GFOpenBackdrops", "Backdrops" }, { "GFOpenWorkbench", "Workbench" }, { "GFOpenFileRequesters", "File Requesters" },
+    { "GFOpenBlanker", "Blanker" }, { "GFOpenIControl", "IControl" },
 };
-#define OPENPREFS_APP "SYS:Preferences/OpenPrefs"
+#define OPENPREFS_APP "SYS:Preferences/GFOpenPrefs"
 
 static int quiet_exists(const char *path);
 
@@ -1927,7 +1927,7 @@ static int in_sys_prefs(const char *path)
     return same;
 }
 
-/* An old editor's name with no file of its own: OpenPrefs started at its page. 1 when started. */
+/* An old editor's name with no file of its own: GFOpenPrefs started at its page. 1 when started. */
 static int old_prefs_open(const char *path)
 {
     const char *name = (const char *)FilePart((CONST_STRPTR)path);
@@ -1946,8 +1946,8 @@ static int ob_open_object(const char *path)
 {
     struct DiskObject *o;
     int ok = 0;
-    if (old_prefs_open(path)) return 1;            /* an old editor's name: OpenPrefs at its page */
-    if (ob_builtin_open(path)) return 1;           /* built into OpenBench (ob_builtin_list.h): ours, never asked about */
+    if (old_prefs_open(path)) return 1;            /* an old editor's name: GFOpenPrefs at its page */
+    if (ob_builtin_open(path)) return 1;           /* built into GFOpenBench (ob_builtin_list.h): ours, never asked about */
     o = GetIconTags((CONST_STRPTR)path, ICONGETA_FailIfUnavailable, TRUE, TAG_DONE);
     if (!o) {
         BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
@@ -2105,7 +2105,7 @@ enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, 
 #define RESIZE_INDEX 4
 #define RESIZE_ITEM 3
 static struct NewMenu newmenus[] = {
-    { NM_TITLE, (STRPTR)"OpenBench", NULL, 0, 0, NULL },
+    { NM_TITLE, (STRPTR)"GFOpenBench", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"New Shell", (STRPTR)"N", 0, 0, (APTR)M_SHELL },
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
@@ -2114,9 +2114,9 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"About...", (STRPTR)"?", 0, 0, (APTR)M_ABOUT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Quit to Workbench...", NULL, 0, 0, (APTR)M_LOADWB },
-    { NM_ITEM, (STRPTR)"Quit OpenBench...", (STRPTR)"Q", 0, 0, (APTR)M_QUIT },
+    { NM_ITEM, (STRPTR)"Quit GFOpenBench...", (STRPTR)"Q", 0, 0, (APTR)M_QUIT },
     /* 0.1.37: the desktop's own Show, in the Window menu as OS 3.2.3's Show and the drawers' Show all files are: no
-     * icons on the desktop at all (ENV:Sys/DesktopIcons, as OpenPrefs' Icons page sets it); checked by desktop_up */
+     * icons on the desktop at all (ENV:Sys/DesktopIcons, as GFOpenPrefs' Icons page sets it); checked by desktop_up */
     { NM_TITLE, (STRPTR)"Window", NULL, 0, 0, NULL },
     /* 0.1.38: OS 3.2.3's Snapshot > Window / All, before Show as there. The desktop is a backdrop with no place or
      * size of its own to keep, so Window is greyed here (the drawers' keeps theirs); All snapshots every icon on it */
@@ -2164,7 +2164,7 @@ static void new_shell(void)
 }
 
 /* A command started on its own, with NIL: for its input and output (an asynchronous SystemTags needs real
- * handles); its own failure is told, not OpenBench's. */
+ * handles); its own failure is told, not GFOpenBench's. */
 static void run_detached(const char *cmd, const char *missing)
 {
     BPTR in = Open((CONST_STRPTR)"NIL:", MODE_OLDFILE), out = Open((CONST_STRPTR)"NIL:", MODE_NEWFILE);
@@ -2172,7 +2172,7 @@ static void run_detached(const char *cmd, const char *missing)
                                   NP_StackSize, 16384, TAG_DONE) == -1) {
         if (in) Close(in);
         if (out) Close(out);
-        ask("OpenBench", missing, "OK");
+        ask("GFOpenBench", missing, "OK");
     }
 }
 
@@ -2187,7 +2187,7 @@ static void run_loadwb(void)
 
 /* 1 when LoadWB gave a Workbench of its own: OS 3.2.3's runs as a process named "Workbench" (FindTask,
  * measured on the stock ROM, lab t5-display, 17 October 2026). None on the open ROM, where LoadWB starts
- * OpenBench. */
+ * GFOpenBench. */
 static int loadwb_gave;
 static int workbench_there(void)
 {
@@ -2201,20 +2201,20 @@ static int workbench_there(void)
     return there;
 }
 
-/* ---- the dock: OpenDock, C:OpenDock -----------------------------------------------------------------------
+/* ---- the dock: GFOpenDock, C:GFOpenDock -----------------------------------------------------------------------
  *
- * The user, 17 Oct 2026: the dock "only shows if there's a preferences file". OpenDock runs as a program of its own,
- * started here by name, so the Shell finds C:OpenDock (OpenUp's; the dock left the ROM with the no-ROM-volume
- * design, 24 October 2026, section 7.4). It is started only when ENV:OpenDock/Dock is there (the
- * Startup-sequence has put ENVARC: in ENV: by now) and none runs (its port, "OpenDock"): with no settings file
- * nothing starts. OpenDock 0.6.6 ends at once when one runs already (an old
- * "Run >NIL: C:OpenDock" in User-Startup), and its editor starts it when its settings are saved. It starts
- * things through OpenBench (obmsg.h) and takes OpenLook's close notice, as it did before it was built in. */
+ * The user, 17 Oct 2026: the dock "only shows if there's a preferences file". GFOpenDock runs as a program of its own,
+ * started here by name, so the Shell finds C:GFOpenDock (GFOpenUp's; the dock left the ROM with the no-ROM-volume
+ * design, 24 October 2026, section 7.4). It is started only when ENV:GFOpenDock/Dock is there (the
+ * Startup-sequence has put ENVARC: in ENV: by now) and none runs (its port, "GFOpenDock"): with no settings file
+ * nothing starts. GFOpenDock 0.6.6 ends at once when one runs already (an old
+ * "Run >NIL: C:GFOpenDock" in User-Startup), and its editor starts it when its settings are saved. It starts
+ * things through GFOpenBench (obmsg.h) and takes GFOpenLook's close notice, as it did before it was built in. */
 
 /* The dock's process, or NULL. Under Forbid. */
 static struct Task *dock_task(void)
 {
-    struct MsgPort *p = FindPort((CONST_STRPTR)"OpenDock");
+    struct MsgPort *p = FindPort((CONST_STRPTR)"GFOpenDock");
     return p ? p->mp_SigTask : NULL;
 }
 
@@ -2235,21 +2235,21 @@ static void start_dock(void)
 {
     BPTR in, out;
     struct Task *t;
-    if (!quiet_exists("ENV:OpenDock/Dock")) return;
+    if (!quiet_exists("ENV:GFOpenDock/Dock")) return;
     Forbid();
     t = dock_task();
     Permit();
     if (t) return;
     in = Open((CONST_STRPTR)"NIL:", MODE_OLDFILE);
     out = Open((CONST_STRPTR)"NIL:", MODE_NEWFILE);
-    if (in && out && SystemTags((CONST_STRPTR)"OpenDock", SYS_Input, (ULONG)in, SYS_Output, (ULONG)out,
+    if (in && out && SystemTags((CONST_STRPTR)"GFOpenDock", SYS_Input, (ULONG)in, SYS_Output, (ULONG)out,
                                 SYS_Asynch, TRUE, NP_StackSize, 32768, TAG_DONE) != -1)
         return;                                    /* the handles are the dock's now */
     if (in) Close(in);
     if (out) Close(out);
 }
 
-/* OpenBench's quit: the dock goes with the desktop, as the built-in one did (3 s at most). */
+/* GFOpenBench's quit: the dock goes with the desktop, as the built-in one did (3 s at most). */
 static void stop_dock(void)
 {
     int i;
@@ -2265,11 +2265,11 @@ static void stop_dock(void)
 
 /* ---- the run --------------------------------------------------------------------------------- */
 
-/* 1 when OpenRTG reports RTG here: openrtg.library is there, and the Workbench screen is one of its
+/* 1 when GFOpenRTG reports RTG here: gfopenrtg.library is there, and the Workbench screen is one of its
  * true-colour screens (cybergraphics: a CyberGraphX bitmap deeper than 8 bits). */
 static int rtg_here(struct Screen *s)
 {
-    struct Library *ortg = OpenLibrary((CONST_STRPTR)"openrtg.library", 0);
+    struct Library *ortg = OpenLibrary((CONST_STRPTR)"gfopenrtg.library", 0);
     struct BitMap *bm = s ? s->RastPort.BitMap : NULL;
     if (!ortg) return 0;
     CloseLibrary(ortg);
@@ -2414,10 +2414,10 @@ static void leftouts_check(void)
 /* ---- Snapshot (0.1.38; Salvor's OS list, item 53) ----------------------------------------------------------------
  * As OS 3.2.3's: Icons > Snapshot writes the selected icons' places into their .info files, Icons > Unsnapshot
  * writes NO_ICON_POSITION there, Window > Snapshot > All does every icon in the window (and in a drawer, > Window
- * its window's place, opengadtools wb_drawer.c). OpenBench keeps only the places it wrote itself, as its record
+ * its window's place, opengadtools wb_drawer.c). GFOpenBench keeps only the places it wrote itself, as its record
  * (ob_snap.h) lists them; a .info's place it didn't write (3.2.3's, made for its small icons) goes on the grid. */
 
-/* The record from ENVARC:OpenBench/Snapshots, read once when OpenBench starts (no requester while it looks) */
+/* The record from ENVARC:GFOpenBench/Snapshots, read once when GFOpenBench starts (no requester while it looks) */
 static void snaps_load(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -2439,7 +2439,7 @@ static void snaps_load(void)
     me->pr_WindowPtr = was;
 }
 
-/* The record written whole into ENVARC:OpenBench/Snapshots (the drawer made when it isn't there): 0, or DOS's error */
+/* The record written whole into ENVARC:GFOpenBench/Snapshots (the drawer made when it isn't there): 0, or DOS's error */
 static LONG snaps_save(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -2462,7 +2462,7 @@ static LONG snaps_save(void)
  * Snapshot writes it: in a .info that is there, only the place changes (icon.library's ICONPUTA_OnlyUpdatePosition:
  * the rest of the file is as it was); an icon with none of its own gets one, the default for it (a disk's for its
  * kind of drive, def_<kind>), at that place. Unsnapshot (x NO_ICON_POSITION) writes nothing where there is no .info.
- * No DOS requester while it writes: OpenBench's names the icon. 0, or the DOS error. */
+ * No DOS requester while it writes: GFOpenBench's names the icon. 0, or the DOS error. */
 static LONG snap_write(const char *icon, LONG x, LONG y, const char *defname)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -2520,7 +2520,7 @@ static void snapfail_add(snapfail *f, const char *name, LONG err, const char *wh
 /* The record written when it changed; the requester when anything couldn't be (on window w, else the desktop's) */
 static void snapfail_end(snapfail *f, int changed, const char *what, struct Window *w)
 {
-    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"OpenBench", (UBYTE *)"%s", (UBYTE *)"OK" };
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"GFOpenBench", (UBYTE *)"%s", (UBYTE *)"OK" };
     char text[800];
     ULONG args[1];
     LONG err;
@@ -2576,7 +2576,7 @@ static void desk_snapshot(int all, int unsnap)
             continue;
         }
         if ((r = ob_snap_set(&snaps, vol, rest, OB_SNAP_DESK, ic->ix, ic->iy, gcells[i].x, gcells[i].y)) < 0) {
-            snapfail_add(&f, ic->name, 0, "OpenBench's record of snapshots is full");
+            snapfail_add(&f, ic->name, 0, "GFOpenBench's record of snapshots is full");
             continue;
         }
         changed |= r > 0;
@@ -2604,7 +2604,7 @@ static void cleanup_snaps(void)
     snapfail_end(&f, ob_snap_cleanup(&snaps, paths, nicons) > 0, "Clean Up", NULL);
 }
 
-/* "Work" + "Tools" + "OpenMeters": the path on the volume of an entry in a drawer; 0 when too long */
+/* "Work" + "Tools" + "GFOpenMeters": the path on the volume of an entry in a drawer; 0 when too long */
 static int snap_join(char *out, int n, const char *dir, const char *name)
 {
     return snprintf(out, (size_t)n, "%s%s%s", dir, dir[0] ? "/" : "", name) < n;
@@ -2666,7 +2666,7 @@ static int drawer_snap(const char *dir, wb_snapitem *items, int n, int unsnap, w
         } else if (!(err = snap_write(file, items[i].x, items[i].y, NULL))) {
             items[i].done = 1;
             if ((r = ob_snap_set(&snaps, vol, path, OB_SNAP_DRAWER, items[i].x, items[i].y, items[i].gx, items[i].gy)) < 0) {
-                snapfail_add(&f, items[i].name, 0, "OpenBench's record of snapshots is full");
+                snapfail_add(&f, items[i].name, 0, "GFOpenBench's record of snapshots is full");
                 continue;
             }
             changed |= r > 0;
@@ -2723,7 +2723,7 @@ static int drawer_leave_out(const char *dir, const char *const *names, int n, wb
         }
         if (!(c = strchr(full, ':')) || !c[1]) continue;    /* a disk: on the desktop already */
         if ((k = lout_find(full)) < 0 && nlouts == MAX_LEFTOUT) {
-            snapfail_add(&f, names[i], 0, "OpenBench has no room for more icons left out");
+            snapfail_add(&f, names[i], 0, "GFOpenBench has no room for more icons left out");
             continue;
         }
         if ((err = backdrop_change(full, 1))) {
@@ -2832,7 +2832,7 @@ static int quit_to_wb;
 
 /* ---- no icons on the desktop (0.1.37) ---------------------------------------------------------------------------- *
  * ENV:Sys/DesktopIcons (openamigaprefs Common/deskicons.h): "none", no icons on the desktop; "show" or no variable, the
- * icons. Set by OpenPrefs' Icons page, by Window > No icons and by Icons > Clean Up (off), and followed at once. */
+ * icons. Set by GFOpenPrefs' Icons page, by Window > No icons and by Icons > Clean Up (off), and followed at once. */
 static struct Menu *menus;
 static struct NotifyRequest dic_nr;
 static int dic_notify;
@@ -3038,10 +3038,10 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             switch (id) {
             case M_SHELL: new_shell(); break;
             case M_DISK_INSERT:
-                run_detached("C:InsertDisk", "Insert Disk couldn't start.\nIt needs C:InsertDisk from AmigaChrome.");
+                run_detached("C:InsertDisk", "Insert Disk couldn't start.\nIt needs C:InsertDisk from AmiCradle.");
                 break;
             case M_DISK_EJECT:
-                run_detached("C:ACDisk DRIVE DF0 EJECT QUIET", "DF0 couldn't be ejected.\nIt needs C:ACDisk from AmigaChrome.");
+                run_detached("C:ACDisk DRIVE DF0 EJECT QUIET", "DF0 couldn't be ejected.\nIt needs C:ACDisk from AmiCradle.");
                 break;
             case M_ICON_OPEN:
             case M_ICON_INFO: {
@@ -3084,26 +3084,26 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 redraw_all();
                 break;
             case M_ABOUT:
-                ask("About OpenBench", "OpenBench " OPENBENCH_VERSION "\n\nOur own Workbench for AmigaOS 3.2.\n"
+                ask("About GFOpenBench", "GFOpenBench " OPENBENCH_VERSION "\n\nOur own Workbench for AmigaOS 3.2.\n"
                     "MIT, Copyright (c) 2026 AmigaChrome Team.", "OK");
                 break;
             case M_LOADWB:
             case M_QUIT:
                 if (running) {
                     /* their code is unloaded when they end, by us: as Workbench, we can't go before them.
-                     * 0.1.19: they can be asked to quit (OpenMeters from SYS:WBStartup never ends by itself) */
+                     * 0.1.19: they can be asked to quit (GFOpenMeters from SYS:WBStartup never ends by itself) */
                     char names[400], text[600];
                     launches_reap();
                     running_names(names, sizeof names);
                     if (running) {
-                        snprintf(text, sizeof text, "These programs started from OpenBench are still running:\n%s\n"
-                                 "OpenBench can quit when they have ended.", names);
-                        if (!ask("OpenBench", text, "Ask them to quit|Cancel")) break;
+                        snprintf(text, sizeof text, "These programs started from GFOpenBench are still running:\n%s\n"
+                                 "GFOpenBench can quit when they have ended.", names);
+                        if (!ask("GFOpenBench", text, "Ask them to quit|Cancel")) break;
                         if (!ask_running_to_quit(5)) {
                             running_names(names, sizeof names);
                             snprintf(text, sizeof text, "These programs haven't quit:\n%s\n"
-                                     "Quit them yourself, then quit OpenBench again.", names);
-                            ask("OpenBench", text, "OK");
+                                     "Quit them yourself, then quit GFOpenBench again.", names);
+                            ask("GFOpenBench", text, "OK");
                             break;
                         }
                         if (id == M_LOADWB) quit_to_wb = 1;
@@ -3111,12 +3111,12 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                     }
                 }
                 if (id == M_QUIT) {
-                    if (ask("OpenBench", "Quit OpenBench?\nThere will be no desktop until it is started again\n"
+                    if (ask("GFOpenBench", "Quit GFOpenBench?\nThere will be no desktop until it is started again\n"
                             "(or LoadWB is run from a Shell).", "Quit|Cancel"))
                         return 0;
                     break;
                 }
-                if (ask("OpenBench", "Close OpenBench and start Hyperion's Workbench?", "Workbench|Cancel")) {
+                if (ask("GFOpenBench", "Close GFOpenBench and start Hyperion's Workbench?", "Workbench|Cancel")) {
                     quit_to_wb = 1;
                     return 0;
                 }
@@ -3134,18 +3134,18 @@ static int run_shell;
 
 /* ---- the desktop on the Workbench screen, and its reset ---------------------------------------- *
  * 0.1.19: IPrefs resets the Workbench screen (CloseWorkBench, then OpenWorkBench) when Font prefs' Use or a
- * new screen mode changes it. OpenLook's close notice (Common/wbclose.h) tells OpenBench first, as it tells
- * the dock and OpenMeters: OpenBench closes everything it has on the screen and lets go of it, answers, and
+ * new screen mode changes it. GFOpenLook's close notice (Common/wbclose.h) tells GFOpenBench first, as it tells
+ * the dock and GFOpenMeters: GFOpenBench closes everything it has on the screen and lets go of it, answers, and
  * opens it all again when the screen is back. Before, its root window never answered, and Intuition's
  * requester asked for "<No title>" to be closed. */
 static struct MsgPort *idcmp;
 static APTR vi;
 static int resize_shown, resize_greyed;     /* 0.1.22: Resize to Window in the menu, and greyed */
 
-/* The picture, decoded in a process of its own (0.1.3): IPrefs' root picture; ENV:OpenBench/NoPicture, none. */
+/* The picture, decoded in a process of its own (0.1.3): IPrefs' root picture; ENV:GFOpenBench/NoPicture, none. */
 static void start_picture(void)
 {
-    if (picture_busy || Lock_exists("ENV:OpenBench/NoPicture") || !root_picture(picture_path, sizeof picture_path))
+    if (picture_busy || Lock_exists("ENV:GFOpenBench/NoPicture") || !root_picture(picture_path, sizeof picture_path))
         return;
     if (!DataTypesBase && !(DataTypesBase = OpenLibrary((CONST_STRPTR)"datatypes.library", 44)))
         return;
@@ -3153,7 +3153,7 @@ static void start_picture(void)
     picture_busy = 1;
     picture_ticks = 0;
     if (!(picture_proc = CreateNewProcTags(NP_Entry, (ULONG)picture_entry, NP_StackSize, 16384,
-                                           NP_Name, (ULONG)"OpenBench backdrop", NP_Priority, -1, TAG_DONE)))
+                                           NP_Name, (ULONG)"GFOpenBench backdrop", NP_Priority, -1, TAG_DONE)))
         picture_busy = 0;
 }
 
@@ -3180,7 +3180,7 @@ static void drop_picture(void)
 }
 
 /* 0.1.19: ENV:Sys/WBPattern.prefs changed: the new root picture shows, or the gradient alone, and the old
- * picture's file is let go (OpenUpTool UNINSTALL couldn't delete a backdrop picture OpenBench held open). */
+ * picture's file is let go (GFOpenUpTool UNINSTALL couldn't delete a backdrop picture GFOpenBench held open). */
 static void new_picture(void)
 {
     ULONG *grad;
@@ -3198,7 +3198,7 @@ static void new_picture(void)
     start_picture();
 }
 
-/* Everything OpenBench has on the Workbench screen given up, the screen too: before a reset, and at the end.
+/* Everything GFOpenBench has on the Workbench screen given up, the screen too: before a reset, and at the end.
  * The drawers' paths are kept, to open them again. */
 static void desktop_down(void)
 {
@@ -3251,7 +3251,7 @@ static int desktop_up(void)
     look.font = ogt_open_font(&theme, look.scr, &ta);
     look.ta = &ta;
     /* 0.1.31: the labels, on the desktop and in the drawers, in Font prefs' Workbench icon text font when it sets
-     * one (the user's solid OS list, 24 October 2026, as OpenMeters 0.2.5 draws in it) */
+     * one (the user's solid OS list, 24 October 2026, as GFOpenMeters 0.2.5 draws in it) */
     label_set = ogt_icon_font_attr(&label_asked, label_asked_name, sizeof label_asked_name);
     look.label_font = label_set ? ogt_open_icon_font(&label_ta, label_name, sizeof label_name) : NULL;
     make_title();
@@ -3261,8 +3261,8 @@ static int desktop_up(void)
     bd_h = look.scr->Height;
     backdrop = gradient_backdrop(bd_w, bd_h);
     backfill_hook.h_Entry = (ULONG (*)())bf_entry;
-    /* 0.1.22: a Workbench window (WFLG_WBENCHWINDOW, first: the other tags add to it), as all of OpenBench's
-     * are (mark_ours), so CloseWorkBench() asks OpenBench to close it instead of refusing at once */
+    /* 0.1.22: a Workbench window (WFLG_WBENCHWINDOW, first: the other tags add to it), as all of GFOpenBench's
+     * are (mark_ours), so CloseWorkBench() asks GFOpenBench to close it instead of refusing at once */
     rb = ob_root_box(look.scr->Width, look.scr->Height, look.scr->BarHeight);
     root = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, rb.left, WA_Top, rb.top, WA_Width, rb.width,
                           WA_Height, rb.height, WA_PubScreen, (ULONG)look.scr,
@@ -3308,17 +3308,17 @@ static int desktop_up(void)
  * telling the Workbench nothing, while the screen has a window that isn't the Workbench's (one without
  * WFLG_WBENCHWINDOW). Otherwise it sends the registered Workbench port WBENCHCLOSE, waits for the answer and
  * closes the screen; when that fails (a program still holds a lock on the screen), it sends WBENCHOPEN. So
- * OpenBench registers its port (AlohaWorkbench), marks its own windows as the Workbench's (the root window, the
+ * GFOpenBench registers its port (AlohaWorkbench), marks its own windows as the Workbench's (the root window, the
  * drawers, the dock, the Information windows: mark_ours), closes them on WBENCHCLOSE and opens them again on
- * WBENCHOPEN. A reset by another program (IPrefs, for ScreenMode prefs' Use) then needs no OpenLook; with
- * OpenLook its close notice comes first, as in 0.1.19, and the two agree. CloseWorkBench() and OpenWorkBench()
- * are called from a process of OpenBench's own (reset_entry): Intuition waits for OpenBench's answer to
- * WBENCHCLOSE, which OpenBench's own process could not give while inside the call. */
+ * WBENCHOPEN. A reset by another program (IPrefs, for ScreenMode prefs' Use) then needs no GFOpenLook; with
+ * GFOpenLook its close notice comes first, as in 0.1.19, and the two agree. CloseWorkBench() and OpenWorkBench()
+ * are called from a process of GFOpenBench's own (reset_entry): Intuition waits for GFOpenBench's answer to
+ * WBENCHCLOSE, which GFOpenBench's own process could not give while inside the call. */
 /* 0: the desktop is up; 1: down, the screen being reset; 2: to come up again (tried each time round) */
 static int wb_down;
 static struct MsgPort *aloha_port;          /* Intuition's Workbench messages */
 static int aloha_on;
-static struct Library *OpenRTGBase;         /* openrtg.library 0.17 or later, for the Native size; else NULL */
+static struct Library *OpenRTGBase;         /* gfopenrtg.library 0.17 or later, for the Native size; else NULL */
 static ULONG last_ask;                      /* ASK when last seen: a new value is a page asking to follow now */
 static int ask_seen;
 
@@ -3345,14 +3345,14 @@ static int native_differs(void)
     return ns.width != look.scr->Width || ns.height != look.scr->Height;
 }
 
-/* OpenLook's close notice's list (Common/wbclose.h): the programs that close their windows when told. */
+/* GFOpenLook's close notice's list (Common/wbclose.h): the programs that close their windows when told. */
 static struct WBNRoot *wbn_root(void)
 {
     struct WBNRoot *r = (struct WBNRoot *)FindSemaphore((STRPTR)WBN_SEM_NAME);   /* under Forbid */
     return r && r->magic == WBN_MAGIC ? r : NULL;
 }
 
-/* 1 when OpenLook runs, so its patch tells every registered program to close before the screen does. */
+/* 1 when GFOpenLook runs, so its patch tells every registered program to close before the screen does. */
 static int openlook_running(void)
 {
     struct MsgPort *p;
@@ -3364,14 +3364,14 @@ static int openlook_running(void)
     return on;
 }
 
-/* 1 when task t is OpenBench's: its own process, the dock, an Information window's. Under Forbid. */
+/* 1 when task t is GFOpenBench's: its own process, the dock, an Information window's. Under Forbid. */
 static int task_ours(struct Task *t)
 {
     return t && (t == main_task || t == dock_task() ||
-                 (t->tc_Node.ln_Name && !strcmp(t->tc_Node.ln_Name, "OpenBench Information")));
+                 (t->tc_Node.ln_Name && !strcmp(t->tc_Node.ln_Name, "GFOpenBench Information")));
 }
 
-/* 1 when task t has registered for OpenLook's close notice. Under Forbid. */
+/* 1 when task t has registered for GFOpenLook's close notice. Under Forbid. */
 static int task_told(struct WBNRoot *r, struct Task *t)
 {
     struct MinNode *n;
@@ -3381,8 +3381,8 @@ static int task_told(struct WBNRoot *r, struct Task *t)
     return 0;
 }
 
-/* OpenBench's windows marked as the Workbench's (WFLG_WBENCHWINDOW), as Workbench's own are, so Intuition asks
- * OpenBench to close them instead of refusing. The drawers (opengadtools' wb_drawer), the dock (OpenDock's code)
+/* GFOpenBench's windows marked as the Workbench's (WFLG_WBENCHWINDOW), as Workbench's own are, so Intuition asks
+ * GFOpenBench to close them instead of refusing. The drawers (opengadtools' wb_drawer), the dock (GFOpenDock's code)
  * and the Information windows (processes of their own) open theirs without it: the flag is set after, here,
  * each time the desktop comes up and every two seconds. */
 static void mark_ours(void)
@@ -3395,8 +3395,8 @@ static void mark_ours(void)
     Permit();
 }
 
-/* The windows on the Workbench screen that would stop it closing: not OpenBench's, and not of a program
- * OpenLook's notice will close (when OpenLook runs). Their titles (else their program's name), one to a line,
+/* The windows on the Workbench screen that would stop it closing: not GFOpenBench's, and not of a program
+ * GFOpenLook's notice will close (when GFOpenLook runs). Their titles (else their program's name), one to a line,
  * at most eight, into out; how many there are. scr NULL: the Workbench screen, found by its flag. */
 static int blocking_windows(struct Screen *scr, char *out, int n)
 {
@@ -3426,8 +3426,8 @@ static int blocking_windows(struct Screen *scr, char *out, int n)
     return count;
 }
 
-/* The dock told to close (WBC_CLOSE) or open (WBC_OPEN) through its own close notice record, as OpenLook tells
- * it; closing waits up to 3 s for it to say it has. OpenLook may tell it too: the dock takes either. */
+/* The dock told to close (WBC_CLOSE) or open (WBC_OPEN) through its own close notice record, as GFOpenLook tells
+ * it; closing waits up to 3 s for it to say it has. GFOpenLook may tell it too: the dock takes either. */
 static void tell_dock(LONG what)
 {
     struct WBNRoot *r;
@@ -3455,7 +3455,7 @@ static void tell_dock(LONG what)
     }
 }
 
-/* Everything OpenBench has on the screen closed, the drawers' places kept: before the screen closes. */
+/* Everything GFOpenBench has on the screen closed, the drawers' places kept: before the screen closes. */
 static void go_down(void)
 {
     int i;
@@ -3517,7 +3517,7 @@ static void reset_entry(void)
 
 /* Resize to Window: the Workbench screen closed and opened again, so it opens at the size the host's window
  * asks for. Another program's window would stop the close, so they are named first, with Try Again; nothing
- * of OpenBench's is closed while one is open. */
+ * of GFOpenBench's is closed while one is open. */
 static int start_reset(void)
 {
     char names[480], text[600];
@@ -3526,14 +3526,14 @@ static int start_reset(void)
         if (!blocking_windows(look.scr, names, sizeof names)) break;
         snprintf(text, sizeof text, "The Workbench screen can't be made the window's size\n"
                  "while these windows are open on it:\n%s\nClose them, then Try Again.", names);
-        if (!ask("OpenBench", text, "Try Again|Cancel")) return 0;
+        if (!ask("GFOpenBench", text, "Try Again|Cancel")) return 0;
         if (!root) return 0;                    /* the screen was reset meanwhile */
     }
     go_down();
-    wb_down = 1;                                /* OpenLook's notice and Intuition's WBENCHCLOSE find it down */
+    wb_down = 1;                                /* GFOpenLook's notice and Intuition's WBENCHCLOSE find it down */
     reset_busy = 1;
     reset_blockers[0] = 0;
-    if (!CreateNewProcTags(NP_Entry, (ULONG)reset_entry, NP_StackSize, 8192, NP_Name, (ULONG)"OpenBench reset",
+    if (!CreateNewProcTags(NP_Entry, (ULONG)reset_entry, NP_StackSize, 8192, NP_Name, (ULONG)"GFOpenBench reset",
                            TAG_DONE)) {
         reset_busy = 0;
         wb_down = 2;                            /* up again next time round */
@@ -3573,13 +3573,13 @@ static void native_tick(void)
     }
 }
 
-/* 0.1.39: a signal or a port run() asked for and didn't get (AllocSignal, CreateMsgPort), said where OpenBench's other
+/* 0.1.39: a signal or a port run() asked for and didn't get (AllocSignal, CreateMsgPort), said where GFOpenBench's other
  * lines go, so it is never quiet again: 0.1.38's process asked for 17 of a task's 16 signals, and the drawers'
  * thumbnails were off with no word. */
 static void no_signal(const char *what)
 {
     if (!run_shell) return;
-    PutStr((CONST_STRPTR)"OpenBench: no free signal for ");
+    PutStr((CONST_STRPTR)"GFOpenBench: no free signal for ");
     PutStr((CONST_STRPTR)what);
     PutStr((CONST_STRPTR)"\n");
 }
@@ -3597,8 +3597,8 @@ static void aloha_start(void)
             aloha_on = 1;
         } else no_signal("Intuition's Workbench port");
     }
-    /* openrtg.library 0.17 or later has ORTG_NativeSize */
-    if ((o = OpenLibrary((CONST_STRPTR)"openrtg.library", 0))) {
+    /* gfopenrtg.library 0.17 or later has ORTG_NativeSize */
+    if ((o = OpenLibrary((CONST_STRPTR)"gfopenrtg.library", 0))) {
         if (o->lib_Version > 0 || o->lib_Revision >= 17) OpenRTGBase = o;
         else CloseLibrary(o);
     }
@@ -3623,7 +3623,7 @@ static void aloha_stop(void)
     if (reset_sig >= 0) { FreeSignal(reset_sig); reset_sig = -1; }
 }
 
-/* ENV:Sys's files OpenBench follows (0.1.19): Workbench's settings and IPrefs' patterns; and (0.1.30)
+/* ENV:Sys's files GFOpenBench follows (0.1.19): Workbench's settings and IPrefs' patterns; and (0.1.30)
  * icon.library's labels close to the image. 0.1.39: every notify sends a message to one port, nfy_port, its
  * nr_UserData naming the file (ob_notify.h), where each had a signal of its own (17 asked for, of a task's 16). */
 static struct NotifyRequest wbp_nr, pat_nr, lbl_nr, fnt_nr, lay_nr;
@@ -3706,7 +3706,7 @@ static int run(void)
     if (FindPort((CONST_STRPTR)PORT_NAME)) {
         Permit();
         DeleteMsgPort(pub);
-        if (run_shell) PutStr((CONST_STRPTR)"OpenBench is already running\n");
+        if (run_shell) PutStr((CONST_STRPTR)"GFOpenBench is already running\n");
         return RETURN_WARN;
     }
     AddPort(pub);
@@ -3715,7 +3715,7 @@ static int run(void)
     IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 44);
     WorkbenchBase = OpenLibrary((CONST_STRPTR)"workbench.library", 44);
     CyberGfxBase = OpenLibrary((CONST_STRPTR)"cybergraphics.library", 40);
-    /* OpenDrawer's pictures (the list's small icons, sizes, thumbnails) are written with cybergraphics,
+    /* GFOpenDrawer's pictures (the list's small icons, sizes, thumbnails) are written with cybergraphics,
      * which wb_pic opens for itself: 0.1.20, which never opened it, drew them all as icons (Instance-32) */
     wb_pic_open();
     if (!IconBase) goto out;
@@ -3729,7 +3729,7 @@ static int run(void)
     }
     if (!(look.scr = LockPubScreen((CONST_STRPTR)"Workbench"))) goto out;
     if (!rtg_here(look.scr)) {
-        if (run_shell) PutStr((CONST_STRPTR)"OpenBench: OpenRTG reports no RTG here: Workbench as usual\n");
+        if (run_shell) PutStr((CONST_STRPTR)"GFOpenBench: GFOpenRTG reports no RTG here: Workbench as usual\n");
         UnlockPubScreen(NULL, look.scr);
         look.scr = NULL;
         run_loadwb();
@@ -3737,11 +3737,11 @@ static int run(void)
             loadwb_gave = 1;
             goto out;                              /* ok stays 0, and LoadWB is not run again */
         }
-        /* No Workbench came: on the open ROM, workbench.library's StartWorkbench starts OpenBench and refuses
-         * while an OpenBench process runs, so on an 8-bit RTG or an AGA screen no desktop opened at all
-         * (W33, 16 October 2026; lab t5-display, 17 October). OpenBench is then the desktop, on its palette
+        /* No Workbench came: on the open ROM, workbench.library's StartWorkbench starts GFOpenBench and refuses
+         * while a GFOpenBench process runs, so on an 8-bit RTG or an AGA screen no desktop opened at all
+         * (W33, 16 October 2026; lab t5-display, 17 October). GFOpenBench is then the desktop, on its palette
          * fallback. */
-        if (run_shell) PutStr((CONST_STRPTR)"OpenBench: LoadWB started no Workbench: OpenBench on this screen\n");
+        if (run_shell) PutStr((CONST_STRPTR)"GFOpenBench: LoadWB started no Workbench: GFOpenBench on this screen\n");
         if (!(look.scr = LockPubScreen((CONST_STRPTR)"Workbench"))) goto out;
     }
     if (!(idcmp = CreateMsgPort())) {
@@ -3757,9 +3757,9 @@ static int run(void)
     look.snapped = drawer_snapped;                 /* 0.1.38: Snapshot in the drawers */
     look.snap = drawer_snap;
     look.leave_out = drawer_leave_out;             /* 0.1.41: Icons > Leave Out in the drawers (.backdrop) */
-    snaps_load();                                  /* 0.1.38: the places OpenBench snapshotted, before the icons */
+    snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
-    aloha_start();                                 /* 0.1.22: Intuition's Workbench port, openrtg.library 0.17 */
+    aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */
     if (!desktop_up()) goto out;
     ok = 1;
 
@@ -3768,7 +3768,7 @@ static int run(void)
     wbp_notify = notify_on(&wbp_nr, "ENV:Sys/Workbench.prefs", OB_FILE_WBPREFS);
     pat_notify = notify_on(&pat_nr, "ENV:Sys/WBPattern.prefs", OB_FILE_PATTERN);
     lbl_notify = notify_on(&lbl_nr, "ENV:Sys/IconLabels", OB_FILE_LABELS);
-    /* 0.1.34: the icons' layout (OpenPrefs' Icons page) */
+    /* 0.1.34: the icons' layout (GFOpenPrefs' Icons page) */
     lay_notify = notify_on(&lay_nr, "ENV:Sys/IconLayout", OB_FILE_LAYOUT);
     /* 0.1.37: No icons' variable, looked at with the labels' (OB_DO_ICONS); without a notify, the 2-second timer
      * looks */
@@ -3776,8 +3776,8 @@ static int run(void)
     ob_seen_init(&seen);
     iconprefs_moved();                             /* what the labels' look compares with */
     fnt_notify = notify_on(&fnt_nr, "ENV:Sys/font.prefs", OB_FILE_FONT);
-    wbc_start();                                   /* OpenLook's close notice */
-    if (wbc_sig < 0 || !wbc_port) no_signal("OpenLook's close notice");
+    wbc_start();                                   /* GFOpenLook's close notice */
+    if (wbc_sig < 0 || !wbc_port) no_signal("GFOpenLook's close notice");
     /* 0.1.26: before the dock and WBStartup add AppWindows */
     if (!ob_drop_start(&drop_env)) no_signal("drag and drop's ports");
     start_dock();
@@ -3862,7 +3862,7 @@ static int run(void)
             else
                 snprintf(text, sizeof text, "The Workbench screen couldn't be made the window's size:\n"
                          "a program is still using the screen.\nQuit the programs you started on it, then Try Again.");
-            if (ask("OpenBench", text, "Try Again|Cancel")) resize_to_window();
+            if (ask("GFOpenBench", text, "Try Again|Cancel")) resize_to_window();
         }
         launches_reap();
         if (sigs & ob_drop_sigmask()) ob_drop_handle();   /* 0.1.26: copies done, AppMessages answered */
@@ -3889,7 +3889,7 @@ static int run(void)
         if (todo & OB_DO_ICONS) {
             /* IconLabels, IconLayout, or (0.1.37) ENV:Sys/DesktopIcons (No icons): that at once */
             noicons_apply(ob_show_set(&show, deskicons_none()));
-            /* the labels' place or the icons' layout changed (OpenPrefs' Icons page): the desktop's icons read again,
+            /* the labels' place or the icons' layout changed (GFOpenPrefs' Icons page): the desktop's icons read again,
              * once icon.library (which reads its setting at most once a second) has the new one, and (0.1.34) every
              * drawer's, which are laid out again. 0.1.37: only when one of the two did change, not for No icons */
             if (root && iconprefs_moved()) {
@@ -3948,7 +3948,7 @@ static int run(void)
             APTR ia = im->IAddress;
             WORD mx = im->MouseX, my = im->MouseY;
             GT_ReplyIMsg(im);
-            /* 0.1.44: words held in the title (say_title) go at the next click, in any of OpenBench's windows */
+            /* 0.1.44: words held in the title (say_title) go at the next click, in any of GFOpenBench's windows */
             if (title_held && cl == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) title_release();
             if (root && win == root) {
                 if (!root_event(cl, code, qual, mx, my, secs, micros)) quit = 1;
@@ -3996,7 +3996,7 @@ out:
     if (launch_port) {
         /* tools still running keep their code until they end: they are asked to quit, then waited for */
         if (running && !ask_running_to_quit(5) && run_shell)
-            PutStr((CONST_STRPTR)"OpenBench: waiting for the programs it started to end\n");
+            PutStr((CONST_STRPTR)"GFOpenBench: waiting for the programs it started to end\n");
         while (running) {
             WaitPort(launch_port);
             launches_reap();
@@ -4022,7 +4022,7 @@ out:
     return ok ? RETURN_OK : RETURN_FAIL;
 }
 
-/* ---- the run in a process of its own, when the stack given is small (as OpenDrawer) ---------- */
+/* ---- the run in a process of its own, when the stack given is small (as GFOpenDrawer) ---------- */
 
 static struct Task *volatile run_task;
 static struct Task *volatile parent_task;
@@ -4049,7 +4049,7 @@ static int run_in_process(void)
     if (sig < 0) return RETURN_FAIL;
     parent_task = FindTask(NULL);
     done_mask = 1UL << sig;
-    if (!CreateNewProcTags(NP_Entry, (ULONG)run_entry, NP_StackSize, STACK_NEED, NP_Name, (ULONG)"OpenBench", TAG_DONE)) {
+    if (!CreateNewProcTags(NP_Entry, (ULONG)run_entry, NP_StackSize, STACK_NEED, NP_Name, (ULONG)"GFOpenBench", TAG_DONE)) {
         FreeSignal(sig);
         return RETURN_FAIL;
     }

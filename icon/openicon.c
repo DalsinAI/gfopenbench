@@ -1,4 +1,4 @@
-/* openicon.library: our icon.library's own calls, at icon.library's LVOs,
+/* gfopenicon.library: our icon.library's own calls, at icon.library's LVOs,
  * under a test name (step R2, amigachrome
  * docs/design/Design-Workbench-Replacement.md, sections 3 and 8). It is
  * opened beside Hyperion's icon.library by tools/iconprobe, which makes
@@ -53,7 +53,7 @@
 #define REG(r, decl) register decl __asm(#r)
 
 #ifndef LIBNAME
-#define LIBNAME "openicon.library"
+#define LIBNAME "gfopenicon.library"
 #endif
 #define VERSION 47
 #define REVISION 5
@@ -62,9 +62,9 @@
 __asm("\t.text\n\t.globl _oi_start\n_oi_start:\n\tmoveq #-1,d0\n\trts\n");
 
 static const char lib_name[] = LIBNAME;
-static const char lib_id[] = "icon.library 47.5 (12.10.2026) OpenBench R3 (our own, for the side-by-side test)\r\n";
+static const char lib_id[] = "icon.library 47.5 (12.10.2026) GFOpenBench R3 (our own, for the side-by-side test)\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: openicon.library 47.5 (12.10.2026) OpenBench R2, MIT, Copyright (c) 2026 AmigaChrome Team";
+    "$VER: gfopenicon.library 47.5 (12.10.2026) GFOpenBench R2, MIT, Copyright (c) 2026 AmigaChrome Team";
 
 /* The layouts the file format and the programs share. */
 typedef char check_diskobject[sizeof(struct DiskObject) == 78 ? 1 : -1];

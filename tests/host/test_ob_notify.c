@@ -1,4 +1,4 @@
-/* ob_notify's host test: the ENV: files OpenBench follows on one port (OpenBench 0.1.39), what each request's
+/* ob_notify's host test: the ENV: files GFOpenBench follows on one port (GFOpenBench 0.1.39), what each request's
  * nr_UserData asks for, that user data naming no file is left out, and that the labels' look still lays the icons
  * out again only when IconLabels or IconLayout changed (0.1.37's rule, with ob_show's ob_seen).
  *   test_ob_notify
@@ -40,7 +40,7 @@ static void each(void)
     CHECK(todo_of(f) == OB_DO_ICONS, "DesktopIcons: the same look (it shared IconLabels' signal)");
 }
 
-/* Several messages before OpenBench wakes: one look each, whatever their number and order */
+/* Several messages before GFOpenBench wakes: one look each, whatever their number and order */
 static void together(void)
 {
     unsigned long all[] = { OB_FILE_DESKICONS, OB_FILE_FONT, OB_FILE_LAYOUT, OB_FILE_PATTERN, OB_FILE_LABELS,

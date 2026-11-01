@@ -1,4 +1,4 @@
-# OpenBench: the design
+# GFOpenBench: the design
 
 The design lives in amigachrome, beside the Team's other designs: **`docs/design/Design-Workbench-Replacement.md`**.
 
@@ -7,10 +7,10 @@ What it says, in short:
 - **Three pieces:**
   - our `icon.library`;
   - a thin `workbench.library` holding what programs register (AppIcons, AppWindows, AppMenuItems, drop zones);
-  - the desktop, OpenBench (`SYS:System/OpenBench`, process `Workbench`, ARexx port `WORKBENCH`).
+  - the desktop, GFOpenBench (`SYS:System/GFOpenBench`, process `Workbench`, ARexx port `WORKBENCH`).
 - **Proxy first.**
   - Each library forwards to Hyperion's original until each group of entries matches it in a lab. A `DiskObject` or App object always goes back to the code that made it.
-  - Hold Shift, or set `ENV:OpenBench/Original`, and everything is forwarded: the safe start.
+  - Hold Shift, or set `ENV:GFOpenBench/Original`, and everything is forwarded: the safe start.
   - A desktop that won't start falls back to Hyperion's.
 - **No new entry points.**
   - 3.2's tables exactly: 19 entries in `workbench.library` and 30 in `icon.library`.

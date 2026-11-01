@@ -32,7 +32,7 @@ typedef char check_orig[offsetof(struct ProxyBase, orig) == PB_ORIG ? 1 : -1];
 typedef char check_spy[offsetof(struct ProxyBase, spy) == PB_SPY ? 1 : -1];
 #endif
 
-#define ORIGINALS "SYS:Storage/OpenUp-Superseded"   /* where OpenUp's retire lines put Hyperion's files */
+#define ORIGINALS "SYS:Storage/GFOpenUp-Superseded"   /* where GFOpenUp's retire lines put Hyperion's files */
 #define DEFAULT_SPY 2048
 
 /* ---- small helpers (no C library) ---- */
@@ -102,14 +102,14 @@ static struct Resident *find_romtag(BPTR seg)
     return NULL;
 }
 
-/* ENV:OpenBench/Spy-workbench.library (or -icon.library): the spy on from
+/* ENV:GFOpenBench/Spy-workbench.library (or -icon.library): the spy on from
  * the first open, so the boot's calls are recorded; its value is how many
  * calls the ring keeps (0 or not a number: DEFAULT_SPY). */
 static void spy_from_env(struct ProxyBase *b)
 {
     char var[64], v[16];
     ULONG n;
-    copy_str(var, "OpenBench/Spy-", sizeof var);
+    copy_str(var, "GFOpenBench/Spy-", sizeof var);
     copy_str(var + 14, b->name, sizeof var - 14);
     if (GetVar((STRPTR)var, (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) <= 0) return;
     n = to_ulong(v);
@@ -142,7 +142,7 @@ static int load_original(struct ProxyBase *b)
         b->error = 0;
         return 1;
     }
-    if (GetVar((STRPTR)"OpenBench/Originals", (STRPTR)path, 160, GVF_GLOBAL_ONLY) <= 0)
+    if (GetVar((STRPTR)"GFOpenBench/Originals", (STRPTR)path, 160, GVF_GLOBAL_ONLY) <= 0)
         copy_str(path, ORIGINALS, sizeof path);
     if (!AddPart((STRPTR)path, (STRPTR)b->name, sizeof path)) {
         b->error = ERROR_LINE_TOO_LONG;

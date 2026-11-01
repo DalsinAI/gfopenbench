@@ -1,5 +1,5 @@
-/* ob_info: OpenBench's Information window (the Team, 11 October 2026: "show information doesn't work either":
- * the drawers asked workbench.library's WBInfo(), which does nothing while Workbench isn't running, and OpenBench
+/* ob_info: GFOpenBench's Information window (the Team, 11 October 2026: "show information doesn't work either":
+ * the drawers asked workbench.library's WBInfo(), which does nothing while Workbench isn't running, and GFOpenBench
  * is the Workbench). One window for each icon asked about, each in a process of its own so the desktop goes on:
  * the icon, its name (renamed, or a disk relabelled, on Save), what it is, its size and date, the protection
  * bits, the comment, a project's default tool and the tool types, which can be edited, added and removed.
@@ -10,7 +10,7 @@
 #include <exec/types.h>
 #include <intuition/screens.h>
 
-/* An Information window for path ("Work:", "Work:Tools/OpenMeters") on screen scr. 1 when it was started (or the
+/* An Information window for path ("Work:", "Work:Tools/GFOpenMeters") on screen scr. 1 when it was started (or the
  * one for that path was brought to the front), 0 when not. */
 int ob_info_open(struct Screen *scr, const char *path);
 /* How many are open. */

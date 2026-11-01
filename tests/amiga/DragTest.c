@@ -1,5 +1,5 @@
 /* DragTest: the mouse and the keys of a lab, from inside it, at exact places, for testing drag and drop on
- * OpenBench and on OS 3.2.3's own Workbench alike (the Team, 24 October 2026). It writes events into
+ * GFOpenBench and on OS 3.2.3's own Workbench alike (the Team, 24 October 2026). It writes events into
  * input.device as the mouse and the keyboard would: the pointer is placed in screen pixels
  * (IECLASS_NEWPOINTERPOS, IESUBCLASS_PIXEL), so a test isn't thrown off by the mouse's acceleration.
  *
@@ -17,7 +17,7 @@
  *   DragTest INHIBIT drive ON|OFF         the drive's file system stopped (its disk goes from the desktop, as while Format
  *                                         works) or started again (it comes back), then DISKOUT or DISKIN: a drive
  *                                         taken away and given back while the desktop runs
- *   DragTest OPEN path                    opened as the desktop opens it: OpenBench's port (OPENBENCH, openamigaprefs
+ *   DragTest OPEN path                    opened as the desktop opens it: GFOpenBench's port (GFOPENBENCH, openamigaprefs
  *                                         Common/obmsg.h), else workbench.library's OpenWorkbenchObjectA
  *
  * QUAL is a list joined by "+": LSHIFT, RSHIFT, CAPS, CTRL, LALT, RALT, LAMIGA, RAMIGA. Each one's key goes
@@ -42,7 +42,7 @@
 #include <proto/intuition.h>
 #include <proto/wb.h>
 
-const char version[] = "$VER: DragTest 1.0 (24.10.2026) AmigaChrome Team";
+const char version[] = "$VER: DragTest 1.0 (24.10.2026) AmiCradle Team";
 
 extern struct IntuitionBase *IntuitionBase;
 
@@ -138,7 +138,7 @@ static void keys_up(const UBYTE *keys, int n, UWORD qual)
     }
 }
 
-/* OpenBench's message (openamigaprefs Common/obmsg.h: keep the layout the same) */
+/* GFOpenBench's message (openamigaprefs Common/obmsg.h: keep the layout the same) */
 struct ob_msg {
     struct Message m;
     ULONG magic;
@@ -158,7 +158,7 @@ static int open_object(const char *path)
         m->magic = 0x4F424D31UL;
         strncpy(m->path, path, sizeof m->path - 1);
         Forbid();
-        if ((ob = FindPort((CONST_STRPTR)"OPENBENCH"))) PutMsg(ob, &m->m);
+        if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) PutMsg(ob, &m->m);
         Permit();
         if (ob) {
             WaitPort(reply);

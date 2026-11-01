@@ -1,7 +1,7 @@
 /* proxy: what our workbench.library and icon.library share in step R1
  * (amigachrome docs/design/Design-Workbench-Replacement.md, sections 4.5
  * and 8). Each library forwards every entry to Hyperion's original, which
- * it loads privately from SYS:Storage/OpenUp-Superseded/ and links into
+ * it loads privately from SYS:Storage/GFOpenUp-Superseded/ and links into
  * exec's list under a private name, so OpenLibrary("workbench.library")
  * still finds ours. The spy (wbspy) records every call while it is on.
  *
@@ -17,7 +17,7 @@
 #include <exec/semaphores.h>
 #include <dos/dos.h>
 
-#define PB_MAGIC 0x4F42504EUL       /* "OBPN": an OpenBench proxy base */
+#define PB_MAGIC 0x4F42504EUL       /* "OBPN": a GFOpenBench proxy base */
 #define PB_VERSION 3                /* this layout (3: the bytes behind each tag's data, L2) */
 
 /* Where the stubs find the original's base and the spy (bytes from the base). */
@@ -41,7 +41,7 @@ struct ProxyBase {
     struct SignalSemaphore lock;    /* loading the original */
     struct Task *loading;           /* the task loading it, while it does */
     const char *name;               /* "workbench.library" */
-    const char *private_name;       /* "OpenUp.original.workbench.library" */
+    const char *private_name;       /* "GFOpenUp.original.workbench.library" */
     const struct spy_func *funcs;   /* each entry's name and what the spy copies (wbspy reads the names) */
     LONG error;                     /* why the original couldn't be had (IoErr, or ours below) */
     struct Library *orig_linked;    /* the original, made and linked, before it is opened */

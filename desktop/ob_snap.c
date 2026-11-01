@@ -1,4 +1,4 @@
-/* ob_snap.c: Snapshot's record, the icon places OpenBench wrote (ob_snap.h).
+/* ob_snap.c: Snapshot's record, the icon places GFOpenBench wrote (ob_snap.h).
  * MIT, Copyright (c) 2026 AmigaChrome Team. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +6,7 @@
 
 #include "ob_snap.h"
 
-#define HEADER "# OpenBench's snapshots: the icon places OpenBench wrote into .info files (Icons > Snapshot).\n" \
+#define HEADER "# GFOpenBench's snapshots: the icon places GFOpenBench wrote into .info files (Icons > Snapshot).\n" \
                "# volume, path on it, D desktop or W drawer, the place in the .info, the cell on the grid\n"
 
 void ob_snap_init(ob_snap *s)

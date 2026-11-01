@@ -1,17 +1,17 @@
-/* ob_builtin: programs built into OpenBench (the Team, 11 October 2026: the Open preferences in OpenBench
- * natively, as the dock is). Each is its own program's code, compiled into OpenBench with -DIN_OPENBENCH and
+/* ob_builtin: programs built into GFOpenBench (the Team, 11 October 2026: the Open preferences in GFOpenBench
+ * natively, as the dock is). Each is its own program's code, compiled into GFOpenBench with -DIN_OPENBENCH and
  * its main() renamed (-Dmain=<name>_main), listed in ob_builtin_list.h. When its path is opened (a drawer,
- * the dock, the cog, OBOpen: SYS:Prefs/OpenLook, or just "OpenLook") OpenBench starts it as a process of its
+ * the dock, the cog, OBOpen: SYS:Prefs/GFOpenLook, or just "GFOpenLook") GFOpenBench starts it as a process of its
  * own, with no input or output, as Workbench starts a tool; one at a time: opened again while it runs, it is
  * sent Ctrl-F (a built-in brings its window to the front on Ctrl-F).
  *
- * The rules a built-in follows (as OpenDock's code does inside OpenBench):
- *  - its library bases are OpenBench's (extern under IN_OPENBENCH): it opens no library OpenBench has open,
+ * The rules a built-in follows (as GFOpenDock's code does inside GFOpenBench):
+ *  - its library bases are GFOpenBench's (extern under IN_OPENBENCH): it opens no library GFOpenBench has open,
  *    or opens its own under its own names;
  *  - its globals are static, or named for it, so two built-ins never share one;
- *  - malloc, calloc, realloc and free are OpenBench's (ob_malloc.c: AllocVec, safe from any task), so the C
+ *  - malloc, calloc, realloc and free are GFOpenBench's (ob_malloc.c: AllocVec, safe from any task), so the C
  *    library's heap is never shared between tasks; no stdio (Output() is 0);
- *  - it returns from its main() when it is done, everything freed, and quits on Ctrl-C (OpenBench sends it
+ *  - it returns from its main() when it is done, everything freed, and quits on Ctrl-C (GFOpenBench sends it
  *    when it quits).
  *
  * MIT, Copyright (c) 2026 AmigaChrome Team. */

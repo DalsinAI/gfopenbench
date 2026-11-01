@@ -1,9 +1,9 @@
 #!/bin/sh
-# OpenBench's libraries and tools with the os32-gcc16 stove (m68k-amigaos-gcc 16, NDK 3.2; the NDK is never
+# GFOpenBench's libraries and tools with the os32-gcc16 stove (m68k-amigaos-gcc 16, NDK 3.2; the NDK is never
 # in this repository). Step R1: our workbench.library and icon.library,
 # which forward every call to Hyperion's originals, and wbspy.
 #   build.sh [OUT_DIR]   (default build/os3)
-# The compiler: OS32_GCC16, else STOVE, else ~/AmigaChrome/stoves/os32-gcc16 (as desktop/build.sh); it stops
+# The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16 (as desktop/build.sh); it stops
 # when given an older GCC (the os32 stove's GCC 6.5.0b merges a word clear and the long clear after it into one
 # clr.l at -O2), and builds -fno-tree-loop-distribute-patterns (GCC 16.2.0b's loop-shift trap).
 # MIT, Copyright (c) 2026 AmigaChrome Team.
@@ -12,7 +12,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the
 # mathieee libraries), not libm881, so one build runs on every 68040.
 SPECS="-specs=$HERE/toolchain/m68k-soft-m68040.specs"
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmigaChrome/stoves/os32-gcc16}}
+STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
 [ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: this needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }
@@ -22,7 +22,7 @@ COMMON="-noixemul -m68040 $SPECS -std=gnu99 -Wall -Werror -O2 -fno-tree-loop-dis
 # GCC 16.2.0-open3's late-combine pass has a wrong-code bug (GCC PR 123853): at -O2 it can copy with (aN)+ and use aN
 # again in the same move's destination, which the 68k works out after the step, so each store lands one place late
 # (libnix's inline strcpy of a constant does it: openamigaprefs' wbclose.h in desktop/ and meters/). Off until
-# OpenAmigaGCC open4 (openamigagcc #29), on a compiler that knows the option.
+# GFOpenAmigaGCC open4 (openamigagcc #29), on a compiler that knows the option.
 if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/null; then COMMON="$COMMON -fno-late-combine-instructions"; fi
 # The libraries: no C library and no start code (and no loop turned into a
 # call to the memset they define themselves). Each file's first bytes
@@ -32,36 +32,36 @@ LIB="$COMMON -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fno
 "$CC" $LIB -o "$OUT/workbench.library" "$HERE/workbench/wblib.c" "$HERE/proxy/proxy.c" -lgcc
 # shellcheck disable=SC2086
 "$CC" $LIB -o "$OUT/icon.library" "$HERE/icon/iconlib.c" "$HERE/proxy/proxy.c" -lgcc
-# Step R2: icon.library's own calls, not switched on: openicon.library
+# Step R2: icon.library's own calls, not switched on: gfopenicon.library
 # (icon.library's table under a test name) and iconprobe, which calls it
 # and Hyperion's side by side.
 # shellcheck disable=SC2086
 "$CC" $LIB -Wextra -c -o /dev/null "$HERE/icon/icon_core.c"
 # shellcheck disable=SC2086
-"$CC" $LIB -o "$OUT/openicon.library" "$HERE/icon/openicon.c" "$HERE/icon/icon_core.c" -lgcc
-und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/openicon.library" || true)
-[ -z "$und" ] || { echo "undefined in openicon.library: $und" >&2; exit 1; }
+"$CC" $LIB -o "$OUT/gfopenicon.library" "$HERE/icon/openicon.c" "$HERE/icon/icon_core.c" -lgcc
+und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenicon.library" || true)
+[ -z "$und" ] || { echo "undefined in gfopenicon.library: $und" >&2; exit 1; }
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/iconprobe" "$HERE/tools/iconprobe.c"
-# the host tests' icons, for iconprobe in a lab (SYS:Storage/OpenBench-Icons)
+# the host tests' icons, for iconprobe in a lab (SYS:Storage/GFOpenBench-Icons)
 if command -v python3 >/dev/null; then
-  rm -rf "$OUT/OpenBench-Icons"
-  python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/OpenBench-Icons" >/dev/null
-  rm -f "$OUT/OpenBench-Icons/"*.want "$OUT/OpenBench-Icons/manifest.txt" "$OUT/OpenBench-Icons/deflate.bin"
+  rm -rf "$OUT/GFOpenBench-Icons"
+  python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/GFOpenBench-Icons" >/dev/null
+  rm -f "$OUT/GFOpenBench-Icons/"*.want "$OUT/GFOpenBench-Icons/manifest.txt" "$OUT/GFOpenBench-Icons/deflate.bin"
 fi
 # Step L1 (docs/design/Design-Open-Workbench-Library.md): workbench.library's
-# own lists, not switched on: openbench.library (workbench.library's table
+# own lists, not switched on: gfopenbench.library (workbench.library's table
 # under a test name) and WorkbenchABITest, which calls it and the system's
 # side by side.
 # shellcheck disable=SC2086
 "$CC" $LIB -Wextra -c -o /dev/null "$HERE/workbench/wb_core.c"
 # shellcheck disable=SC2086
-"$CC" $LIB -o "$OUT/openbench.library" "$HERE/workbench/openbench.c" "$HERE/workbench/wb_core.c" -lgcc
-und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/openbench.library" || true)
-[ -z "$und" ] || { echo "undefined in openbench.library: $und" >&2; exit 1; }
+"$CC" $LIB -o "$OUT/gfopenbench.library" "$HERE/workbench/openbench.c" "$HERE/workbench/wb_core.c" -lgcc
+und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
+[ -z "$und" ] || { echo "undefined in gfopenbench.library: $und" >&2; exit 1; }
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/WorkbenchABITest" "$HERE/tests/amiga/WorkbenchABITest.c"
-# DragTest: a lab's mouse and keys from inside it, at exact places, for the drag and drop tests (OpenBench 0.1.35)
+# DragTest: a lab's mouse and keys from inside it, at exact places, for the drag and drop tests (GFOpenBench 0.1.35)
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
 # shellcheck disable=SC2086
@@ -74,5 +74,5 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/openbench.library" || true)
 "$CC" $COMMON -o "$OUT/alohaprobe" "$HERE/tools/alohaprobe.c"
 cp "$HERE/lab/Install-R1" "$HERE/lab/Uninstall-R1" "$OUT/"
 size() { wc -c < "$1" | tr -d ' '; }
-echo "$OUT: workbench.library ($(size "$OUT/workbench.library") bytes), icon.library ($(size "$OUT/icon.library") bytes), wbspy ($(size "$OUT/wbspy") bytes), alohaprobe ($(size "$OUT/alohaprobe") bytes), openicon.library ($(size "$OUT/openicon.library") bytes), iconprobe ($(size "$OUT/iconprobe") bytes), openbench.library ($(size "$OUT/openbench.library") bytes), WorkbenchABITest ($(size "$OUT/WorkbenchABITest") bytes)"
-sha256sum "$OUT/openicon.library" "$OUT/iconprobe" "$OUT/openbench.library" "$OUT/WorkbenchABITest" 2>/dev/null || true
+echo "$OUT: workbench.library ($(size "$OUT/workbench.library") bytes), icon.library ($(size "$OUT/icon.library") bytes), wbspy ($(size "$OUT/wbspy") bytes), alohaprobe ($(size "$OUT/alohaprobe") bytes), gfopenicon.library ($(size "$OUT/gfopenicon.library") bytes), iconprobe ($(size "$OUT/iconprobe") bytes), gfopenbench.library ($(size "$OUT/gfopenbench.library") bytes), WorkbenchABITest ($(size "$OUT/WorkbenchABITest") bytes)"
+sha256sum "$OUT/gfopenicon.library" "$OUT/iconprobe" "$OUT/gfopenbench.library" "$OUT/WorkbenchABITest" 2>/dev/null || true

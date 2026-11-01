@@ -1,6 +1,6 @@
 /* wb_core: the Team's workbench.library lists, in portable C (step L1 of
  * docs/design/Design-Open-Workbench-Library.md). workbench.library is
- * OpenBench itself (the user's decisions of 13 October 2026); this is the
+ * GFOpenBench itself (the user's decisions of 13 October 2026); this is the
  * part of it that only keeps lists.
  *
  * The parts of workbench.library that only keep lists and settings:

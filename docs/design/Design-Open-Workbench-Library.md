@@ -1,38 +1,38 @@
-# workbench.library: OpenBench is the library
+# workbench.library: GFOpenBench is the library
 
 | Document | Detail |
 | --- | --- |
 | Kind | Design |
 | Date | 13 October 2026 |
-| Status | **Version 0.2, with the user's decisions of 13 October 2026** (section 9). Version 0.1 proposed a library acting as OpenBench's face, with OS 3.2's Workbench still possible beside it. The user chose otherwise: OS 3.2's `workbench.library` is retired, and OpenBench becomes `workbench.library` itself. Nothing hooks yet. Step L1 is built and hooks nothing: the lists, a test build under its own name, and the side-by-side test. L2 is approved (section 8) |
+| Status | **Version 0.2, with the user's decisions of 13 October 2026** (section 9). Version 0.1 proposed a library acting as GFOpenBench's face, with OS 3.2's Workbench still possible beside it. The user chose otherwise: OS 3.2's `workbench.library` is retired, and GFOpenBench becomes `workbench.library` itself. Nothing hooks yet. Step L1 is built and hooks nothing: the lists, a test build under its own name, and the side-by-side test. L2 is approved (section 8) |
 | Decisions it carries out | 13 October 2026: a real `workbench.library` for Team 4, its design approved before anything hooks. Then the decisions recorded on openamigabench #22 (section 9) |
-| Builds on | amigachrome `docs/design/Design-Workbench-Replacement.md` 0.2, the replacement approved on 9 October. This design takes its section 4 further, and the decisions of 13 October replace its proxy and forwarding rules for `workbench.library`. Also amigachrome-guest `libraries/OPEN_LIBRARIES.md`; OpenBench 0.1.22 (`desktop/openbench.c`); R1's proxy (`workbench/wblib.c`, `proxy/`) |
+| Builds on | amigachrome `docs/design/Design-Workbench-Replacement.md` 0.2, the replacement approved on 9 October. This design takes its section 4 further, and the decisions of 13 October replace its proxy and forwarding rules for `workbench.library`. Also amigachrome-guest `libraries/OPEN_LIBRARIES.md`; GFOpenBench 0.1.22 (`desktop/openbench.c`); R1's proxy (`workbench/wblib.c`, `proxy/`) |
 | Marks | (measured) seen on OS 3.2.3 in lab `wblib-a` by `WorkbenchABITest`, or read from the NDK 3.2 autodoc and headers; (recorded) in a Team document; (estimate) the Team's judgement; (to record) not known yet, recorded at step L2 |
 
 > **In short**
-> - **OpenBench is `workbench.library`.** OS 3.2's library is retired. One library does all of it:
+> - **GFOpenBench is `workbench.library`.** OS 3.2's library is retired. One library does all of it:
 >   - it holds the lists programs register and the Workbench settings;
 >   - it answers every call;
 >   - it runs the desktop: the root window, drawers, menus, AppIcons, the Information window.
 >
 >   There is no separate desktop program to talk to, and nothing is forwarded.
 > - **OS 3.2's face, then the Team's.** The 19 entries of `wb_lib.sfd` 47.1 come first, with the same registers, structures and answers. The Team's own calls follow them, and the library is version 48.
-> - **`LoadWB` and `StartWorkbench` start OpenBench.** A second call while it runs does nothing.
-> - **There is no Quit to Workbench.** OpenBench runs until the machine is restarted or powered off.
+> - **`LoadWB` and `StartWorkbench` start GFOpenBench.** A second call while it runs does nothing.
+> - **There is no Quit to Workbench.** GFOpenBench runs until the machine is restarted or powered off.
 > - **App objects are kept before the desktop is up** and shown once it is. OS 3.2 refuses them.
 > - **One voice for the Workbench settings.** The library holds them; nothing else reads `Workbench.prefs`.
 > - **Shift at boot is the rescue:** OS 3.2's library and `LoadWB`, for that boot only. It is not a desktop to switch to.
-> - **Measured first.** The list calls are built, and compared with OS 3.2's in a lab, side by side under the test name `openbench.library`. With OS 3.2's Workbench running, 114 cases give 4 differences, all questions for the desktop that L3 answers (section 7).
+> - **Measured first.** The list calls are built, and compared with OS 3.2's in a lab, side by side under the test name `gfopenbench.library`. With OS 3.2's Workbench running, 114 cases give 4 differences, all questions for the desktop that L3 answers (section 7).
 
 ## 1. What this is
 
-- **The Team's own `workbench.library`, which is OpenBench.** On 13 October the user retired OS 3.2's `workbench.library` in favour of OpenBench. OpenBench takes its name and offers OS 3.2's calls and the Team's extensions.
+- **The Team's own `workbench.library`, which is GFOpenBench.** On 13 October the user retired OS 3.2's `workbench.library` in favour of GFOpenBench. GFOpenBench takes its name and offers OS 3.2's calls and the Team's extensions.
 - **What changes from the replacement design of 9 October:**
   - There is no separate desktop process started by the library, and no private port between them: the desktop's work is in the library.
   - There is no proxy mode for `workbench.library` and no hand-over to OS 3.2's. R1's proxy stays only as the lab tool that records OS 3.2's private calls (L2).
   - The library is version 48, not 47.42, because the Team's calls come after OS 3.2's.
 - **What doesn't change:** OS 3.2's 19 entries keep their offsets, registers and answers. So every program written for OS 3.2's `workbench.library` works unchanged.
-- **It isn't `openworkbench.library`.** amigachrome's `Design-OpenWorkbench-Library.md` is the theme, rules and patch library the Open tools share. This design lives here, beside the code, with a pointer from amigachrome's `docs/design/` (decision 10).
+- **It isn't `gfopenworkbench.library`.** amigachrome's `Design-OpenWorkbench-Library.md` is the theme, rules and patch library the GFOpen tools share. This design lives here, beside the code, with a pointer from amigachrome's `docs/design/` (decision 10).
 - **"Hooks" means**, for this design, any of these:
   - being installed as `LIBS:workbench.library`, in a lab or on a machine;
   - registering with Intuition;
@@ -52,7 +52,7 @@ From `wb_lib.sfd` 47.1 (measured). Bias 30. "OS 3.2, no Workbench" is what OS 3.
 | --- | --- | --- | --- | --- | --- |
 | -30 | `UpdateWorkbench` | A0 name, A1 lock, D0 action | re-reads that object if its drawer is open (section 3.3) | nothing happens | does nothing |
 | -36 | `QuoteWorkbench` (private) | D0 | as OS 3.2's (to record, L2) | to record | 0 |
-| -42 | `StartWorkbench` (private) | D0 flags, D1 pointer | starts OpenBench; a second call while it runs does nothing (section 4) | starts OS 3.2's Workbench | 0 |
+| -42 | `StartWorkbench` (private) | D0 flags, D1 pointer | starts GFOpenBench; a second call while it runs does nothing (section 4) | starts OS 3.2's Workbench | 0 |
 | -48 | `AddAppWindowA` | D0 id, D1 userdata, A0 window, A1 port, A2 tags | the list; kept before the desktop is up | NULL | built |
 | -54 | `RemoveAppWindow` | A0 | the list | FALSE | built |
 | -60 | `AddAppIconA` | D0, D1, A0 text, A1 port, A2 lock, A3 DiskObject, A4 tags | the list; drawn on the root window | NULL | built |
@@ -101,7 +101,7 @@ From `wb_lib.sfd` 47.1 (measured). Bias 30. "OS 3.2, no Workbench" is what OS 3.
 
 | Rule | OS 3.2, and the Team's |
 | --- | --- |
-| Items in the Tools menu | 62, from every program together; ResetWB is the 63rd. On Instance-32 OpenUpMenu's two items were already there, so a program could add 60 |
+| Items in the Tools menu | 62, from every program together; ResetWB is the 63rd. On Instance-32 GFOpenUpMenu's two items were already there, so a program could add 60 |
 | Sub items under one item (`WBAPPMENUA_GetKey`, then `WBAPPMENUA_UseKey`) | 31 |
 | Items under one new menu title (`WBAPPMENUA_GetTitleKey`) | 63 |
 | New menu titles | 27 |
@@ -161,7 +161,7 @@ The reply port is the library's own. A program may reply late, and its message s
 | WBCtrl | `WorkbenchControlA` with reserved tags (label shadow and outline) | to record |
 | icon.library | `UpdateWorkbench` when an icon is written with `ICONPUTA_NotifyWorkbench` | the autodoc |
 | anyone | `QuoteWorkbench(n)` | the SFD says it returns a string; nothing else is known: to record |
-| OpenUpMenu (the Team's) | `AddAppMenuItemA` for its OpenUp and Preferences sub-menus | measured: its two items were in OS 3.2's Tools menu |
+| GFOpenUpMenu (the Team's) | `AddAppMenuItemA` for its GFOpenUp and Preferences sub-menus | measured: its two items were in OS 3.2's Tools menu |
 
 Step L2 records these with `wbspy` (R1's spy) in a lab copy where R1's proxy is installed, never on an instance (decision 8).
 
@@ -173,13 +173,13 @@ Step L2 records these with `wbspy` (R1's spy) in a lab copy where R1's proxy is 
 | --- | --- |
 | The lists | AppWindows and their zones, AppIcons, AppMenuItems (`wb_core`), under one `SignalSemaphore` |
 | The settings | the Workbench settings, from IPrefs, WBCtrl and programs (section 5) |
-| The desktop | OpenBench's work as it is today: the root window, the volumes, drawers in OpenDrawer's windows, menus, starting programs, the Information window, the bar, thumbnails, the built-in prefs and Tata. Its code moves from `desktop/` into the library |
+| The desktop | GFOpenBench's work as it is today: the root window, the volumes, drawers in GFOpenDrawer's windows, menus, starting programs, the Information window, the bar, thumbnails, the built-in prefs and Tata. Its code moves from `desktop/` into the library |
 | Its processes | the desktop's process (named `Workbench`, as programs expect), its helpers (pictures, thumbnails, starting programs), and the reply port for AppMessages |
-| Intuition | `AlohaWorkbench` and the `WORKBENCH` ARexx port, as OpenBench 0.1.22 does today |
+| Intuition | `AlohaWorkbench` and the `WORKBENCH` ARexx port, as GFOpenBench 0.1.22 does today |
 
 ### 3.2 Inside the library
 
-- **A program's call never waits on drawing.** Add and Remove calls change a list under the semaphore and return. The desktop's process is told with a signal and redraws when it can. OpenBench's own work already follows this rule: nothing waits on a disk.
+- **A program's call never waits on drawing.** Add and Remove calls change a list under the semaphore and return. The desktop's process is told with a signal and redraws when it can. GFOpenBench's own work already follows this rule: nothing waits on a disk.
 - **Some calls need an answer from the desktop:** `OpenWorkbenchObjectA`, `ChangeWorkbenchSelectionA`, `MakeWorkbenchObjectVisibleA`, `WhichWorkbenchObjectA` and `WBInfo`. They can come from any task, so each is a message from the caller's task to the desktop's process. The desktop's process does the work and replies, and the caller waits for the reply.
 - **The desktop's process never calls into the library in a way that waits on itself.**
 - **The semaphore is never held while drawing or while waiting on DOS.** The desktop copies what it draws and lets go.
@@ -190,7 +190,7 @@ The caller may free the name and unlock the parent as soon as the call returns; 
 
 ### 3.4 WBInfo
 
-This is the library's own Information window, which is OpenBench's `ob_info.c` today.
+This is the library's own Information window, which is GFOpenBench's `ob_info.c` today.
 
 - The autodoc says `WBInfo` "may be called many times by different tasks", and that it is "the LVO that Workbench calls" for its own Information window.
 - So the desktop's Icons > Information goes through the library's vector too.
@@ -199,11 +199,11 @@ This is the library's own Information window, which is OpenBench's `ob_info.c` t
 
 ### 3.5 The Team's calls, after OS 3.2's 19
 
-Version 48 adds the Team's calls from offset -144 on (decision 6). They are listed as each is designed. The first candidates come from OpenBench's work today:
+Version 48 adds the Team's calls from offset -144 on (decision 6). They are listed as each is designed. The first candidates come from GFOpenBench's work today:
 
 | Candidate | What |
 | --- | --- |
-| A screen-mode follow call | what OpenBench's Resize to Window does today (0.1.22), for a program to ask for |
+| A screen-mode follow call | what GFOpenBench's Resize to Window does today (0.1.22), for a program to ask for |
 | The benches | the several benches of the replacement design's section 5.12 |
 | The bar | the Workbench bar's see-through and hiding options (its section 5.10) |
 
@@ -215,7 +215,7 @@ The library is "anchored", in `OPEN_LIBRARIES.md`'s words: its lists and its des
 
 ### 3.7 The Team's WorkbenchControlA tags, before L3 (W67, 18 October 2026)
 
-Drops on AppWindows came before L3 (Dale, 18 October 2026: "dragging icons 'into' windows"). OpenBench 0.1.26 is still a program beside the ROM's library (amigachrome-guest `libraries/openworkbench`), so the two talk through two private `WorkbenchControlA` tags. They are defined in amigachrome-guest `libraries/openworkbench/owb_team.h`, and `desktop/ob_drop.c` carries a copy. The values are in the Team's own range, far from `WBA_Dummy` (`TAG_USER + 0xA000`) and the reserved tags of 2.5:
+Drops on AppWindows came before L3 (Dale, 18 October 2026: "dragging icons 'into' windows"). GFOpenBench 0.1.26 is still a program beside the ROM's library (amigachrome-guest `libraries/openworkbench`), so the two talk through two private `WorkbenchControlA` tags. They are defined in amigachrome-guest `libraries/openworkbench/owb_team.h`, and `desktop/ob_drop.c` carries a copy. The values are in the Team's own range, far from `WBA_Dummy` (`TAG_USER + 0xA000`) and the reserved tags of 2.5:
 
 | Tag | Value | Data | What |
 | --- | --- | --- | --- |
@@ -223,29 +223,29 @@ Drops on AppWindows came before L3 (Dale, 18 October 2026: "dragging icons 'into
 | `OWBCTRLA_DesktopDrops` | `OWBCTRLA_Dummy + 1` | BOOL | the desktop delivers drops on AppWindows. While TRUE, `AddAppWindowA` and `AddAppWindowDropZoneA` are taken, as with OS 3.2's Workbench running. AppIcons and AppMenuItems stay refused |
 | `OWBCTRLA_AppWindowAt` | `OWBCTRLA_Dummy + 2` | `struct OWBAppWindowAt *` | in: a window and a place in it; out: the AppWindow's port, its (or its drop zone's) id and userdata, and whether a zone holds the place. With zones, only a place in a zone counts |
 
-At a drop OpenBench asks `OWBCTRLA_AppWindowAt`, and then builds and sends the AppMessage itself, as 2.6 describes, with its own reply port. It measured OS 3.2.3's on lab t5-mouse: one message, type 7, one `WBArg` per icon. A drawer or a disk is its own lock with an empty name; a file is its drawer's lock with its name. The place is relative to the window. The reply comes back to OpenBench, which unlocks the arguments and frees the message. If a program hasn't replied when OpenBench quits, OpenBench waits ten seconds and then leaves the port behind.
+At a drop GFOpenBench asks `OWBCTRLA_AppWindowAt`, and then builds and sends the AppMessage itself, as 2.6 describes, with its own reply port. It measured OS 3.2.3's on lab t5-mouse: one message, type 7, one `WBArg` per icon. A drawer or a disk is its own lock with an empty name; a file is its drawer's lock with its name. The place is relative to the window. The reply comes back to GFOpenBench, which unlocks the arguments and frees the message. If a program hasn't replied when GFOpenBench quits, GFOpenBench waits ten seconds and then leaves the port behind.
 
-**At L3 the library takes them over.** The desktop is then inside the library, `DesktopDrops` is always TRUE, and `AppWindowAt` is answered from inside. The tags stay answered for an older OpenBench. The reply port becomes the library's own (2.6).
+**At L3 the library takes them over.** The desktop is then inside the library, `DesktopDrops` is always TRUE, and `AppWindowAt` is answered from inside. The tags stay answered for an older GFOpenBench. The reply port becomes the library's own (2.6).
 
 ## 4. Starting, running and the rescue
 
-- **`LoadWB` calls `StartWorkbench`, which starts OpenBench** (the desktop's process). A second call while it runs does nothing, as on OS 3.2. The Startup-Sequence may run `LoadWB`, or OpenBench as it does today; both end in the same desktop.
-- **There is no Quit to Workbench** and no other desktop to change to. OpenBench runs until the machine is restarted or powered off. A hardware power-off comes later.
+- **`LoadWB` calls `StartWorkbench`, which starts GFOpenBench** (the desktop's process). A second call while it runs does nothing, as on OS 3.2. The Startup-Sequence may run `LoadWB`, or GFOpenBench as it does today; both end in the same desktop.
+- **There is no Quit to Workbench** and no other desktop to change to. GFOpenBench runs until the machine is restarted or powered off. A hardware power-off comes later.
 - **App objects added before the desktop is up are kept** (section 2.1).
-- **Shift at boot is the rescue.** OpenUp keeps OS 3.2's `workbench.library` in `SYS:Storage/OpenUp-Superseded/`. With Shift held at boot, that boot uses OS 3.2's library and `LoadWB`, as a machine without the Team's would. The next boot is normal again. It is a rescue, not a desktop to switch to.
-- **A machine without RTG.** OpenBench today runs `LoadWB` on a screen that isn't a true-colour RTG one. With OS 3.2's library retired, OpenBench draws on palette screens instead, using the AGA fallback it has had since 0.1. This is checked in an AGA lab at L4.
+- **Shift at boot is the rescue.** GFOpenUp keeps OS 3.2's `workbench.library` in `SYS:Storage/GFOpenUp-Superseded/`. With Shift held at boot, that boot uses OS 3.2's library and `LoadWB`, as a machine without the Team's would. The next boot is normal again. It is a rescue, not a desktop to switch to.
+- **A machine without RTG.** GFOpenBench today runs `LoadWB` on a screen that isn't a true-colour RTG one. With OS 3.2's library retired, GFOpenBench draws on palette screens instead, using the AGA fallback it has had since 0.1. This is checked in an AGA lab at L4.
 - **What it needs:** OS 3.2 (V47) and a 68020 or better. On anything older the library refuses to load.
 
 ## 5. One voice for the Workbench settings
 
 - **The library holds the Workbench settings.** IPrefs reads `ENV:Sys/Workbench.prefs` and calls the library (`WBConfig`, `WorkbenchControlA`), as it called OS 3.2's. WBCtrl and programs call `WorkbenchControlA`.
-- **Nothing else reads `Workbench.prefs`** (decision 5). OpenBench reads it itself today (0.1.19); that work moves into the library's handling of IPrefs' calls.
-- **OpenBench's own settings** (the look, the bar, the benches) stay in `ENV:OpenBench/` and the Open preferences. None of Workbench's settings are copied there.
+- **Nothing else reads `Workbench.prefs`** (decision 5). GFOpenBench reads it itself today (0.1.19); that work moves into the library's handling of IPrefs' calls.
+- **GFOpenBench's own settings** (the look, the bar, the benches) stay in `ENV:GFOpenBench/` and the Open preferences. None of Workbench's settings are copied there.
 - **Before the desktop is up,** IPrefs' calls are kept, and applied in the order they came when the desktop starts.
 
 ## 6. Safety and versions
 
-- **Nothing hooks before its step.** L1 is a library under its own name, `openbench.library`, and a test program. Neither is installed as `workbench.library` anywhere, neither registers with anything, and nothing patches anything.
+- **Nothing hooks before its step.** L1 is a library under its own name, `gfopenbench.library`, and a test program. Neither is installed as `workbench.library` anywhere, neither registers with anything, and nothing patches anything.
 - **Version 48** (decisions 6 and 7), with the Team's name in the ID string. A program that asks for 47 or less gets OS 3.2's 19 entries, unchanged. A program that asks for 48 gets the Team's calls too.
 - **A handle is looked up, never followed.** Every handle a program gives back is searched for in the library's lists before it is used. A stale or made-up handle is answered "not found", where OS 3.2's can hang (section 7.2).
 - **The library refuses to be expunged** while a program holds one of its objects or an AppMessage is out.
@@ -267,14 +267,14 @@ Every allocation is counted.
 
 ### 7.2 Side by side with OS 3.2's
 
-`tests/amiga/WorkbenchABITest` opens the system's `workbench.library` and `openbench.library` side by side. It makes the same calls through each and lists each difference. Nothing is replaced. It ran in lab `wblib-a`, a copy of Instance-32: OpenBench as the desktop, OS 3.2.3's `workbench.library` 47.42, and `openbench.library` 48.1 copied into the lab's `LIBS:`.
+`tests/amiga/WorkbenchABITest` opens the system's `workbench.library` and `gfopenbench.library` side by side. It makes the same calls through each and lists each difference. Nothing is replaced. It ran in lab `wblib-a`, a copy of Instance-32: GFOpenBench as the desktop, OS 3.2.3's `workbench.library` 47.42, and `gfopenbench.library` 48.1 copied into the lab's `LIBS:`.
 
 | Run (`ALL RISKY`) | Checks | Differ | The differences |
 | --- | --- | --- | --- |
 | OS 3.2's Workbench running (`LoadWB` in the lab) | 114 | 4 | `GetProgramList`, `GetSelectedIconList`, `GetOpenDrawerList` and `DuplicateSearchPath`: questions for the desktop, which L1 doesn't have |
 | No OS 3.2 Workbench running | 114 | 78 | by design (decision 3). OS 3.2's refuses every Add call, so nothing after them runs; the Team's keeps the objects and gives the answers OS 3.2's gives with its Workbench running |
 
-Before the decisions, `openwb.library` (47.42, refusing as OS 3.2 does) gave 60 checks and 0 differences with no Workbench running. Earlier rounds found and fixed eleven differences in the library from OS 3.2's answers:
+Before the decisions, `gfopenwb.library` (47.42, refusing as OS 3.2 does) gave 60 checks and 0 differences with no Workbench running. Earlier rounds found and fixed eleven differences in the library from OS 3.2's answers:
 
 - the NULL window and NULL port rules;
 - the four sides a zone needs, and IoErr 116;
@@ -303,12 +303,12 @@ Before the decisions, `openwb.library` (47.42, refusing as OS 3.2 does) gave 60 
 
 | Step | What | Hooks? | Done when |
 | --- | --- | --- | --- |
-| **L1 (this PR)** | `wb_core` (the lists, zones, menus, settings, notes, AppMessage layout); `openbench.library` under its test name; `WorkbenchABITest` | **No** | host tests pass; `WorkbenchABITest` differs only where the design says (the desktop's questions, and objects kept before the desktop is up) |
+| **L1 (this PR)** | `wb_core` (the lists, zones, menus, settings, notes, AppMessage layout); `gfopenbench.library` under its test name; `WorkbenchABITest` | **No** | host tests pass; `WorkbenchABITest` differs only where the design says (the desktop's questions, and objects kept before the desktop is up) |
 | L2 (approved) | Record the private calls with `wbspy`: R1 installed in a lab copy only, never an instance | In a lab only | the log of `LoadWB`, IPrefs, WBCtrl, the prefs editors and DefIcons |
-| L3 | The library with the desktop in it: OpenBench's code moved into `workbench.library` 48; `StartWorkbench`; `WBConfig`; the AppMessages and their reply port; AppIcons' pictures copied | Yes, in a lab | the lab boots to OpenBench as `workbench.library`; `WorkbenchABITest` runs against it; Shift at boot gives OS 3.2's |
+| L3 | The library with the desktop in it: GFOpenBench's code moved into `workbench.library` 48; `StartWorkbench`; `WBConfig`; the AppMessages and their reply port; AppIcons' pictures copied | Yes, in a lab | the lab boots to GFOpenBench as `workbench.library`; `WorkbenchABITest` runs against it; Shift at boot gives OS 3.2's |
 | L4 | AppIcons on the desktop, the Tools menu, drops on AppWindows and zones, `WBInfo`, the questions of 2.5; an AGA lab | Yes, in a lab | the App lines of the replacement design's Appendix A, with screenshots; the programs of its Appendix B that use AppWindows and AppIcons |
 | L5 | One voice (section 5); the Team's first calls after entry 19 | Yes, in a lab | IPrefs' changes reach the desktop; each new call has its test |
-| L6 | OpenUp: install with `retire`, Uninstall, the Shift rescue | On a machine, on the user's word | a clean install and uninstall; Shift at boot from cold |
+| L6 | GFOpenUp: install with `retire`, Uninstall, the Shift rescue | On a machine, on the user's word | a clean install and uninstall; Shift at boot from cold |
 
 ## 9. The user's decisions (13 October 2026)
 
@@ -316,18 +316,18 @@ Recorded on openamigabench #22.
 
 | # | Question | Decision |
 | --- | --- | --- |
-| 1 | The split between library and desktop | The desktop's work goes in the library: `workbench.library` is OpenBench |
-| 2 | Who decides the mode | No forwarding mode. OS 3.2's library is retired in favour of OpenBench, called `workbench.library` |
+| 1 | The split between library and desktop | The desktop's work goes in the library: `workbench.library` is GFOpenBench |
+| 2 | Who decides the mode | No forwarding mode. OS 3.2's library is retired in favour of GFOpenBench, called `workbench.library` |
 | 3 | Add calls with no desktop | Kept until the desktop is up, not failed as OS 3.2 does |
 | 4 | Changing desktop without a reboot | There is no Quit to Workbench: only restart or power off. A hardware power-off comes later |
 | 5 | Settings | One voice: `workbench.library` holds the Workbench settings, and nothing else reads `Workbench.prefs` |
 | 6 | Extensions | The Team's calls go after OS 3.2's 19 entries, as version 48 |
 | 7 | Version | 48.x |
 | 8 | L2 in a lab | Yes: R1 in a lab copy only, never an instance |
-| — | Safe boot | Shift at boot gives OS 3.2's library and `LoadWB` for that boot only, from `SYS:Storage/OpenUp-Superseded/`. A rescue, not a desktop to switch to |
-| 9 | Test name | `openbench.library` |
+| — | Safe boot | Shift at boot gives OS 3.2's library and `LoadWB` for that boot only, from `SYS:Storage/GFOpenUp-Superseded/`. A rescue, not a desktop to switch to |
+| 9 | Test name | `gfopenbench.library` |
 | 10 | Where the design lives | openamigabench, with a pointer from amigachrome's `docs/design/` |
-| — | `LoadWB` and `StartWorkbench` | They start OpenBench; a second call while it runs does nothing |
+| — | `LoadWB` and `StartWorkbench` | They start GFOpenBench; a second call while it runs does nothing |
 | — | `WBInfo` | The library's own Information window, since the desktop is in the library |
 
 ## Sources

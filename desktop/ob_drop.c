@@ -26,13 +26,13 @@
  *   - onto a program's AppWindow (or one of its drop zones): one AppMessage, AMTYPE_APPWINDOW (or
  *     AMTYPE_APPWINDOWZONE) with the AppWindow's (or the zone's) id and userdata, the place in the window,
  *     and one WBArg per icon: a drawer or disk as its own lock and an empty name, a file as its drawer's
- *     lock and its name (0.1.26, lab t5-mouse). OpenBench sends it (it is the desktop) and frees it, unlocking,
+ *     lock and its name (0.1.26, lab t5-mouse). GFOpenBench sends it (it is the desktop) and frees it, unlocking,
  *     when the program replies. Which AppWindow is under the pointer, workbench.library says (the Team's
  *     OWBCTRLA_AppWindowAt; amigachrome-guest libraries/openworkbench/owb_team.h);
  *   - onto a tool's icon: nothing is started (it goes into that drawer); in its own drawer, off a drawer's
- *     icon: nothing (OpenBench's drawers keep their icons in order).
+ *     icon: nothing (GFOpenBench's drawers keep their icons in order).
  *
- * The copies and moves are OpenFiles' engine's (openamigafilemanager engine/of_ops.c), as OpenBench's design
+ * The copies and moves are GFOpenFiles' engine's (openamigafilemanager engine/of_ops.c), as GFOpenBench's design
  * says (5.3), and so they differ from 3.2.3's on purpose where the engine keeps files safe: a file goes with its
  * .info, a copy is written under a temporary name until it is whole (so nothing half written is ever left, and
  * there is no "Remove incomplete object?" to ask), a file replaced goes to the trash, a move between volumes is a
@@ -306,7 +306,7 @@ static void job_draw(job *j, const of_progress *p)
 }
 
 /* The engine's word as it works: the window after a moment, drawn at most ten times a second; Stop (or
- * OpenBench quitting) stops it */
+ * GFOpenBench quitting) stops it */
 static int job_progress(void *user, const of_progress *p)
 {
     job *j = user;
@@ -332,7 +332,7 @@ static int job_progress(void *user, const of_progress *p)
 }
 
 /* A move within the volume onto a name that is taken: not asked about, and no requester at the end either. As on
- * OS 3.2.3, the screen's title says it (ob_drop_handle hands it to OpenBench, which keeps it there until the next
+ * OS 3.2.3, the screen's title says it (ob_drop_handle hands it to GFOpenBench, which keeps it there until the next
  * click); 3.2.3 says each one as it comes, so the last one is what stays. */
 static void job_report_clash(job *j, const char *src)
 {
@@ -504,7 +504,7 @@ static const char *err_text(int e)
 /* A disk's contents into a new drawer in dst named after the disk ("Work 2" when "Work" is taken) */
 typedef struct names { char **v; int n, cap; } names;
 
-/* OpenFiles' engine gives each name with what its listing found out about it (OF_LIST_STAT), or, before that, the
+/* GFOpenFiles' engine gives each name with what its listing found out about it (OF_LIST_STAT), or, before that, the
  * name alone: built against either */
 #ifdef OF_LIST_STAT
 static int name_add(void *user, const char *name, const of_stat *st)
@@ -582,7 +582,7 @@ static int copy_volume(of_ctx *c, job *j)
 }
 
 /* The space left on a disk, as the engine asks before a copy: not told, so the copy starts and DOS says when the
- * disk is full, with Retry, as on OS 3.2.3 (OpenBench's design 5.11: room can be made and the job goes on). The
+ * disk is full, with Retry, as on OS 3.2.3 (GFOpenBench's design 5.11: room can be made and the job goes on). The
  * engine, told nothing, lets the writes say. */
 static int no_free_bytes(of_fs *fs, const char *path, uint64_t *out)
 {
@@ -593,7 +593,7 @@ static int no_free_bytes(of_fs *fs, const char *path, uint64_t *out)
 }
 
 /* The trash drawer the engine keeps on dst's volume ("Work:Trashcan"): of_delete files them there, with a note of
- * where each was, so OpenFiles can put them back */
+ * where each was, so GFOpenFiles can put them back */
 static int is_engine_trash(of_ctx *c, const char *dst)
 {
     char vol[OF_PATH_MAX], t[OF_PATH_MAX];
@@ -677,7 +677,7 @@ static void job_entry(void)
     Forbid();
     jobs_running--;
     PutMsg(done_port, &j->msg);
-    /* ends under Forbid: OpenBench, whose code this is, can't unload it before this process is gone */
+    /* ends under Forbid: GFOpenBench, whose code this is, can't unload it before this process is gone */
 }
 
 static int job_run(job *j)
@@ -685,10 +685,10 @@ static int job_run(job *j)
     struct Process *p;
     j->msg.mn_Length = sizeof *j;
     Forbid();
-    /* 64 KB, as OpenFiles' own job worker: the engine goes down a drawer at a time (about 170 bytes a level once
+    /* 64 KB, as GFOpenFiles' own job worker: the engine goes down a drawer at a time (about 170 bytes a level once
      * openamigafilemanager #41 is in, 2 KB before), with EasyRequest and the job window's drawing on top (1 Nov
      * 2026: on 32 KB a drawer 12 deep overflowed it) */
-    p = CreateNewProcTags(NP_Entry, (ULONG)job_entry, NP_StackSize, 65536, NP_Name, (ULONG)"OpenBench copying",
+    p = CreateNewProcTags(NP_Entry, (ULONG)job_entry, NP_StackSize, 65536, NP_Name, (ULONG)"GFOpenBench copying",
                           TAG_DONE);
     if (p) {
         p->pr_Task.tc_UserData = j;
@@ -964,7 +964,7 @@ void ob_drop_stop(void)
         ob_drop_handle();
         if (jobs_running || apps_out) Delay(1);
     }
-    while (jobs_running) {                      /* a job can't be left running OpenBench's code (one asking
+    while (jobs_running) {                      /* a job can't be left running GFOpenBench's code (one asking
                                                  * about a name waits for its answer) */
         ob_drop_handle();
         if (jobs_running) Delay(5);
