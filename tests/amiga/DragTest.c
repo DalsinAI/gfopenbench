@@ -17,7 +17,7 @@
  *   DragTest INHIBIT drive ON|OFF         the drive's file system stopped (its disk goes from the desktop, as while Format
  *                                         works) or started again (it comes back), then DISKOUT or DISKIN: a drive
  *                                         taken away and given back while the desktop runs
- *   DragTest OPEN path                    opened as the desktop opens it: GFOpenBench's port (GFOPENBENCH, openamigaprefs
+ *   DragTest OPEN path                    opened as the desktop opens it: GFOpenBench's port (GFOPENBENCH, gfopenprefs
  *                                         Common/obmsg.h), else workbench.library's OpenWorkbenchObjectA
  *
  * QUAL is a list joined by "+": LSHIFT, RSHIFT, CAPS, CTRL, LALT, RALT, LAMIGA, RAMIGA. Each one's key goes
@@ -138,7 +138,7 @@ static void keys_up(const UBYTE *keys, int n, UWORD qual)
     }
 }
 
-/* GFOpenBench's message (openamigaprefs Common/obmsg.h: keep the layout the same) */
+/* GFOpenBench's message (gfopenprefs Common/obmsg.h: keep the layout the same) */
 struct ob_msg {
     struct Message m;
     ULONG magic;

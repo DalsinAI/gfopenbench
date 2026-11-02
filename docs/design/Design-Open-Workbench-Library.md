@@ -5,8 +5,8 @@
 | Kind | Design |
 | Date | 13 October 2026 |
 | Status | **Version 0.2, with the user's decisions of 13 October 2026** (section 9). Version 0.1 proposed a library acting as GFOpenBench's face, with OS 3.2's Workbench still possible beside it. The user chose otherwise: OS 3.2's `workbench.library` is retired, and GFOpenBench becomes `workbench.library` itself. Nothing hooks yet. Step L1 is built and hooks nothing: the lists, a test build under its own name, and the side-by-side test. L2 is approved (section 8) |
-| Decisions it carries out | 13 October 2026: a real `workbench.library` for Team 4, its design approved before anything hooks. Then the decisions recorded on openamigabench #22 (section 9) |
-| Builds on | amigachrome `docs/design/Design-Workbench-Replacement.md` 0.2, the replacement approved on 9 October. This design takes its section 4 further, and the decisions of 13 October replace its proxy and forwarding rules for `workbench.library`. Also amigachrome-guest `libraries/OPEN_LIBRARIES.md`; GFOpenBench 0.1.22 (`desktop/openbench.c`); R1's proxy (`workbench/wblib.c`, `proxy/`) |
+| Decisions it carries out | 13 October 2026: a real `workbench.library` for Team 4, its design approved before anything hooks. Then the decisions recorded on gfopenbench #22 (section 9) |
+| Builds on | amicradle `docs/design/Design-Workbench-Replacement.md` 0.2, the replacement approved on 9 October. This design takes its section 4 further, and the decisions of 13 October replace its proxy and forwarding rules for `workbench.library`. Also amicradle-guest `libraries/OPEN_LIBRARIES.md`; GFOpenBench 0.1.22 (`desktop/openbench.c`); R1's proxy (`workbench/wblib.c`, `proxy/`) |
 | Marks | (measured) seen on OS 3.2.3 in lab `wblib-a` by `WorkbenchABITest`, or read from the NDK 3.2 autodoc and headers; (recorded) in a Team document; (estimate) the Team's judgement; (to record) not known yet, recorded at step L2 |
 
 > **In short**
@@ -32,7 +32,7 @@
   - There is no proxy mode for `workbench.library` and no hand-over to OS 3.2's. R1's proxy stays only as the lab tool that records OS 3.2's private calls (L2).
   - The library is version 48, not 47.42, because the Team's calls come after OS 3.2's.
 - **What doesn't change:** OS 3.2's 19 entries keep their offsets, registers and answers. So every program written for OS 3.2's `workbench.library` works unchanged.
-- **It isn't `gfopenworkbench.library`.** amigachrome's `Design-OpenWorkbench-Library.md` is the theme, rules and patch library the GFOpen tools share. This design lives here, beside the code, with a pointer from amigachrome's `docs/design/` (decision 10).
+- **It isn't `gfopenworkbench.library`.** amicradle's `Design-OpenWorkbench-Library.md` is the theme, rules and patch library the GFOpen tools share. This design lives here, beside the code, with a pointer from amicradle's `docs/design/` (decision 10).
 - **"Hooks" means**, for this design, any of these:
   - being installed as `LIBS:workbench.library`, in a lab or on a machine;
   - registering with Intuition;
@@ -215,7 +215,7 @@ The library is "anchored", in `OPEN_LIBRARIES.md`'s words: its lists and its des
 
 ### 3.7 The Team's WorkbenchControlA tags, before L3 (W67, 18 October 2026)
 
-Drops on AppWindows came before L3 (Dale, 18 October 2026: "dragging icons 'into' windows"). GFOpenBench 0.1.26 is still a program beside the ROM's library (amigachrome-guest `libraries/openworkbench`), so the two talk through two private `WorkbenchControlA` tags. They are defined in amigachrome-guest `libraries/openworkbench/owb_team.h`, and `desktop/ob_drop.c` carries a copy. The values are in the Team's own range, far from `WBA_Dummy` (`TAG_USER + 0xA000`) and the reserved tags of 2.5:
+Drops on AppWindows came before L3 (Dale, 18 October 2026: "dragging icons 'into' windows"). GFOpenBench 0.1.26 is still a program beside the ROM's library (amicradle-guest `libraries/openworkbench`), so the two talk through two private `WorkbenchControlA` tags. They are defined in amicradle-guest `libraries/openworkbench/owb_team.h`, and `desktop/ob_drop.c` carries a copy. The values are in the Team's own range, far from `WBA_Dummy` (`TAG_USER + 0xA000`) and the reserved tags of 2.5:
 
 | Tag | Value | Data | What |
 | --- | --- | --- | --- |
@@ -312,7 +312,7 @@ Before the decisions, `gfopenwb.library` (47.42, refusing as OS 3.2 does) gave 6
 
 ## 9. The user's decisions (13 October 2026)
 
-Recorded on openamigabench #22.
+Recorded on gfopenbench #22.
 
 | # | Question | Decision |
 | --- | --- | --- |
@@ -326,15 +326,15 @@ Recorded on openamigabench #22.
 | 8 | L2 in a lab | Yes: R1 in a lab copy only, never an instance |
 | — | Safe boot | Shift at boot gives OS 3.2's library and `LoadWB` for that boot only, from `SYS:Storage/GFOpenUp-Superseded/`. A rescue, not a desktop to switch to |
 | 9 | Test name | `gfopenbench.library` |
-| 10 | Where the design lives | openamigabench, with a pointer from amigachrome's `docs/design/` |
+| 10 | Where the design lives | gfopenbench, with a pointer from amicradle's `docs/design/` |
 | — | `LoadWB` and `StartWorkbench` | They start GFOpenBench; a second call while it runs does nothing |
 | — | `WBInfo` | The library's own Information window, since the desktop is in the library |
 
 ## Sources
 
 - NDK 3.2: `SFD/wb_lib.sfd` 47.1, `Include_H/workbench/workbench.h`, `Autodocs/wb.doc` (read on the Team's machine; never committed).
-- amigachrome: `docs/design/Design-Workbench-Replacement.md` 0.2; `docs/design/Design-OpenWorkbench-Library.md` 0.3.
-- amigachrome-guest: `libraries/OPEN_LIBRARIES.md`.
+- amicradle: `docs/design/Design-Workbench-Replacement.md` 0.2; `docs/design/Design-OpenWorkbench-Library.md` 0.3.
+- amicradle-guest: `libraries/OPEN_LIBRARIES.md`.
 - This repository: `desktop/openbench.c` (0.1.22), `workbench/wblib.c` (R1), `proxy/`, `tools/wbspy.c`.
 - Measured: `WorkbenchABITest` in lab `wblib-a`, 13 October 2026.
 - Clean room: AROS's `workbench.library` was not needed for this step and was not read for it. No code from Hyperion's or AROS's.

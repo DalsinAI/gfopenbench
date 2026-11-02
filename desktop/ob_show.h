@@ -2,7 +2,7 @@
  * "offer a no-icons mode too... for workbench itself"): what GFOpenBench does when the setting changes, apart from the
  * drawing. Plain C with no Amiga headers, tested on the host (tests/host/test_ob_show.c).
  *
- * The setting is ENV:Sys/DesktopIcons ("none" or "show"; openamigaprefs Common/deskicons.h), set by GFOpenPrefs' Icons
+ * The setting is ENV:Sys/DesktopIcons ("none" or "show"; gfopenprefs Common/deskicons.h), set by GFOpenPrefs' Icons
  * page, by GFOpenBench's Window > No icons, and turned off by Icons > Clean Up. Its notify shared the signal of
  * ENV:Sys/IconLabels' up to 0.1.38 (the 16 signals a task has were all taken); since 0.1.39 every notify is a message
  * on one port (ob_notify.h), and a change of any of the three asks for one look: the desktop's icons are read again

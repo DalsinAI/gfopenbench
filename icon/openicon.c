@@ -1,5 +1,5 @@
 /* gfopenicon.library: our icon.library's own calls, at icon.library's LVOs,
- * under a test name (step R2, amigachrome
+ * under a test name (step R2, amicradle
  * docs/design/Design-Workbench-Replacement.md, sections 3 and 8). It is
  * opened beside Hyperion's icon.library by tools/iconprobe, which makes
  * every call through both and lists each difference. Nothing opens it by

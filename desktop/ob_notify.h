@@ -2,7 +2,7 @@
  * each asks for. Plain C with no Amiga headers, tested on the host (tests/host/test_ob_notify.c).
  *
  * Up to 0.1.38 each file had a signal of its own (NRF_SEND_SIGNAL), five in all, and GFOpenBench's process asked for 17
- * of the 16 signals a task has: the last one asked for, the drawers' thumbnails (opengadtools wb_thumb.c), failed,
+ * of the 16 signals a task has: the last one asked for, the drawers' thumbnails (gfopengadtools wb_thumb.c), failed,
  * and thumbnails were quietly off. Since 0.1.39 every notify sends a message (NRF_SEND_MESSAGE) to one port, and the
  * request's nr_UserData names its file (OB_FILE_*): one signal for all six requests.
  *

@@ -20,7 +20,7 @@
  *   alohaprobe PICK m/i   item i of menu m of that window picked, as the mouse would (an IDCMP_MENUPICK sent to
  *                         the window's port): the lab's input can click but not hold the menu button
  *   alohaprobe OPEN path  GFOpenBench asked to open path (a drawer opens in a drawer window), as the dock asks it
- *                         (openamigaprefs Common/obmsg.h)
+ *                         (gfopenprefs Common/obmsg.h)
  *
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
@@ -325,7 +325,7 @@ static int pick(const char *what)
     return ok ? RETURN_OK : RETURN_WARN;
 }
 
-/* GFOpenBench's message (openamigaprefs Common/obmsg.h: the layout is GFOpenBench's) */
+/* GFOpenBench's message (gfopenprefs Common/obmsg.h: the layout is GFOpenBench's) */
 struct ob_msg { struct Message m; ULONG magic; LONG ok; char path[256]; };
 
 static int ob_open(const char *path)

@@ -1,7 +1,7 @@
 #!/bin/sh
 # GFOpenBench for Cradle's stove_build (target desktop): Cradle checks out this repo alone and sets STOVE and OUT, so
-# this fetches the checkouts desktop/build.sh needs beside it (opengadtools, openamigaprefs, openamigafilemanager and,
-# when it can, openamigatata) at main into $OUT/deps, says which commit each was, then runs build.sh. A local build
+# this fetches the checkouts desktop/build.sh needs beside it (gfopengadtools, gfopenprefs, gfopenfilemanager and,
+# when it can, gfopentata) at main into $OUT/deps, says which commit each was, then runs build.sh. A local build
 # can still run build.sh itself with OGT, OAP, FILES and TATA set (Team 5, 25 October 2026).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -19,10 +19,10 @@ fetch() {   # fetch NAME [optional]
     fi
     echo "build-amiga.sh: $1 at $(git -C "$DEPS/$1" rev-parse --short HEAD)"
 }
-fetch opengadtools
-fetch openamigaprefs
-fetch openamigafilemanager
-fetch openamigatata optional
-OS32_GCC16=$STOVE OGT="$DEPS/opengadtools" OAP="$DEPS/openamigaprefs" FILES="$DEPS/openamigafilemanager" \
-    TATA="$DEPS/openamigatata" sh "$HERE/build.sh" "$OUT"
+fetch gfopengadtools
+fetch gfopenprefs
+fetch gfopenfilemanager
+fetch gfopentata optional
+OS32_GCC16=$STOVE OGT="$DEPS/gfopengadtools" OAP="$DEPS/gfopenprefs" FILES="$DEPS/gfopenfilemanager" \
+    TATA="$DEPS/gfopentata" sh "$HERE/build.sh" "$OUT"
 rm -rf "$DEPS"   # the job's out/ keeps the program, not the sources
