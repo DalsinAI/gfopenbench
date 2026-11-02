@@ -6,7 +6,7 @@ tags, and a summary of (task, entry, tags) at the end.
 MIT, Copyright (c) 2026 AmigaChrome Team."""
 import collections, os, re, sys
 
-H = os.path.join(os.environ.get('STOVE', os.path.expanduser('~/AmigaChrome/stoves/os32')), 'ndk/Include_H/workbench/workbench.h')
+H = os.path.join(os.environ.get('STOVE', os.path.expanduser('~/AmiCradle/stoves/os32')), 'ndk/Include_H/workbench/workbench.h')
 names = {}
 for line in open(H, encoding='latin-1'):
     m = re.match(r'#define\s+(\w+)\s+\(WBA_Dummy\s*\+\s*(\d+)\)', line)
