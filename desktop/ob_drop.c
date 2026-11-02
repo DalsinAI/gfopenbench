@@ -28,11 +28,11 @@
  *     and one WBArg per icon: a drawer or disk as its own lock and an empty name, a file as its drawer's
  *     lock and its name (0.1.26, lab t5-mouse). GFOpenBench sends it (it is the desktop) and frees it, unlocking,
  *     when the program replies. Which AppWindow is under the pointer, workbench.library says (the Team's
- *     OWBCTRLA_AppWindowAt; amigachrome-guest libraries/openworkbench/owb_team.h);
+ *     OWBCTRLA_AppWindowAt; amicradle-guest libraries/openworkbench/owb_team.h);
  *   - onto a tool's icon: nothing is started (it goes into that drawer); in its own drawer, off a drawer's
  *     icon: nothing (GFOpenBench's drawers keep their icons in order).
  *
- * The copies and moves are GFOpenFiles' engine's (openamigafilemanager engine/of_ops.c), as GFOpenBench's design
+ * The copies and moves are GFOpenFiles' engine's (gfopenfilemanager engine/of_ops.c), as GFOpenBench's design
  * says (5.3), and so they differ from 3.2.3's on purpose where the engine keeps files safe: a file goes with its
  * .info, a copy is written under a temporary name until it is whole (so nothing half written is ever left, and
  * there is no "Remove incomplete object?" to ask), a file replaced goes to the trash, a move between volumes is a
@@ -72,7 +72,7 @@
 
 extern struct Library *WorkbenchBase;
 
-/* ---- the Team's WorkbenchControlA tags: a copy of amigachrome-guest libraries/openworkbench/owb_team.h
+/* ---- the Team's WorkbenchControlA tags: a copy of amicradle-guest libraries/openworkbench/owb_team.h
  * (keep the two the same). OS 3.2.3's workbench.library ignores them. ---- */
 #define OWBCTRLA_Dummy          (TAG_USER + 0x4F574200UL)
 #define OWBCTRLA_DesktopDrops   (OWBCTRLA_Dummy + 1)
@@ -686,7 +686,7 @@ static int job_run(job *j)
     j->msg.mn_Length = sizeof *j;
     Forbid();
     /* 64 KB, as GFOpenFiles' own job worker: the engine goes down a drawer at a time (about 170 bytes a level once
-     * openamigafilemanager #41 is in, 2 KB before), with EasyRequest and the job window's drawing on top (1 Nov
+     * gfopenfilemanager #41 is in, 2 KB before), with EasyRequest and the job window's drawing on top (1 Nov
      * 2026: on 32 KB a drawer 12 deep overflowed it) */
     p = CreateNewProcTags(NP_Entry, (ULONG)job_entry, NP_StackSize, 65536, NP_Name, (ULONG)"GFOpenBench copying",
                           TAG_DONE);

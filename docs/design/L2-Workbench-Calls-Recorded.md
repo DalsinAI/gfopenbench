@@ -6,7 +6,7 @@
 | Date | 13 October 2026 |
 | Status | Recorded in lab `wbl2` only. Nothing hooks on an instance |
 | Approved by | The user, 13 October 2026: "Yes, lab copy only" (decision 8 of the design) |
-| Feeds | The design on openamigabench #22: its sections 2.1, 2.5, 2.7 and 5, and step L3 |
+| Feeds | The design on gfopenbench #22: its sections 2.1, 2.5, 2.7 and 5, and step L3 |
 | Raw logs | `tests/amiga/l2-logs/` (index in its README) |
 | Marks | (measured) seen in the logs; (inferred) the Team's reading of what was seen, not checked another way; (unknown) seen, but what it means is not known yet |
 

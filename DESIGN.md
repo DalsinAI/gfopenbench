@@ -1,6 +1,6 @@
 # GFOpenBench: the design
 
-The design lives in amigachrome, beside the Team's other designs: **`docs/design/Design-Workbench-Replacement.md`**.
+The design lives in amicradle, beside the Team's other designs: **`docs/design/Design-Workbench-Replacement.md`**.
 
 What it says, in short:
 

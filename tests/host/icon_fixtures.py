@@ -8,7 +8,7 @@ writes OUT_DIR/<name>.info for each icon, OUT_DIR/<name>.want with the
 dump test_icon_core must print for it, and OUT_DIR/manifest.txt. The
 layouts are the published ones (OS 1.x to 3.2 DiskObject, OS 3.5 FORM
 ICON, AROS ARGB, NewIcons, AmigaOS 4/MorphOS/AROS PNG icons), as the
-Team's own readers have them (amigachrome scripts/amiga_icon.py).
+Team's own readers have them (amicradle scripts/amiga_icon.py).
 
 MIT, Copyright (c) 2026 AmiCradle Team.
 """

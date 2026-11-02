@@ -4,7 +4,7 @@
  * the label on the left, the bar filled as far as it is used, what is free written in it.
  *
  * 0.2 (the Team, 11 October 2026: its background "needs to respond the same way as the dock does"): the panel is
- * drawn as GFOpenDock draws its shelf (openamigaprefs Dock/src/opendock.c). It is tinted to the look, dark on a
+ * drawn as GFOpenDock draws its shelf (gfopenprefs Dock/src/opendock.c). It is tinted to the look, dark on a
  * dark look and light on a light one, from the screen's background where that fits. It is see-through by the
  * dock's own settings (ENV:GFOpenDock/Dock: Glass, Solid or Clear, the opacity, the edge), so the desktop shows
  * through it frosted, with a faint sheen and a lighter rim. Its ends are rounded. The bars are a step from the
@@ -45,13 +45,13 @@
  * whichever of its two colours stands out more from what is under it: white over the bar's light grey track,
  * where a fill ended under a number, was hard to read. A change of Font prefs is followed as one of the look.
  *
- * 0.2.6: Font prefs' font is opened through opengadtools' ogt_open_icon_font (gfopenfont.library, else
+ * 0.2.6: Font prefs' font is opened through gfopengadtools' ogt_open_icon_font (gfopenfont.library, else
  * diskfont.library), as GFOpenBench 0.1.31 opens it for its icon labels: one reader for both.
  *
  * 0.2.7 (W128's scan of the GCC 16 builds, 25 October 2026): built -fno-late-combine-instructions. GFOpenAmigaGCC
  * 16.2.0-open3's late-combine pass made wbclose.h's strcpy(r->name, "OpenWBNotify") store each byte one place late,
  * so a root semaphore GFOpenMeters made was named "" and no one found it. meters/build.sh turns the pass off on a
- * compiler that has it, until GFOpenAmigaGCC open4 (openamigagcc #29); no source changed.
+ * compiler that has it, until GFOpenAmigaGCC open4 (gfopengcc #29); no source changed.
  *
  * 0.2.8 (review, 1 November 2026): the look's three files (ENV:GFOpenGadTools/Look, ENV:GFOpenDock/Dock and
  * ENV:Sys/font.prefs) are read again only when DOS notification says one changed, not every second. The mode
@@ -61,7 +61,7 @@
  * Video RAM: gfopenrtg.library does not yet say how much of the card's memory is in use, so that bar shows the
  * card's video RAM (the AutoConfig board's size, AmiCradle Team $DA15 product 9 or 15) with no fill.
  *
- * Built with opengadtools' theme reader (lib/ogt_theme.c) and openamigaprefs' Common/wbclose.h (meters/build.sh).
+ * Built with gfopengadtools' theme reader (lib/ogt_theme.c) and gfopenprefs' Common/wbclose.h (meters/build.sh).
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -584,14 +584,14 @@ static colour theme_colour(const char *key, ULONG light, ULONG dark)
 
 /* 0.2.5: the icons' font (the user's solid OS list, 24 October 2026). Font prefs' Workbench icon text font at its
  * size, from ENV:Sys/font.prefs (a FONT chunk of type FP_WBFONT; the file is the OS's, IFF PREF); with none set,
- * the font GFOpenBench draws its icon labels in: the theme's, through opengadtools' ogt_open_font, as
- * desktop/openbench.c opens it. Font prefs' font is opened through opengadtools' ogt_open_icon_font, as GFOpenBench
+ * the font GFOpenBench draws its icon labels in: the theme's, through gfopengadtools' ogt_open_font, as
+ * desktop/openbench.c opens it. Font prefs' font is opened through gfopengadtools' ogt_open_icon_font, as GFOpenBench
  * 0.1.31 opens it for its labels (Team 3's measurement, 22 October 2026: the screen's font, which the open ROM
  * sizes to a tall screen's bar, was CGTriumvirate 21 on Instance-32, its capitals 13 pixels against the labels'
  * 9). The screen's font only when neither opens. Called with the look read. */
 static struct TextFont *icon_font(void)
 {
-    struct TextFont *f = ogt_open_icon_font(&font_ta, font_name, sizeof font_name);   /* opengadtools, as GFOpenBench */
+    struct TextFont *f = ogt_open_icon_font(&font_ta, font_name, sizeof font_name);   /* gfopengadtools, as GFOpenBench */
     if (!f) f = ogt_open_font(theme_ok ? &theme : NULL, scr, &font_ta);
     if (!f) f = OpenFont(scr->Font);
     return f;

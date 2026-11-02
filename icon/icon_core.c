@@ -1090,7 +1090,7 @@ static int read_form(struct ic_env *env, struct ic_icon *icon, const uint8_t *f,
 }
 
 /* NewIcons: pictures in the IM1= and IM2= tool types, seven bits a
- * character, as the Team's reader (amigachrome scripts/amiga_icon.py) and
+ * character, as the Team's reader (amicradle scripts/amiga_icon.py) and
  * the NewIcons icons in its icon library have them. */
 struct ni_state {
     char **lines;                   /* this picture's tool types */

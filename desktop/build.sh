@@ -1,8 +1,8 @@
 #!/bin/sh
-# GFOpenBench, the desktop (desktop/openbench.c), with opengadtools' drawer window (workbench/wb_*.c) and
-# its theme and drawing (lib/), from an opengadtools checkout: OGT, default ../../opengadtools; and GFOpenFiles'
-# copy engine (engine/of_*.c), for drag and drop (0.1.26, ob_drop.c), from an openamigafilemanager checkout:
-# FILES, default ../../openamigafilemanager.
+# GFOpenBench, the desktop (desktop/openbench.c), with gfopengadtools' drawer window (workbench/wb_*.c) and
+# its theme and drawing (lib/), from a gfopengadtools checkout: OGT, default ../../gfopengadtools; and GFOpenFiles'
+# copy engine (engine/of_*.c), for drag and drop (0.1.26, ob_drop.c), from a gfopenfilemanager checkout:
+# FILES, default ../../gfopenfilemanager.
 #   desktop/build.sh [OUT_DIR]   (default build/os3)
 # The compiler: OS32_GCC16 (as GFOpenFTP's build-os3.sh), else STOVE, else ~/AmiCradle/stoves/os32-gcc16.
 # Not the os32 stove's GCC 6.5.0b: at -O2 its peephole2 clears a word and the field after it with one clr.l
@@ -16,17 +16,17 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the
 # mathieee libraries), not libm881, so one build runs on every 68040.
 SPECS="-specs=$(cd "$HERE/.." && pwd)/toolchain/m68k-soft-m68040.specs"
-OGT=${OGT:-$HERE/../../opengadtools}
+OGT=${OGT:-$HERE/../../gfopengadtools}
 STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
 [ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: GFOpenBench needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }
 OUT=${1:-$HERE/../build/os3}
 mkdir -p "$OUT"
-# openamigaprefs' Common headers (obmsg.h, wbclose.h, barlogo.h, and since 0.1.37 deskicons.h: openamigaprefs main
-# with GFOpenPrefs 2.5 or later) and Setup: OAP, default ../../openamigaprefs. The
+# gfopenprefs' Common headers (obmsg.h, wbclose.h, barlogo.h, and since 0.1.37 deskicons.h: gfopenprefs main
+# with GFOpenPrefs 2.5 or later) and Setup: OAP, default ../../gfopenprefs. The
 # dock is GFOpenDock, a program of its own (C:GFOpenDock), which GFOpenBench starts (0.1.23).
-OAP=${OAP:-$HERE/../../openamigaprefs}
+OAP=${OAP:-$HERE/../../gfopenprefs}
 W="$OGT/workbench"
 L="$OGT/lib"
 C="$OAP/Common"
@@ -35,7 +35,7 @@ FLAGS="-noixemul -m68040 $SPECS -std=gnu99 -Wall -Werror -O2 -fno-tree-loop-dist
 # again in the same move's destination, which the 68k works out after the step, so each store lands one place late.
 # wbclose.h's strcpy(r->name, "OpenWBNotify") (libnix's inline strcpy) came out that way, so GFOpenBench's
 # semaphore was named "" and FindSemaphore("OpenWBNotify") never found it. Off until GFOpenAmigaGCC open4
-# (openamigagcc #29), on a compiler that knows the option.
+# (gfopengcc #29), on a compiler that knows the option.
 if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/null; then FLAGS="$FLAGS -fno-late-combine-instructions"; fi
 TMP=$(mktemp -d)
 # shellcheck disable=SC2086
@@ -49,12 +49,12 @@ BUILTIN_DEFS=""
 # GFOpenSerial, GFOpenSound, GFOpenTypes, TitleBar, Windows) were built in up to GFOpenBench 0.1.31; since 0.1.32 (the
 # no-ROM-volume design of 24 October 2026) their old names open GFOpenPrefs at their page (openbench.c,
 # old_prefs_open), and only these two are built in.
-# GFOpenTata: Tata's window (openamigatata src/prefs/tataprefs.c), SYS:Prefs/GFOpenTata, with Tata's inspection
+# GFOpenTata: Tata's window (gfopentata src/prefs/tataprefs.c), SYS:Prefs/GFOpenTata, with Tata's inspection
 # (src/tata_inspect.c and the code it shares with C:Tata) linked in for openbench.c (OB_HAVE_TATA): before
 # GFOpenBench runs a program or opens a project it asks Tata itself, with no patch (the Team, 11 October 2026:
-# Tata a built-in feature of GFOpenBench). From an openamigatata checkout: TATA, default ../../openamigatata;
+# Tata a built-in feature of GFOpenBench). From a gfopentata checkout: TATA, default ../../gfopentata;
 # without one GFOpenBench is built without Tata, and says so. Tata's list helpers are compiled once, here.
-TATA=${TATA:-$HERE/../../openamigatata}
+TATA=${TATA:-$HERE/../../gfopentata}
 OB_TATA_DEFS=""
 if [ -f "$TATA/src/tata_inspect.c" ]; then
     TS="$TATA/src"
@@ -82,9 +82,9 @@ if [ -f "$TATA/src/tata_inspect.c" ]; then
     OB_TATA_DEFS="-DOB_HAVE_TATA -I$TS"
     echo "GFOpenBench: Tata built in, from $TATA ($(cd "$TATA" && git rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
 else
-    echo "GFOpenBench: Tata not built in (no openamigatata at $TATA: set TATA)"
+    echo "GFOpenBench: Tata not built in (no gfopentata at $TATA: set TATA)"
 fi
-# GFOpenUp-Setup: the first-start wizard (openamigaprefs Setup/src/setup.c), SYS:Prefs/GFOpenUp-Setup, and
+# GFOpenUp-Setup: the first-start wizard (gfopenprefs Setup/src/setup.c), SYS:Prefs/GFOpenUp-Setup, and
 # SYS:WBStartup/GFOpenUp-Setup at the first start
 # shellcheck disable=SC2086
 "$CC" $FLAGS -DIN_OPENBENCH -Dmain=openup_setup_main -c -o "$TMP/openup_setup.o" "$OAP/Setup/src/setup.c"
@@ -101,8 +101,8 @@ BUILTIN_DEFS="$BUILTIN_DEFS -DOB_HAVE_OPENUP_SETUP"
 # No icons on the desktop (0.1.37): what GFOpenBench does when ENV:Sys/DesktopIcons changes, plain C (tests/host)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_show.o" "$HERE/ob_show.c"
-# Snapshot's record (0.1.38): the icon places GFOpenBench wrote, plain C (tests/host). Its drawers' half is opengadtools'
-# wb_drawer.c with wb_look's snap and snapped (opengadtools main with Snapshot, 25 October 2026, or later)
+# Snapshot's record (0.1.38): the icon places GFOpenBench wrote, plain C (tests/host). Its drawers' half is gfopengadtools'
+# wb_drawer.c with wb_look's snap and snapped (gfopengadtools main with Snapshot, 25 October 2026, or later)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_snap.o" "$HERE/ob_snap.c"
 # The ENV: files GFOpenBench follows, on one notify port (0.1.39): what each asks for, plain C (tests/host)
@@ -113,15 +113,15 @@ BUILTIN_DEFS="$BUILTIN_DEFS -DOB_HAVE_OPENUP_SETUP"
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_vols.o" "$HERE/ob_vols.c"
 # A disk's .backdrop (0.1.41): Icons > Leave Out's line added and Put Away's taken out, plain C (tests/host). Its
-# drawers' half is opengadtools' wb_drawer.c with wb_look's leave_out (opengadtools main with Leave Out, 25 October
+# drawers' half is gfopengadtools' wb_drawer.c with wb_look's leave_out (gfopengadtools main with Leave Out, 25 October
 # 2026, or later)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_backdrop.o" "$HERE/ob_backdrop.c"
 # Drag and drop (0.1.26): ob_drop.c, with GFOpenFiles' engine built for the Amiga (-DOF_AMIGA: its memory from
 # AllocVec, as it runs in a process of its own)
-FILES=${FILES:-$HERE/../../openamigafilemanager}
+FILES=${FILES:-$HERE/../../gfopenfilemanager}
 E="$FILES/engine"
-[ -f "$E/of_ops.c" ] || { echo "desktop/build.sh: no openamigafilemanager at $FILES (set FILES)" >&2; exit 1; }
+[ -f "$E/of_ops.c" ] || { echo "desktop/build.sh: no gfopenfilemanager at $FILES (set FILES)" >&2; exit 1; }
 echo "GFOpenBench: GFOpenFiles' engine from $FILES ($(cd "$FILES" && git rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
 DROP_OBJS=""
 for f in of_ops of_path of_fs_amiga of_alloc_amiga; do

@@ -1,7 +1,7 @@
 /* Our workbench.library, step R1: every entry of 3.2.3's (wb_lib.sfd 47.1,
  * 19 entries, bias 30) forwarded to Hyperion's original, loaded privately
  * (proxy/proxy.c). It reports exactly 47.42, the version it implements
- * (amigachrome docs/design/Design-Workbench-Replacement.md, section 6).
+ * (amicradle docs/design/Design-Workbench-Replacement.md, section 6).
  *
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>

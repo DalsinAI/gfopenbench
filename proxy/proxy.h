@@ -1,5 +1,5 @@
 /* proxy: what our workbench.library and icon.library share in step R1
- * (amigachrome docs/design/Design-Workbench-Replacement.md, sections 4.5
+ * (amicradle docs/design/Design-Workbench-Replacement.md, sections 4.5
  * and 8). Each library forwards every entry to Hyperion's original, which
  * it loads privately from SYS:Storage/GFOpenUp-Superseded/ and links into
  * exec's list under a private name, so OpenLibrary("workbench.library")

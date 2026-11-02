@@ -1,7 +1,7 @@
 .key DUMMY
 ; GFOpenBench R1 into this Amiga: our workbench.library and icon.library, which
 ; forward every call to Hyperion's, kept in SYS:Storage/GFOpenUp-Superseded.
-; For lab instances only (amigachrome docs/development/labs.md): never a
+; For lab instances only (amicradle docs/development/labs.md): never a
 ; live one. Run it from the drawer that holds the build. Uninstall-R1 puts
 ; Hyperion's back.
 ; MIT, Copyright (c) 2026 AmiCradle Team.

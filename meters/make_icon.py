@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""GFOpenMeters' icon, as the GFOpen family makes them (openamigaup ICONS.md): an
+"""GFOpenMeters' icon, as the GFOpen family makes them (gfopenup ICONS.md): an
 OS 3.5 GlowIcon with two frames, the panel at rest and the one shown while the
 icon is chosen, from art/OpenMeters.png and art/OpenMeters-selected.png.
 
     python3 meters/make_icon.py AMICRADLE OUT.info [STACK]
 
-AMICRADLE is an amigachrome checkout (its scripts/amiga_icon.py writes the
+AMICRADLE is an amicradle checkout (its scripts/amiga_icon.py writes the
 icon). As GFOpenUp's pack does it: each 64 x 64 picture is shown at 85 per
 cent, every pixel solid or see-through, dithered for a 16-bit screen, and the
 chosen frame gets the OS 3.5 glow. The icon is a tool, left unplaced so
@@ -14,7 +14,7 @@ MAKEICON writes: they are read from openmeters.c (make_icon), so the two
 always agree. MAKEICON run on the program later keeps this picture and writes
 the tooltypes again.
 
-The pictures are drawn in openamigaup (tools/open_icons_art.py, openmeters,
+The pictures are drawn in gfopenup (tools/open_icons_art.py, openmeters,
 in the Gorilla style) and copied here; draw them there and copy them again to
 change them. Needs Pillow. MIT, Copyright (c) 2026 AmiCradle Team.
 """
@@ -26,7 +26,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ART = HERE / "art"
-ICON_SCALE = 0.85        # as openamigaup's build_pack.py, and as Gorilla's are shown
+ICON_SCALE = 0.85        # as gfopenup's build_pack.py, and as Gorilla's are shown
 WBTOOL = 3
 
 
@@ -43,9 +43,9 @@ def main() -> int:
     if len(sys.argv) not in (3, 4):
         print(__doc__.split("\n\n")[1])
         return 2
-    amigachrome, out = Path(sys.argv[1]), Path(sys.argv[2])
+    amicradle, out = Path(sys.argv[1]), Path(sys.argv[2])
     stack = int(sys.argv[3]) if len(sys.argv) == 4 else 16384
-    sys.path.insert(0, str(amigachrome / "scripts"))
+    sys.path.insert(0, str(amicradle / "scripts"))
     import amiga_icon
     from PIL import Image
 

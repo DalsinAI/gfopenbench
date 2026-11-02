@@ -1,4 +1,4 @@
-/* GFOpenBench 0.1: the desktop, in place of Workbench (amigachrome docs/design/Design-Workbench-Replacement.md,
+/* GFOpenBench 0.1: the desktop, in place of Workbench (amicradle docs/design/Design-Workbench-Replacement.md,
  * section 5; the user, 11 October 2026: "surely us replacing it was the ask", "so you just boot openbench").
  *
  * The Startup-Sequence runs GFOpenBench where it ran LoadWB. GFOpenBench is then the desktop:
@@ -7,7 +7,7 @@
  *     once, centred over the theme's desktop gradient; the mounted volumes on it, down the left, at the
  *     places their Disk.info keep (a volume without one gets the default icon for its kind of drive, 0.1.17:
  *     def_Harddisk for a hard disk such as a new instance's Work:, which showed as a floppy before);
- *   - drawers, in the drawer windows approved and built as GFOpenDrawer (opengadtools workbench/wb_drawer);
+ *   - drawers, in the drawer windows approved and built as GFOpenDrawer (gfopengadtools workbench/wb_drawer);
  *   - starting things as Workbench starts them: a tool with LoadSeg and a WBStartup message, a project
  *     through its default tool, a drawer or disk in a drawer window; SYS:WBStartup at the start;
  *   - the Open preferences built in (0.1.14; the Team, 11 October 2026: "the open preferences into openbench
@@ -17,7 +17,7 @@
  *     GFOpenTypes, GFOpenSerial) were built in up to 0.1.31; since 0.1.32 their old names open GFOpenPrefs at their page
  *     (old_prefs_open);
  *   - Tata built in (0.1.15; the Team, 11 October 2026: Tata a built-in feature of GFOpenBench): before GFOpenBench
- *     runs a program or opens a project it asks Tata's own inspection, linked in (openamigatata
+ *     runs a program or opens a project it asks Tata's own inspection, linked in (gfopentata
  *     src/tata_inspect.c), and runs it, asks Tata's question, or refuses; no patch. Tata's window is a built-in,
  *     SYS:Prefs/GFOpenTata. C:Tata's patches stay for every other program, and the question is asked once;
  *   - Information (0.1.13, ob_info.c): its own window for any icon, a drawer's or the desktop's (Icons >
@@ -25,7 +25,7 @@
  *   - the screen's title, "GFOpenBench 0.1 - Chip, Fast, GPU = 1, CPU = 1 (m68k)", kept up to date, with
  *     "+ 10 (m68k/x64)" when the CPU cores board is fitted: 68k code on the host's x86-64 cores (0.1.36, the
  *     user, 25 October 2026: "perhaps m68k/x64", "so lets do that blend"; barlogo_isas), after room for GFOpenTitle's logo worked out from the logo's width and the bar's font (0.1.12,
- *     Common/barlogo.h in openamigaprefs, shared with GFOpenTitle: the bigger logo covered the first letter).
+ *     Common/barlogo.h in gfopenprefs, shared with GFOpenTitle: the bigger logo covered the first letter).
  *   - Workbench's settings (0.1.19): ENV:Sys/Workbench.prefs, Prefs/Workbench's file, read at the start and again
  *     whenever it changes: a tool started from an icon gets at least its default stack, and the devices it
  *     hides have no icon on the desktop. ENV:Sys/WBPattern.prefs is watched too: a new root picture (or
@@ -38,7 +38,7 @@
  *     for ever;
  *   - picture thumbnails and icon sizes in the drawers (0.1.20, 0.1.21; Dale, 12 October 2026: "using datatypes to
  *     display picture thumbnails and variable size icons", the mockup approved the same evening): GFOpenDrawer's
- *     (opengadtools workbench/wb_thumb.c), its process started here and stopped before GFOpenBench ends;
+ *     (gfopengadtools workbench/wb_thumb.c), its process started here and stopped before GFOpenBench ends;
  *   - Intuition's Workbench (0.1.22, the native screen mode's step 4): GFOpenBench gives Intuition its port
  *     (AlohaWorkbench) and marks its windows as the Workbench's, so CloseWorkBench() asks it to close them
  *     (WBENCHCLOSE) and OpenWorkBench() says the screen is back (WBENCHOPEN), with or without GFOpenLook's close
@@ -68,7 +68,7 @@
  *   - drag and drop (0.1.26, W67; Dale, 18 October 2026: "dragging icons 'into' windows"): icons dragged out of
  *     a drawer window (its own picture under the pointer, several at once when several are selected) into
  *     another drawer window or onto a drawer's or a disk's icon are moved on one volume and copied to
- *     another, with GFOpenFiles' engine (openamigafilemanager engine/), in a process of its own with a Stop
+ *     another, with GFOpenFiles' engine (gfopenfilemanager engine/), in a process of its own with a Stop
  *     button; a disk's icon dragged from the desktop into a drawer window has its contents copied; icons
  *     let go over a program's AppWindow reach it as an AppMessage, as from OS 3.2.3's Workbench
  *     (ob_drop.c; workbench.library takes AddAppWindowA while GFOpenBench says it delivers them).
@@ -92,7 +92,7 @@
  *     an odd-sized icon taking its own height and a wide one widening its column, from the left or the right, in
  *     the Clean Up order (name, kind, size or date); an icon let go of stays the user's for the run, snapped to the
  *     grid, and the others go round it; Disk.info places are no longer used; ENV:Sys/IconLayout and IconLabels
- *     (GFOpenPrefs' Icons page; labels close by default) followed at once, the drawers too (opengadtools wb_grid.c);
+ *     (GFOpenPrefs' Icons page; labels close by default) followed at once, the drawers too (gfopengadtools wb_grid.c);
  *     the desktop's labels light on a dark backdrop and dark on a light one, as the picture's .tone says;
  *   - drag and drop as OS 3.2.3's Workbench does it (0.1.35; the user, 24 October 2026: icons dragged between
  *     windows), measured on lab t4-dnd (ob_drop.c has the table): no qualifier key changes a drop; a copy onto a
@@ -101,15 +101,15 @@
  *     icons are left out for the run (gone from their drawers, Icons > Put Away puts them back), and icons
  *     each disk's .backdrop leaves out (3.2.3's Leave Out) show there too; icons left out can be dragged into
  *     drawers, onto disks and onto the trash, and several selected icons go together; the dragged picture is
- *     the icon itself with its alpha, what is under it showing round it (opengadtools wb_ghost.c); a full or
+ *     the icon itself with its alpha, what is under it showing round it (gfopengadtools wb_ghost.c); a full or
  *     write-protected disk is DOS's to ask about, with Retry, as on 3.2.3;
  *     Alt held at the press takes an icon out of the selection, and no drag starts (3.2.3's); a disk that comes or
  *     goes, or an icon let go of, never lands on an icon the user put somewhere (the deploy lab, 24 October 2026: a
- *     new DH2 at the top put RAM Disk over System; the columns are now measured at their final widths, opengadtools
+ *     new DH2 at the top put RAM Disk over System; the columns are now measured at their final widths, gfopengadtools
  *     wb_grid.c, and a drop takes the next free cell);
  *   - no icons on the desktop (0.1.37; Salvor's OS list, item 59; the user, 24 October 2026, 21:08: "offer a no-icons
  *     mode too... for workbench itself"): with ENV:Sys/DesktopIcons "none" (GFOpenPrefs' Icons page, or Window > No icons
- *     here; openamigaprefs Common/deskicons.h) the desktop shows no icons at all, disks, icons left out and AppIcons
+ *     here; gfopenprefs Common/deskicons.h) the desktop shows no icons at all, disks, icons left out and AppIcons
  *     alike, and they take no clicks; the backdrop, the bar, the dock and the meters stay. Disks still mount (their
  *     icons are kept, unseen), drawers still open from the dock, the bar or a Shell, and an icon let go of on the
  *     desktop is still left out there, unseen. Turned off, or with Icons > Clean Up (which turns it off and lays the
@@ -119,7 +119,7 @@
  *     writes the selected icons' places into their .info files (do_CurrentX and do_CurrentY, through icon.library's
  *     ICONPUTA_OnlyUpdatePosition, so the rest of each file stays as it was), a disk's into its Disk.info; Icons >
  *     Unsnapshot writes NO_ICON_POSITION; Window > Snapshot > All does every icon, and in a drawer > Window keeps the
- *     window's place in the drawer's icon (opengadtools wb_drawer.c, with the icons through wb_look's snap). GFOpenBench
+ *     window's place in the drawer's icon (gfopengadtools wb_drawer.c, with the icons through wb_look's snap). GFOpenBench
  *     keeps only the places it wrote itself: ENVARC:GFOpenBench/Snapshots, read once at the start, lists each with the
  *     place written (ob_snap.c), and a .info whose place isn't the one listed (made for 3.2.3's small icons, or
  *     written by 3.2.3 since) goes on the grid as before. A snapshotted icon stays on its cell and the others go
@@ -127,7 +127,7 @@
  *     of the record (Snapshot after it keeps the new places). What can't be written (a write-protected disk) is
  *     named in a requester with DOS's reason, and the rest is still written;
  *   - the drawers' thumbnails on again (0.1.39): a task has 16 signals of its own, and 0.1.38's process asked for 17,
- *     so the last, the thumbnails' (opengadtools wb_thumb.c), failed and they were quietly off (Instance-32). The
+ *     so the last, the thumbnails' (gfopengadtools wb_thumb.c), failed and they were quietly off (Instance-32). The
  *     ENV: files GFOpenBench follows (Workbench.prefs, WBPattern.prefs, IconLabels with DesktopIcons, IconLayout,
  *     font.prefs) had a signal each; their notifies now send messages to one port, each request's nr_UserData naming
  *     its file (ob_notify.c), which frees four signals and leaves three for what takes one for a moment (a
@@ -140,7 +140,7 @@
  *     compares; when it differs the volumes are scanned and drawn as after a disk event, so a new one's icon comes
  *     and a gone one's goes within a tick. No new signal and no faster timer: every 2 seconds one AttemptLockDosList,
  *     a NextDosEntry for each volume and one more, and an UnLockDosList;
- *   - Leave Out (0.1.41; Team 4's checks, 25 October 2026), as OS 3.2.3's: Icons > Leave Out in a drawer (opengadtools
+ *   - Leave Out (0.1.41; Team 4's checks, 25 October 2026), as OS 3.2.3's: Icons > Leave Out in a drawer (gfopengadtools
  *     wb_drawer.c, through wb_look's leave_out) puts the selected icons on the desktop for good, each one's line
  *     (":Tools/GFOpenMeters") written into its disk's .backdrop, so they are left out at every start and gone from their
  *     drawer; on the desktop it does the same for an icon left out there for the run. Icons > Put Away sends icons
@@ -153,14 +153,14 @@
  *     16.2.0-open3's late-combine pass made wbclose.h's strcpy(r->name, "OpenWBNotify") a copy that stored each
  *     byte one place late ("move.b (a1)+,(a1,d0.l)"), so the root semaphore GFOpenBench made was named "" and
  *     FindSemaphore("OpenWBNotify") (GFOpenLook's patch, wbn_root here) never found it. desktop/build.sh turns the pass
- *     off on a compiler that has it, until GFOpenAmigaGCC open4 (openamigagcc #29); no source changed;
+ *     off on a compiler that has it, until GFOpenAmigaGCC open4 (gfopengcc #29); no source changed;
  *   - the backdrop under the screen's title bar (0.1.43; Dale, 26 October 2026: "Why isn't the screen title
  *     translucent?"): a second backdrop window, the strip, over the bar's rows, filled by the root window's own
  *     backfill (the gradient and the picture, in screen coordinates), and ShowTitle(screen, TRUE) so the bar stays in
  *     front of it. GFOpenTitle 0.7.5 on makes the bar see-through only where a layer behind it covers it all
  *     (opentitle.c, see_backed), and the root window starts under the bar: with GFOpenBench alone only the
  *     compositor's black was behind it, and the bar stayed solid. The strip has no IDCMP and is never active; it is
- *     a Workbench window (WFLG_WBENCHWINDOW), closed and opened with the root (openamigaprefs TitleBar/DESIGN.md, "Not
+ *     a Workbench window (WFLG_WBENCHWINDOW), closed and opened with the root (gfopenprefs TitleBar/DESIGN.md, "Not
  *     yet");
  *   - a move within a volume onto a name that is taken says so in the screen's title, as OS 3.2.3 does, not in a
  *     requester (0.1.44; W151's lab t4-dnd, 27 October 2026: 3.2.3's title said "Error while moving x.txt: (203)
@@ -260,7 +260,7 @@ static struct Library *CyberGfxBase;
 #define CYBRMATTR_DEPTH 0x80000007UL
 #define CYBRMATTR_ISCYBERGFX 0x80000008UL
 
-/* gfopenrtg.library 0.17 (openamigartg include/openrtg/openrtg.h): the size the host's window asks for, read through
+/* gfopenrtg.library 0.17 (gfopenrtg include/openrtg/openrtg.h): the size the host's window asks for, read through
  * GFOpenRTG (GFOpenBench never reads a board itself), and the Native modes' ModeIDs (place 0x22 of GFOpenRTG's table) */
 struct ob_native_size {
     UWORD width, height;                    /* asked for; 0 x 0 when nothing is */
@@ -464,7 +464,7 @@ struct backfill_msg { struct Layer *layer; struct Rectangle bounds; LONG ox, oy;
 
 /* The backdrop picture (0.1.6): read through datatypes, the Amiga's way, as ARGB pixels (PMODE_V43,
  * PDTM_READPIXELARRAY sent with DoMethodA) and cut and scaled to cover the screen; a PNG comes through
- * gfopenpng.datatype (openamigaimage), our own decoder. 0.1 and 0.1.1 sent that read with DoDTMethodA, which
+ * gfopenpng.datatype (gfopenimage), our own decoder. 0.1 and 0.1.1 sent that read with DoDTMethodA, which
  * puts a GadgetInfo (NULL, with no window) where the pixel array's address goes: picture.datatype then
  * wrote the picture from address 0 up through Chip RAM, which was the boot crash on Instance-32 (found on
  * 11 October 2026; picture.datatype itself is fine). 0.1.3 to 0.1.5 went round it (IPrefs' render, then
@@ -836,7 +836,7 @@ static ob_show show;
 
 /* 0.1.34: the desktop's column grid (the user, 24 October 2026: "the grid should behave the way the Masonry
  * JavaScript layout engine works", then "the screen is arranged in 'columns', and the grid follows a standard size,
- * until a bigger or smaller icon sits in the column"), with GFOpenDrawer's engine (opengadtools workbench/wb_grid.c).
+ * until a bigger or smaller icon sits in the column"), with GFOpenDrawer's engine (gfopengadtools workbench/wb_grid.c).
  * A standard cell comes from the icons (their usual size, or the size GFOpenPrefs' Icons page sets): the picture, its
  * label close under it (icon.library's place, 2 rows under the picture's lowest row that shows) and the label's
  * height. The icons go down the columns from the left (or the right, as the Icons page says) in the Clean Up order;
@@ -1234,7 +1234,7 @@ static void lout_drop(int i)
  * a full disk or a reset part way lost every remembered icon place, or every icon left out for good. Now the new
  * text goes to a short name in the same drawer, Write and Close are checked, and only then the old file steps aside
  * (.bak), the new one takes its name (with the old one's protection bits and comment) and the .bak goes; if the new
- * one can't take the name, the old one gets it back. As GFOpenUpTool does since openamigaup #179. The caller has
+ * one can't take the name, the old one gets it back. As GFOpenUpTool does since gfopenup #179. The caller has
  * pr_WindowPtr at -1 (no DOS requester). */
 
 /* Two free names beside path: the new copy's (.tmp) and the old file's while the new one takes its name (.bak).
@@ -2136,7 +2136,7 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Clean Up", (STRPTR)".", 0, 0, (APTR)M_CLEANUP },    /* 0.1.33: the desktop's icons flow again */
     /* the floppy drives from the desktop (Dale, 12 Oct 2026: "attach an adf to df0 so it can be booted"):
-     * amigachrome-guest's InsertDisk window and ACDisk, through accontrol.device */
+     * amicradle-guest's InsertDisk window and ACDisk, through accontrol.device */
     { NM_TITLE, (STRPTR)"Disks", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Insert Disk...", (STRPTR)"D", 0, 0, (APTR)M_DISK_INSERT },
     { NM_ITEM, (STRPTR)"Eject DF0", NULL, 0, 0, (APTR)M_DISK_EJECT },
@@ -2414,7 +2414,7 @@ static void leftouts_check(void)
 /* ---- Snapshot (0.1.38; Salvor's OS list, item 53) ----------------------------------------------------------------
  * As OS 3.2.3's: Icons > Snapshot writes the selected icons' places into their .info files, Icons > Unsnapshot
  * writes NO_ICON_POSITION there, Window > Snapshot > All does every icon in the window (and in a drawer, > Window
- * its window's place, opengadtools wb_drawer.c). GFOpenBench keeps only the places it wrote itself, as its record
+ * its window's place, gfopengadtools wb_drawer.c). GFOpenBench keeps only the places it wrote itself, as its record
  * (ob_snap.h) lists them; a .info's place it didn't write (3.2.3's, made for its small icons) goes on the grid. */
 
 /* The record from ENVARC:GFOpenBench/Snapshots, read once when GFOpenBench starts (no requester while it looks) */
@@ -2801,7 +2801,7 @@ static void drag_img_close(void)
 }
 
 /* The dragged icon's picture at (sx, sy) on the screen, above the windows, as a drawer's icons are dragged
- * (opengadtools wb_drawer.c's drag_start): it is made the first time the pointer leaves the desktop for another
+ * (gfopengadtools wb_drawer.c's drag_start): it is made the first time the pointer leaves the desktop for another
  * window. 0.1.35: the icon itself, with its alpha (wb_ghost.h); before, a window with the icon on its own
  * background */
 static void drag_img_at(dicon *ic, LONG sx, LONG sy)
@@ -2831,7 +2831,7 @@ static dicon *last_click;
 static int quit_to_wb;
 
 /* ---- no icons on the desktop (0.1.37) ---------------------------------------------------------------------------- *
- * ENV:Sys/DesktopIcons (openamigaprefs Common/deskicons.h): "none", no icons on the desktop; "show" or no variable, the
+ * ENV:Sys/DesktopIcons (gfopenprefs Common/deskicons.h): "none", no icons on the desktop; "show" or no variable, the
  * icons. Set by GFOpenPrefs' Icons page, by Window > No icons and by Icons > Clean Up (off), and followed at once. */
 static struct Menu *menus;
 static struct NotifyRequest dic_nr;
@@ -3382,7 +3382,7 @@ static int task_told(struct WBNRoot *r, struct Task *t)
 }
 
 /* GFOpenBench's windows marked as the Workbench's (WFLG_WBENCHWINDOW), as Workbench's own are, so Intuition asks
- * GFOpenBench to close them instead of refusing. The drawers (opengadtools' wb_drawer), the dock (GFOpenDock's code)
+ * GFOpenBench to close them instead of refusing. The drawers (gfopengadtools' wb_drawer), the dock (GFOpenDock's code)
  * and the Information windows (processes of their own) open theirs without it: the flag is set after, here,
  * each time the desktop comes up and every two seconds. */
 static void mark_ours(void)
@@ -3670,7 +3670,7 @@ static unsigned notify_take(void)
 }
 
 /* The notifies ended, then the port. EndNotify (dos.library's autodoc) takes the request's messages still on the port
- * off it and replies them; the open ROM's (amigachrome-guest opendos, od_EndNotify) only tells the handler, so what
+ * off it and replies them; the open ROM's (amicradle-guest opendos, od_EndNotify) only tells the handler, so what
  * is left is replied here before the port goes. The requests are static: a handler that counts its replies
  * (nr_MsgCount, FSKit's notify_back) still finds them. */
 static void notify_end(void)

@@ -6,7 +6,7 @@
 BUILTIN("Example", example_main, 16384)
 #endif
 #ifdef OB_HAVE_OPENTATA
-BUILTIN("GFOpenTata", opentata_main, 32768)           /* Tata's window (openamigatata); Tata's checks are openbench.c's */
+BUILTIN("GFOpenTata", opentata_main, 32768)           /* Tata's window (gfopentata); Tata's checks are openbench.c's */
 #endif
 #ifdef OB_HAVE_OPENUP_SETUP
 BUILTIN("GFOpenUp-Setup", openup_setup_main, 16384)

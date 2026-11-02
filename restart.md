@@ -4,7 +4,7 @@ _Written 9 October 2026, when the repository was made. Read this first when work
 
 ## What this repo is
 
-Our own `workbench.library`, `icon.library` and desktop (GFOpenBench), replacing Hyperion's on AmigaOS 3.2. The design is amigachrome `docs/design/Design-Workbench-Replacement.md`. The shape, the repository and the name were decided on 9 October 2026.
+Our own `workbench.library`, `icon.library` and desktop (GFOpenBench), replacing Hyperion's on AmigaOS 3.2. The design is amicradle `docs/design/Design-Workbench-Replacement.md`. The shape, the repository and the name were decided on 9 October 2026.
 
 ## Where it stands
 

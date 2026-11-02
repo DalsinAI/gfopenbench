@@ -1,5 +1,5 @@
 /* icon_core: our icon.library's work on icon files, in portable C (step R2,
- * amigachrome docs/design/Design-Workbench-Replacement.md, section 3).
+ * amicradle docs/design/Design-Workbench-Replacement.md, section 3).
  *
  * Nothing here includes an Amiga header or calls the system. The same file
  * is built into icon.library, into the host tests (tests/host) and, later,
@@ -24,7 +24,7 @@
  * its picture.
  *
  * Clean-room: written from the published file layouts (the Team's own
- * readers, amigachrome scripts/amiga_icon.py and amigachrome-guest
+ * readers, amicradle scripts/amiga_icon.py and amicradle-guest
  * tools/icons/amigaicon.py) and the autodocs' descriptions of the calls.
  * No code from Hyperion's or AROS's icon.library.
  *
@@ -178,7 +178,7 @@ void ic_planar_to_chunky(const struct ic_planar *p, uint8_t *dst);
 uint32_t ic_crc32(uint32_t crc, const uint8_t *p, uint32_t n);
 
 /* PNG icons' icOn attributes (values as the AmigaOS 4, MorphOS and AROS
- * icons in the Team's icon library carry them; amigachrome
+ * icons in the Team's icon library carry them; amicradle
  * scripts/amiga_icon.py). Strings end with a NUL; numbers are 4 bytes. */
 #define IC_ATTR_ICONX        0x80001001UL
 #define IC_ATTR_ICONY        0x80001002UL
