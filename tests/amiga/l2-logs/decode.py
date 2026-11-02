@@ -3,7 +3,7 @@
 the stove, never copied into the repository), the caller, the entry.
 decode.py LOG... prints the log with a "#" line under each call naming its
 tags, and a summary of (task, entry, tags) at the end.
-MIT, Copyright (c) 2026 AmigaChrome Team."""
+MIT, Copyright (c) 2026 AmiCradle Team."""
 import collections, os, re, sys
 
 H = os.path.join(os.environ.get('STOVE', os.path.expanduser('~/AmiCradle/stoves/os32')), 'ndk/Include_H/workbench/workbench.h')
