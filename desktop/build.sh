@@ -64,7 +64,7 @@ if [ -f "$TATA/src/tata_inspect.c" ]; then
     for w in format-truncation stringop-truncation; do
         if echo 'int x;' | "$CC" -Werror -Wno-error=$w -fsyntax-only -x c - 2>/dev/null; then TATAF="$TATAF -Wno-error=$w"; fi
     done
-    for f in tata_db tata_files tata_inspect tata_ui; do
+    for f in tata_db tata_files tata_inspect tata_ui tata_ads; do   # tata_ads: the Ads page (gfopentata 0.6.0)
         # shellcheck disable=SC2086
         "$CC" $TATAF -I"$TS" -DIN_OPENBENCH -c -o "$TMP/tata_$f.o" "$TS/$f.c"
         BUILTIN_OBJS="$BUILTIN_OBJS $TMP/tata_$f.o"
