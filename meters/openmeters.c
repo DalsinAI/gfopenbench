@@ -58,6 +58,10 @@
  * (auto turns with the hour) and the screen's background are still looked at each second. A file DOS can't watch
  * has the three read every second, as before.
  *
+ * 0.2.9 (Team 5's chip audit, 4 November 2026): the text's one plane is in Chip RAM only under OS 3.2's
+ * graphics.library, whose Text blits; GFOpenGfx draws it with the CPU in any memory (494 bytes of Chip RAM on
+ * Instance-32, for nothing).
+ *
  * Video RAM: gfopenrtg.library does not yet say how much of the card's memory is in use, so that bar shows the
  * card's video RAM (the AutoConfig board's size, AmiCradle Team $DA15 product 9 or 15) with no fill.
  *
@@ -101,8 +105,8 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 
-#define OPENMETERS_VERSION "0.2.8"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (1.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.2.9"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (4.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
@@ -766,7 +770,8 @@ static void round_box(ULONG *px, int x, int y, int w, int h, int r, colour c, in
         }
 }
 
-/* Text in ARGB: drawn in one plane of chip memory, then each set pixel coloured, c left of split and c2 from it. */
+/* Text in ARGB: drawn in one plane, then each set pixel coloured, c left of split and c2 from it. The plane is in
+ * Chip RAM under OS 3.2's graphics.library (its Text blits), in any memory under GFOpenGfx (the CPU draws). */
 static struct BitMap tbm;
 static UBYTE *tplane;
 static struct RastPort trp;
@@ -774,12 +779,19 @@ static int tbm_w;
 
 static void text_free(void) { if (tplane) { WaitBlit(); FreeVec(tplane); tplane = NULL; } }
 
+/* MEMF_CHIP, or MEMF_ANY when graphics.library is GFOpenGfx (its id string) */
+static ULONG text_memory(void)
+{
+    const char *id = (const char *)GfxBase->LibNode.lib_IdString;
+    return id && strstr(id, "GFOpenGfx") ? MEMF_ANY : MEMF_CHIP;
+}
+
 static int text_open(int w)
 {
     text_free();
     tbm_w = (w + 15) & ~15;
     InitBitMap(&tbm, 1, tbm_w, font->tf_YSize);
-    if (!(tplane = AllocVec(RASSIZE(tbm_w, font->tf_YSize), MEMF_CHIP | MEMF_CLEAR))) return 0;
+    if (!(tplane = AllocVec(RASSIZE(tbm_w, font->tf_YSize), text_memory() | MEMF_CLEAR))) return 0;
     tbm.Planes[0] = tplane;
     InitRastPort(&trp);
     trp.BitMap = &tbm;
