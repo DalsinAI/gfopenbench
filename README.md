@@ -8,6 +8,10 @@ Our own Workbench for AmigaOS 3.2: a `workbench.library`, an `icon.library` and 
 
 The window look (Open light) is written up in `Design-Window-Look.md`, with its reference picture in `reference/`.
 
+**GFOpenMeters** (`meters/`) is a desktop widget for GFOpenBench: a small panel with the date and time, and a bar each for Chip RAM, Fast RAM, the graphics card's memory and every volume, drawn as GFOpenDock draws its shelf. **0.2.9** (4 November 2026): under GFOpenGfx its text's plane goes in any memory, not Chip RAM (494 bytes of Chip freed); under OS 3.2's graphics.library it stays in Chip as before.
+
+GFOpenBench builds Tata in (`TATA`, gfopentata): since 3 November 2026 with `tata_ads.c`, the Ads page's rules from Tata 0.6.0.
+
 The design is in amicradle: `docs/design/Design-Workbench-Replacement.md`. Its shape was approved on 9 October 2026. This repository was named then, and the desktop was named GFOpenBench.
 
 ## Status: step R1, not yet run
