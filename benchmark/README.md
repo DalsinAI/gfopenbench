@@ -8,7 +8,7 @@ It isn't the desktop. The desktop in this repository is GFOpenBench (`desktop/`)
 GFOpenBenchmark [CPU] [FPU] [MEM] [2D] [GL] [QUICK] [NOFORBID] [HOST] [LABEL=<text>]
 ```
 
-- With no test named, it runs all of them. A full run takes about four minutes on AmiCradle.
+- With no test named, it runs all of them. A full run takes about three and a half minutes on AmiCradle.
 - `QUICK` makes each run a quarter of a second, to try the program out. Don't compare QUICK figures.
 - `NOFORBID` lets other tasks run during the CPU, FPU and memory tests. By default they're held off, as SysInfo and ACInfo do.
 - `HOST` prints the AmiCradle host's whole status.
@@ -87,6 +87,8 @@ GL goes through **ogles3.library**, GFOpenGPU's OpenGL ES 3.1 face, by its dispa
 | Triangles | A static mesh of 130,050 triangles in buffer objects, drawn 4 times a frame (Mtris/s) |
 | Shader | One full-screen quad of a 128-step Mandelbrot at a fixed place (frames/s) |
 | Compute | An ES 3.1 compute dispatch of 1,048,576 invocations, 64 multiply-adds each. A step is 16 dispatches and a `glFinish` (dispatches/s) |
+
+On 7 November 2026, compute read 1,016 to 1,024 dispatches a second in every run, under any load. That is 64 steps a second: each `glFinish` took about 15.6 ms, so the figure measured how long `glFinish` waits, not the GPU. The figure will move when that wait is fixed.
 
 **GL is timed by the host's clock, not the E clock.** In hyper mode the guest's clock falls behind real time while the CPU waits on a host call. Afterwards it catches up at most 2 ms a slice (a1200native.c). So a GL-bound loop timed by the E clock reads several times too fast: a quick GL run took 33 s by the host's clock and 24 s by the E clock.
 
