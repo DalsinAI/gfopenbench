@@ -41,6 +41,7 @@ static struct EClockVal e0;
 static double min_seconds = GFB_MIN_SECONDS;
 static int allow_forbid = 1;
 char gfb_gl_renderer[160] = "not run";
+static void copy_text(char *d, const char *s, unsigned size);
 
 /* ---- the clock ---------------------------------------------------------------------------------------- */
 
@@ -85,8 +86,7 @@ static double timed(gfb_work work, void *user, unsigned long n, int forbid)
 void gfb_fail(struct gfb_result *r, const char *why)
 {
     r->ok = 0;
-    strncpy(r->note, why, sizeof r->note - 1);
-    r->note[sizeof r->note - 1] = 0;
+    copy_text(r->note, why, sizeof r->note);
 }
 
 void gfb_time(struct gfb_result *r, gfb_work work, void *user, double scale, int forbid)
@@ -130,6 +130,15 @@ static int nkept;
 static struct { const char *key; char value[160]; } facts[MAX_INFO];
 static int nfacts;
 
+/* a bounded copy that always ends the string */
+static void copy_text(char *d, const char *s, unsigned size)
+{
+    unsigned n = strlen(s);
+    if (n > size - 1) n = size - 1;
+    memcpy(d, s, n);
+    d[n] = 0;
+}
+
 static const char *num(double v, char *buf)
 {
     if (v >= 100000) sprintf(buf, "%.0f", v);
@@ -163,7 +172,7 @@ void gfb_info(const char *key, const char *label, const char *value)
     printf("  %-22s %s\n", label, value);
     if (nfacts < MAX_INFO) {
         facts[nfacts].key = key;
-        strncpy(facts[nfacts].value, value, sizeof facts[nfacts].value - 1);
+        copy_text(facts[nfacts].value, value, sizeof facts[nfacts].value);
         nfacts++;
     }
 }
@@ -219,8 +228,7 @@ static void gfopenup_version(char *out, int size)
             char *p = line + 14, *e = p;
             while (*e && *e != '\t' && *e != '\n' && *e != '\r') e++;
             *e = 0;
-            strncpy(out, p, size - 1);
-            out[size - 1] = 0;
+            copy_text(out, p, size);
             break;
         }
     }

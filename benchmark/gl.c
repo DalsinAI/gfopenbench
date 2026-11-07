@@ -373,9 +373,14 @@ void gfb_gl_tests(void)
         return;
     }
     CALL(aglMakeCurrent, void (*)(void *))(ctx);
-    strncpy(gfb_gl_renderer, (const char *)CALL(GLGetString, const unsigned char *(*)(void *, GLenum))(ctx, GL_RENDERER),
-            sizeof gfb_gl_renderer - 1);
-    sprintf(buf, "%s", (const char *)CALL(GLGetString, const unsigned char *(*)(void *, GLenum))(ctx, GL_VERSION));
+    {
+        const char *s = (const char *)CALL(GLGetString, const unsigned char *(*)(void *, GLenum))(ctx, GL_RENDERER);
+        unsigned n = s ? strlen(s) : 0;
+        if (n > sizeof gfb_gl_renderer - 1) n = sizeof gfb_gl_renderer - 1;
+        memcpy(gfb_gl_renderer, s ? s : "", n);
+        gfb_gl_renderer[n] = 0;
+    }
+    snprintf(buf, sizeof buf, "%s", (const char *)CALL(GLGetString, const unsigned char *(*)(void *, GLenum))(ctx, GL_VERSION));
     gfb_info("gl_version", "GL version", buf);
     gfb_info("gl_renderer", "GL renderer", gfb_gl_renderer);
     sprintf(buf, "%lux%lu", (unsigned long)W, (unsigned long)H);
