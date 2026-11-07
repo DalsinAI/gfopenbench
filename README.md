@@ -10,6 +10,8 @@ The window look (Open light) is written up in `Design-Window-Look.md`, with its 
 
 **GFOpenMeters** (`meters/`) is a desktop widget for GFOpenBench: a small panel with the date and time, and a bar each for Chip RAM, Fast RAM, the graphics card's memory and every volume, drawn as GFOpenDock draws its shelf. **0.2.9** (4 November 2026): under GFOpenGfx its text's plane goes in any memory, not Chip RAM (494 bytes of Chip freed); under OS 3.2's graphics.library it stays in Chip as before.
 
+**GFOpenBenchmark** (`benchmark/`, 7 November 2026) is a benchmark, not part of the desktop: Dhrystone 2.1 MIPS, MFLOPS (Whetstone, LINPACK 100, DAXPY, single precision and FSGLMUL/FSGLDIV), memory bandwidth in Chip and Fast RAM, RectFill/ClipBlit/Text, and GL through ogles3.library (fill, triangles, a heavy shader, compute, present), with a report and one JSON line to compare runs. `benchmark/README.md` says what each figure is.
+
 GFOpenBench builds Tata in (`TATA`, gfopentata): since 3 November 2026 with `tata_ads.c`, the Ads page's rules from Tata 0.6.0.
 
 The design is in amicradle: `docs/design/Design-Workbench-Replacement.md`. Its shape was approved on 9 October 2026. This repository was named then, and the desktop was named GFOpenBench.

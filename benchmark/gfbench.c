@@ -311,7 +311,7 @@ static void machine(int host)
     sprintf(buf, "instruction %s, data %s%s", (c & CACRF_EnableI) ? "on" : "off", (c & CACRF_EnableD) ? "on" : "off",
             (c & CACRF_CopyBack) ? ", copyback" : "");
     gfb_info("caches", "Caches", buf);
-    sprintf(buf, "exec %u.%u, Kickstart %u", SysBase->LibNode.lib_Version, SysBase->LibNode.lib_Revision, SysBase->SoftVer);
+    sprintf(buf, "exec %u.%u", SysBase->LibNode.lib_Version, SysBase->LibNode.lib_Revision);
     gfb_info("kickstart", "ROM", buf);
     gfopenup_version(buf, sizeof buf);
     gfb_info("gfopenup", "GFOpenUp", buf);

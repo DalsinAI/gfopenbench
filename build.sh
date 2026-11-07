@@ -76,3 +76,10 @@ cp "$HERE/lab/Install-R1" "$HERE/lab/Uninstall-R1" "$OUT/"
 size() { wc -c < "$1" | tr -d ' '; }
 echo "$OUT: workbench.library ($(size "$OUT/workbench.library") bytes), icon.library ($(size "$OUT/icon.library") bytes), wbspy ($(size "$OUT/wbspy") bytes), alohaprobe ($(size "$OUT/alohaprobe") bytes), gfopenicon.library ($(size "$OUT/gfopenicon.library") bytes), iconprobe ($(size "$OUT/iconprobe") bytes), gfopenbench.library ($(size "$OUT/gfopenbench.library") bytes), WorkbenchABITest ($(size "$OUT/WorkbenchABITest") bytes)"
 sha256sum "$OUT/gfopenicon.library" "$OUT/iconprobe" "$OUT/gfopenbench.library" "$OUT/WorkbenchABITest" 2>/dev/null || true
+# GFOpenBenchmark (benchmark/README.md): with amicradle-guest and gfopenrtg checkouts when GUEST and ORTG
+# name them, else benchmark/build-amiga.sh fetches the parts it needs of both at main
+if [ -n "${GUEST:-}" ] && [ -n "${ORTG:-}" ]; then
+  OS32_GCC16=$STOVE sh "$HERE/benchmark/build.sh" "$OUT"
+else
+  OUT="$OUT" STOVE="$STOVE" DEPS="$OUT/benchmark-deps" sh "$HERE/benchmark/build-amiga.sh"
+fi

@@ -54,6 +54,13 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/desktop" "$HERE/tests/host/test_ob_strip.c" -o "$OUT/test_ob_strip"
 "$OUT/test_ob_strip"
 
+# GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
+# shellcheck disable=SC2086
+cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/benchmark/dhry_1.c" "$HERE/benchmark/dhry_2.c" \
+  "$HERE/benchmark/whet.c" "$HERE/benchmark/linpack.c" "$HERE/benchmark/sgl.c" "$HERE/tests/host/test_benchmark.c" -lm \
+  -o "$OUT/test_benchmark"
+"$OUT/test_benchmark"
+
 rm -rf "$OUT/icons"
 python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/icons"
 "$OUT/test_icon_core" "$OUT/icons"
