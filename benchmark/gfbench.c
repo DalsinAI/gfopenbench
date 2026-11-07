@@ -37,7 +37,7 @@ static const char version[] __attribute__((used)) = "$VER: GFOpenBenchmark " GFB
 
 extern struct ExecBase *SysBase;
 struct Device *TimerBase;
-APTR BattClockBase;
+struct Library *BattClockBase;
 static ULONG rtc0;
 static struct timerequest treq;
 static ULONG ehz;
@@ -54,7 +54,7 @@ int gfb_clock_open(void)
     if (OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_ECLOCK, (struct IORequest *)&treq, 0)) return 0;
     TimerBase = treq.tr_node.io_Device;
     ehz = ReadEClock(&e0);
-    BattClockBase = OpenResource((CONST_STRPTR)BATTCLOCKNAME);
+    BattClockBase = (struct Library *)OpenResource((CONST_STRPTR)BATTCLOCKNAME);
     if (BattClockBase) rtc0 = ReadBattClock();
     return 1;
 }
