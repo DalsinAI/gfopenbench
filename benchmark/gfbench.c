@@ -23,6 +23,8 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/timer.h>
+#include <resources/battclock.h>
+#include <proto/battclock.h>
 
 #include "gfb.h"
 #include "sysprobe.h"
@@ -35,6 +37,8 @@ static const char version[] __attribute__((used)) = "$VER: GFOpenBenchmark " GFB
 
 extern struct ExecBase *SysBase;
 struct Device *TimerBase;
+APTR BattClockBase;
+static ULONG rtc0;
 static struct timerequest treq;
 static ULONG ehz;
 static struct EClockVal e0;
@@ -50,6 +54,8 @@ int gfb_clock_open(void)
     if (OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_ECLOCK, (struct IORequest *)&treq, 0)) return 0;
     TimerBase = treq.tr_node.io_Device;
     ehz = ReadEClock(&e0);
+    BattClockBase = OpenResource((CONST_STRPTR)BATTCLOCKNAME);
+    if (BattClockBase) rtc0 = ReadBattClock();
     return 1;
 }
 
@@ -106,7 +112,12 @@ void gfb_time(struct gfb_result *r, gfb_work work, void *user, double scale, int
         n = x > 4.0e9 ? 4000000000UL : x < 1 ? 1 : (unsigned long)x;
     }
     for (i = 0; i < GFB_RUNS; i++) {
-        secs[i] = timed(work, user, n, forbid);
+        int tries = 0;
+        /* a run that came out short (the calibration ran warmer or colder) is made longer and run again */
+        while ((secs[i] = timed(work, user, n, forbid)) < min_seconds && ++tries < 4 && n < 4000000000UL) {
+            x = (double)n * want / (secs[i] > 0 ? secs[i] : want / 1000);
+            n = x > 4.0e9 ? 4000000000UL : (unsigned long)x + 1;
+        }
         rate[i] = secs[i] > 0 ? (double)n / secs[i] * scale : 0;
         r->runs[i] = rate[i];
     }
@@ -121,13 +132,55 @@ void gfb_time(struct gfb_result *r, gfb_work work, void *user, double scale, int
     r->ok = 1;
 }
 
+/* the host-clocked runs (gfb.h) */
+struct step_work { gfb_step step, settle; void *user; };
+
+static double step_n(void *u, unsigned long n)
+{
+    struct step_work *w = u;
+    while (n--) w->step(w->user);
+    if (w->settle) w->settle(w->user);
+    return 0;
+}
+
+void gfb_time_host(struct gfb_result *r, gfb_step step, gfb_step settle, void *user, double scale)
+{
+    ULONG k = min_seconds < 1.5 ? 1 : (ULONG)(min_seconds + 0.5), s0, s, count;
+    double rate[GFB_RUNS], x;
+    int i, j;
+    if (!BattClockBase) {
+        struct step_work w = { step, settle, user };
+        gfb_time(r, step_n, &w, scale, 0);
+        strcpy(r->note, "(E clock: no battery clock)");
+        return;
+    }
+    for (i = 0; i < GFB_RUNS; i++) {
+        s = ReadBattClock();
+        while ((s0 = ReadBattClock()) == s) step(user);     /* working up to the second's turn */
+        count = 0;
+        while (ReadBattClock() - s0 < k) {
+            step(user);
+            count++;
+        }
+        if (settle) settle(user);
+        rate[i] = r->runs[i] = (double)count / k * scale;
+        if (i == GFB_RUNS / 2) r->n = count;
+    }
+    for (i = 1; i < GFB_RUNS; i++)
+        for (j = i; j > 0 && rate[j] < rate[j - 1]; j--) { x = rate[j]; rate[j] = rate[j - 1]; rate[j - 1] = x; }
+    r->value = rate[GFB_RUNS / 2];
+    r->seconds = k;
+    r->ok = 1;
+    strcpy(r->note, "(host clock)");
+}
+
 /* ---- the report ---------------------------------------------------------------------------------------- */
 
 #define MAX_RESULTS 48
 #define MAX_INFO 24
 static struct { const char *key; double value; int ok; } kept[MAX_RESULTS];
 static int nkept;
-static struct { const char *key; char value[160]; } facts[MAX_INFO];
+static struct { const char *key; char value[256]; } facts[MAX_INFO];
 static int nfacts;
 
 /* a bounded copy that always ends the string */
@@ -284,16 +337,24 @@ static void machine(int host)
             static const char *const keys[][3] = {
                 /* key, label, JSON key (searched after the anchor, when there is one) */
                 { "runtime", "Runtime build", "buildId" },
-                { "cpu_name", "CPU personality", "name" },
                 { "timing", "Timing", "timingMode" },
                 { "backend", "CPU backend", "backendResolved" },
                 { "machine_board", "Motherboard", "id" },
-                { "rom", "ROM check", "status" },
             };
-            static const char *const anchors[] = { NULL, "\"cpu\"", NULL, NULL, "\"motherboard\"", "\"romCheck\"" };
+            static const char *const anchors[] = { NULL, NULL, NULL, "\"motherboard\"" };
+            const char *cpu = strstr(status, "\"cpu\":{");
             unsigned i;
             for (i = 0; i < sizeof keys / sizeof keys[0]; i++)
                 if (sp_json(status, anchors[i], keys[i][2], buf, 160)) gfb_info(keys[i][0], keys[i][1], buf);
+            /* the CPU's own name follows its provider's, after "engine" */
+            if (cpu && sp_json(cpu, "\"engine\"", "name", buf, 160)) gfb_info("cpu_name", "CPU personality", buf);
+            /* the ROM: the standard's name (up to its notes in brackets) and whether it matches */
+            if (sp_json(status, "\"standard\"", "id", buf, 160)) {
+                char *b = strstr(buf, " (");
+                if (b) *b = 0;
+                if (sp_json(status, "\"romCheck\"", "status", v, sizeof v)) { strcat(buf, ", "); strcat(buf, v); }
+                gfb_info("rom", "ROM standard", buf);
+            }
             if (host) {
                 printf("\nHost status\n%s\n", status);
             }
@@ -346,7 +407,9 @@ int main(void)
     if (all || a[A_GL]) gfb_gl_tests();
     gfb_section("Summary");
     printf("  %-22s %s\n", "GL renderer", gfb_gl_renderer);
-    printf("  %-22s %.1f s\n", "Took", gfb_now() - t0);
+    printf("  %-22s %.1f s by the E clock", "Took", gfb_now() - t0);
+    if (BattClockBase) printf(", %lu s by the host's (battery) clock since the start", (unsigned long)(ReadBattClock() - rtc0));
+    printf("\n");
     json_line(a[A_LABEL] ? (const char *)a[A_LABEL] : "");
     gfb_clock_close();
     FreeArgs(rd);

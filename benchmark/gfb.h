@@ -37,6 +37,16 @@ struct gfb_result {
 void gfb_time(struct gfb_result *r, gfb_work work, void *user, double scale, int forbid);
 void gfb_fail(struct gfb_result *r, const char *why);
 
+/* For work that waits on the host (GL): in hyper mode AmiCradle's guest clock, the E clock with it,
+ * falls behind real time while the CPU waits on a host call and catches up at most 2 ms a slice
+ * afterwards, so the E clock can't time it. This times it by the battery clock instead (on
+ * AmiCradle it reads the host's own time, in seconds): it runs `step` until the clock's second
+ * turns, counts the steps until it has turned min_seconds more times (2 s; QUICK 1 s), then calls
+ * settle (glFinish). One step is one unit. Three runs, the median. Without a battery clock it
+ * falls back to the E clock. */
+typedef void (*gfb_step)(void *user);
+void gfb_time_host(struct gfb_result *r, gfb_step step, gfb_step settle, void *user, double scale);
+
 /* the report: each result is printed as it is measured, and kept for the machine-readable line */
 void gfb_report(struct gfb_result *r);
 void gfb_info(const char *key, const char *label, const char *value);   /* a machine fact */

@@ -2,7 +2,8 @@
  * PC's graphics chip, or softpipe on the 68k), reached through its dispatch table as a program built
  * with ogles3's SDK reaches it (as gfopenrtg's OGLES3Check does). The library's own 640x480 window,
  * no VSYNC, five fixed scenes, each frame presented with aglSwapBuffers and each timed run ended
- * with glFinish:
+ * with glFinish. They are timed by the host's clock (gfb_time_host: the guest's E clock falls
+ * behind while the CPU waits on GL):
  *   present   an empty frame: glClear and the swap (frames/s; its inverse is a frame's fixed cost)
  *   fill      16 full-screen quads a frame, blended, a flat colour (Mpixels/s)
  *   triangles a static mesh of 130,050 triangles in buffers, drawn 4 times a frame (Mtriangles/s)
@@ -215,89 +216,90 @@ static const char cs_fma[] =
 #define CS_GROUPS 4096
 #define CS_ITEMS (256UL * CS_GROUPS)
 
-static GLuint quad_buf, mesh_vbuf, mesh_ibuf, p_flat, p_heavy, p_mesh, p_cs, cs_buf;
+static GLuint quad_buf, mesh_vbuf, mesh_ibuf, p_flat, p_heavyp, p_meshp, p_cs, cs_buf;
 static GLint u_col, u_a;
 static unsigned long frame_no;
 
-static double w_present(void *u, unsigned long n)
+static void s_finish(void *u) { (void)u; finish(); }
+
+static void p_present(void) { }
+static void w_present(void *u)
 {
     (void)u;
-    while (n--) {
-        CALL(GLClearColor, void (*)(void *, GLfloat, GLfloat, GLfloat, GLfloat))(ctx, 0.1f, 0.2f, (n & 1) ? 0.3f : 0.4f, 1.0f);
-        V1(GLClear, GLbitfield, GL_COLOR_BUFFER_BIT);
-        swap();
-    }
-    finish();
-    return 0;
+    CALL(GLClearColor, void (*)(void *, GLfloat, GLfloat, GLfloat, GLfloat))(ctx, 0.1f, 0.2f, (frame_no++ & 1) ? 0.3f : 0.4f, 1.0f);
+    V1(GLClear, GLbitfield, GL_COLOR_BUFFER_BIT);
+    swap();
 }
 
-static double w_fill(void *u, unsigned long n)
+static void p_fill(void)
 {
-    int q;
-    (void)u;
     V1(GLUseProgram, GLuint, p_flat);
     attrib(quad_buf);
     V1(GLEnable, GLenum, GL_BLEND);
     V2(GLBlendFunc, GLenum, GL_SRC_ALPHA, GLenum, GL_ONE_MINUS_SRC_ALPHA);
-    while (n--) {
-        for (q = 0; q < FILL_QUADS; q++) {
-            CALL(GLUniform4f, void (*)(void *, GLint, GLfloat, GLfloat, GLfloat, GLfloat))(ctx, u_col, q * (1.0f / FILL_QUADS), 0.5f, 0.25f, 0.5f);
-            V3(GLDrawArrays, GLenum, GL_TRIANGLE_STRIP, GLint, 0, GLsizei, 4);
-        }
-        swap();
+}
+static void w_fill(void *u)
+{
+    int q;
+    (void)u;
+    for (q = 0; q < FILL_QUADS; q++) {
+        CALL(GLUniform4f, void (*)(void *, GLint, GLfloat, GLfloat, GLfloat, GLfloat))(ctx, u_col, q * (1.0f / FILL_QUADS), 0.5f, 0.25f, 0.5f);
+        V3(GLDrawArrays, GLenum, GL_TRIANGLE_STRIP, GLint, 0, GLsizei, 4);
     }
-    V1(GLDisable, GLenum, GL_BLEND);
-    finish();
-    return 0;
+    swap();
 }
 
-static double w_mesh(void *u, unsigned long n)
+static void p_mesh(void)
+{
+    V1(GLDisable, GLenum, GL_BLEND);
+    V1(GLUseProgram, GLuint, p_meshp);
+    attrib(mesh_vbuf);
+    V2(GLBindBuffer, GLenum, GL_ELEMENT_ARRAY_BUFFER, GLuint, mesh_ibuf);
+}
+static void w_mesh(void *u)
 {
     int d;
     (void)u;
-    V1(GLUseProgram, GLuint, p_mesh);
-    attrib(mesh_vbuf);
-    V2(GLBindBuffer, GLenum, GL_ELEMENT_ARRAY_BUFFER, GLuint, mesh_ibuf);
-    while (n--) {
-        V1(GLClear, GLbitfield, GL_COLOR_BUFFER_BIT);
-        for (d = 0; d < MESH_DRAWS; d++) {
-            CALL(GLUniform1f, void (*)(void *, GLint, GLfloat))(ctx, u_a, (float)(frame_no % 628) * 0.01f + d * 0.4f);
-            V4(GLDrawElements, GLenum, GL_TRIANGLES, GLsizei, (GLsizei)(MESH_TRIS * 3), GLenum, GL_UNSIGNED_SHORT, const void *, NULL);
-        }
-        frame_no++;
-        swap();
+    V1(GLClear, GLbitfield, GL_COLOR_BUFFER_BIT);
+    for (d = 0; d < MESH_DRAWS; d++) {
+        CALL(GLUniform1f, void (*)(void *, GLint, GLfloat))(ctx, u_a, (float)(frame_no % 628) * 0.01f + d * 0.4f);
+        V4(GLDrawElements, GLenum, GL_TRIANGLES, GLsizei, (GLsizei)(MESH_TRIS * 3), GLenum, GL_UNSIGNED_SHORT, const void *, NULL);
     }
-    finish();
-    return 0;
+    frame_no++;
+    swap();
 }
 
-static double w_heavy(void *u, unsigned long n)
+static void p_heavy(void)
 {
-    (void)u;
-    V1(GLUseProgram, GLuint, p_heavy);
+    V1(GLUseProgram, GLuint, p_heavyp);
     attrib(quad_buf);
-    while (n--) {
-        V3(GLDrawArrays, GLenum, GL_TRIANGLE_STRIP, GLint, 0, GLsizei, 4);
-        swap();
-    }
-    finish();
-    return 0;
 }
-
-static double w_compute(void *u, unsigned long n)
+static void w_heavy(void *u)
 {
     (void)u;
+    V3(GLDrawArrays, GLenum, GL_TRIANGLE_STRIP, GLint, 0, GLsizei, 4);
+    swap();
+}
+
+/* a step is CS_BATCH dispatches and a glFinish, so the count is of work the GPU has done */
+#define CS_BATCH 16
+static void p_compute(void)
+{
     V1(GLUseProgram, GLuint, p_cs);
     V3(GLBindBufferBase, GLenum, GL_SHADER_STORAGE_BUFFER, GLuint, 0, GLuint, cs_buf);
-    while (n--) {
+}
+static void w_compute(void *u)
+{
+    int i;
+    (void)u;
+    for (i = 0; i < CS_BATCH; i++) {
         V3(GLDispatchCompute, GLuint, CS_GROUPS, GLuint, 1, GLuint, 1);
         V1(GLMemoryBarrier, GLbitfield, GL_SHADER_STORAGE_BARRIER_BIT);
     }
     finish();
-    return 0;
 }
 
-static void scene(const char *key, const char *label, const char *unit, gfb_work w, double scale, int ready)
+static void scene(const char *key, const char *label, const char *unit, void (*prep)(void), gfb_step w, double scale, int ready)
 {
     struct gfb_result r;
     GLenum e;
@@ -307,8 +309,9 @@ static void scene(const char *key, const char *label, const char *unit, gfb_work
     r.unit = unit;
     if (!ready) gfb_fail(&r, "its shaders or buffers weren't made");
     else {
-        gfb_time(&r, w, NULL, scale, 0);
-        if ((e = gl_error())) sprintf(r.note, "(GL error 0x%x)", (unsigned)e);
+        prep();
+        gfb_time_host(&r, w, s_finish, NULL, scale);
+        if ((e = gl_error())) sprintf(r.note + strlen(r.note), " (GL error 0x%x)", (unsigned)e);
     }
     gfb_report(&r);
 }
@@ -342,7 +345,6 @@ void gfb_gl_tests(void)
     static const float quad[8] = { -1, -1, 1, -1, -1, 1, 1, 1 };
     ULONG err = 0;
     char buf[200];
-    struct gfb_result r;
     double px;
     void *zero;
 
@@ -391,9 +393,9 @@ void gfb_gl_tests(void)
     quad_buf = buffer(GL_ARRAY_BUFFER, sizeof quad, quad, GL_STATIC_DRAW);
     p_flat = program(vs_quad, fs_flat, NULL);
     if (p_flat) u_col = uniform(p_flat, "col");
-    p_heavy = program(vs_quad, fs_heavy, NULL);
-    p_mesh = program(vs_mesh, fs_mesh, NULL);
-    if (p_mesh) u_a = uniform(p_mesh, "a");
+    p_heavyp = program(vs_quad, fs_heavy, NULL);
+    p_meshp = program(vs_mesh, fs_mesh, NULL);
+    if (p_meshp) u_a = uniform(p_meshp, "a");
     make_mesh();
     p_cs = program(NULL, NULL, cs_fma);
     if (p_cs && (zero = AllocMem(CS_ITEMS * 4, MEMF_ANY | MEMF_CLEAR))) {
@@ -403,18 +405,12 @@ void gfb_gl_tests(void)
     finish();
     if ((err = gl_error())) printf("  (GL error 0x%lx setting the scenes up)\n", (unsigned long)err);
 
-    scene("gl_present_fps", "Present (empty frames)", "frames/s", w_present, 1.0, 1);
-    scene("gl_fill_mpix", "Fill, 16 blended quads a frame", "Mpixels/s", w_fill, FILL_QUADS * px / 1e6, p_flat != 0);
-    scene("gl_tris_mtri", "Triangles, 130,050 x 4 a frame", "Mtris/s", w_mesh, MESH_DRAWS * MESH_TRIS / 1e6,
-          p_mesh && mesh_vbuf && mesh_ibuf);
-    memset(&r, 0, sizeof r);
-    r.key = "gl_shader_fps";
-    r.label = "Shader, 128-step Mandelbrot";
-    r.unit = "frames/s";
-    if (!p_heavy) gfb_fail(&r, "its shader wasn't made");
-    else gfb_time(&r, w_heavy, NULL, 1.0, 0);
-    gfb_report(&r);
-    scene("gl_compute_dps", "Compute, 1M invocations x 64 FMA", "dispatches/s", w_compute, 1.0, p_cs && cs_buf);
+    scene("gl_present_fps", "Present (empty frames)", "frames/s", p_present, w_present, 1.0, 1);
+    scene("gl_fill_mpix", "Fill, 16 blended quads a frame", "Mpixels/s", p_fill, w_fill, FILL_QUADS * px / 1e6, p_flat != 0);
+    scene("gl_tris_mtri", "Triangles, 130,050 x 4 a frame", "Mtris/s", p_mesh, w_mesh, MESH_DRAWS * MESH_TRIS / 1e6,
+          p_meshp && mesh_vbuf && mesh_ibuf);
+    scene("gl_shader_fps", "Shader, 128-step Mandelbrot", "frames/s", p_heavy, w_heavy, 1.0, p_heavyp != 0);
+    scene("gl_compute_dps", "Compute, 1M invocations x 64 FMA", "dispatches/s", p_compute, w_compute, CS_BATCH, p_cs && cs_buf);
 
     CALL(aglDestroyContext, void (*)(void *))(ctx);
     ctx = NULL;
