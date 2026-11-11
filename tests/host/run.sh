@@ -53,6 +53,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # ob_strip: the root and the strip under the screen's title bar (GFOpenBench 0.1.43)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/desktop" "$HERE/tests/host/test_ob_strip.c" -o "$OUT/test_ob_strip"
 "$OUT/test_ob_strip"
+# ob_host: the host's cores in the screen's title, from the host's status (GFOpenBench 0.1.45)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_host.c" \
+  "$HERE/tests/host/test_ob_host.c" -o "$OUT/test_ob_host"
+"$OUT/test_ob_host"
 
 # GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
 # shellcheck disable=SC2086
