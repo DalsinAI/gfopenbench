@@ -22,9 +22,11 @@
  *     SYS:Prefs/GFOpenTata. C:Tata's patches stay for every other program, and the question is asked once;
  *   - Information (0.1.13, ob_info.c): its own window for any icon, a drawer's or the desktop's (Icons >
  *     Information...), as workbench.library's WBInfo() does nothing while Workbench isn't running;
- *   - the screen's title, "GFOpenBench 0.1 - Chip, Fast, GPU = 1, CPU = 1 (m68k)", kept up to date, with
- *     "+ 10 (m68k/x64)" when the CPU cores board is fitted: 68k code on the host's x86-64 cores (0.1.36, the
- *     user, 25 October 2026: "perhaps m68k/x64", "so lets do that blend"; barlogo_isas), after room for GFOpenTitle's logo worked out from the logo's width and the bar's font (0.1.12,
+ *   - the screen's title, "GFOpenBench 0.1 - Chip, Fast, GPU = 1, CPU = 1 (68k) + 12 (x64)", kept up to date: the
+ *     68k and, since 0.1.45, the host's own cores, read from the host ("+ 4 (ARM)" on the card; ob_host.h; Dale,
+ *     11 November 2026), with "+ 10 (m68k/x64)" between them when the CPU cores board is fitted: 68k code on the
+ *     host's x86-64 cores (0.1.36, the user, 25 October 2026: "perhaps m68k/x64", "so lets do that blend";
+ *     barlogo_isas), after room for GFOpenTitle's logo worked out from the logo's width and the bar's font (0.1.12,
  *     Common/barlogo.h in gfopenprefs, shared with GFOpenTitle: the bigger logo covered the first letter).
  *   - Workbench's settings (0.1.19): ENV:Sys/Workbench.prefs, Prefs/Workbench's file, read at the start and again
  *     whenever it changes: a tool started from an icon gets at least its default stack, and the devices it
@@ -232,6 +234,7 @@
 #include "ob_vols.h"
 #include "ob_backdrop.h"
 #include "ob_strip.h"
+#include "ob_host.h"
 #include "deskicons.h"
 #include "wb_dir.h"
 #include "wb_fmt.h"
@@ -243,8 +246,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.44"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (27.10.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.45"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -307,7 +310,7 @@ static struct TextAttr ta;
 static struct TextAttr label_ta, label_asked;
 static char label_name[128], label_asked_name[128];
 static int label_set;
-static char screen_title[160];
+static char screen_title[192];               /* 0.1.45: 192, the host's cores added (was 160) */
 
 /* ---- the theme, as GFOpenDrawer reads it ------------------------------------------------------- */
 
@@ -432,20 +435,64 @@ static void count_boards(void)
     ExpansionBase = NULL;
 }
 
+/* 0.1.45: the host's cores (ob_host.h), "+ 4 (ARM)" on the card, "+ 12 (x64)" on a PC, whether or not the cores board
+ * is fitted (Dale, 11 November 2026: the title shows the real CPU picture). Asked of the host through accontrol.device
+ * (ACCMD_BOARD, query ACC_QUERY_STATUS: amicradle-guest devices/accontrol.device/include/accontrol.h; its numbers here,
+ * as the desktop builds without that checkout), once: the host's cores don't change while it runs. An Amiga without
+ * accontrol.device (no ACBridge) is asked 3 times, at the start and on the next 2 ticks, then never again. */
+#define OB_ACCMD_BOARD      (CMD_NONSTD + 2)
+#define OB_ACC_QUERY_STATUS 7
+#define OB_STATUS_BYTES     16384
+static ULONG host_cores;
+static char host_isa[16];
+static UBYTE host_asked;
+
+static void read_host(void)
+{
+    struct MsgPort *mp;
+    struct IOStdReq *io;
+    char *status;
+    if (host_cores || host_asked >= 3) return;
+    host_asked++;
+    if (!(status = AllocVec(OB_STATUS_BYTES + 1, MEMF_PUBLIC | MEMF_CLEAR))) return;
+    if ((mp = CreateMsgPort())) {
+        if ((io = (struct IOStdReq *)CreateIORequest(mp, sizeof *io))) {
+            if (!OpenDevice((STRPTR)"accontrol.device", 0, (struct IORequest *)io, 0)) {
+                io->io_Command = OB_ACCMD_BOARD;
+                io->io_Offset = OB_ACC_QUERY_STATUS;
+                io->io_Data = status;
+                io->io_Length = OB_STATUS_BYTES;
+                if (!DoIO((struct IORequest *)io)) {
+                    status[io->io_Actual < OB_STATUS_BYTES ? io->io_Actual : OB_STATUS_BYTES] = 0;
+                    host_cores = ob_host_cores(status, host_isa);
+                }
+                CloseDevice((struct IORequest *)io);
+            }
+            DeleteIORequest((struct IORequest *)io);
+        }
+        DeleteMsgPort(mp);
+    }
+    FreeVec(status);
+}
+
 /* 1 when the title changed. */
 static int make_title(void)
 {
-    char chip[16], fast[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1];
+    char chip[16], fast[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
+    int k;
     count_boards();                           /* each time: the cores board may give its cores after we start */
+    read_host();
     thousands(chip, sizeof chip, AvailMem(MEMF_CHIP) >> 10);
     thousands(fast, sizeof fast, AvailMem(MEMF_FAST) >> 10);
     barlogo_pad(look.scr, pad);               /* made again each time: GFOpenLook may make the bar taller after we start */
+    /* "1 (68k)", the cores board's "+ 10 (m68k/x64)" when it is fitted, and the host's "+ 12 (x64)" */
+    k = snprintf(cpu, sizeof cpu, "1 (68k)");
     if (cores)
-        snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s KB, Fast %s KB, GPU = %lu, CPU = 1 (m68k) + %lu (%s)",
-                 pad, chip, fast, (unsigned long)gpus, (unsigned long)cores, barlogo_isas(isas));
-    else
-        snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s KB, Fast %s KB, GPU = %lu, CPU = 1 (m68k)",
-                 pad, chip, fast, (unsigned long)gpus);
+        k += snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)cores, barlogo_isas(isas));
+    if (host_cores)
+        snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)host_cores, host_isa[0] ? host_isa : "host");
+    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s KB, Fast %s KB, GPU = %lu, CPU = %s",
+             pad, chip, fast, (unsigned long)gpus, cpu);
     if (!strcmp(t, screen_title))
         return 0;
     strcpy(screen_title, t);
