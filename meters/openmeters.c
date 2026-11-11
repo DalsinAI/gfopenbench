@@ -1,6 +1,6 @@
 /* GFOpenMeters 0.2: a desktop widget for GFOpenBench (the Team, 11 October 2026: "we want a widget for the desktop
  * that's like this, run as tooltype", with a picture of one). A small panel on the Workbench screen with the
- * date and time, then a bar for Chip RAM, Fast RAM and the graphics card's video RAM, then a bar for each volume:
+ * date and time, then a bar for Chip RAM, Fast RAM (on AmiCradle 0.3: locked RAM and AC090 RAM) and the graphics card's video RAM, then a bar for each volume:
  * the label on the left, the bar filled as far as it is used, what is free written in it.
  *
  * 0.2 (the Team, 11 October 2026: its background "needs to respond the same way as the dock does"): the panel is
@@ -62,6 +62,10 @@
  * graphics.library, whose Text blits; GFOpenGfx draws it with the CPU in any memory (494 bytes of Chip RAM on
  * Instance-32, for nothing).
  *
+ * 0.3 (Team 5's task E, 11 November 2026): on AmiCradle the RAM is two bars, the locked base (Chip and Zorro II)
+ * and the dynamic AC090 RAM pool with its mode (2 GB, 3 GB or standard), as Cradle's /api/system/status splits it;
+ * allocation_rows() says how it reads them.
+ *
  * Video RAM: gfopenrtg.library does not yet say how much of the card's memory is in use, so that bar shows the
  * card's video RAM (the AutoConfig board's size, AmiCradle Team $DA15 product 9 or 15) with no fill.
  *
@@ -69,6 +73,7 @@
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/execbase.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
@@ -105,8 +110,8 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 
-#define OPENMETERS_VERSION "0.2.9"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (4.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.3"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
@@ -273,6 +278,82 @@ static row *add_row(const char *label, int kind)
     return r;
 }
 
+/* 0.3 (Team 5's task E, 11 November 2026): AmiCradle's dual memory allocation, as Cradle's /api/system/status
+ * reports it (motherboard.memory.allocation: lockedBaseBytes, dynamicBytes, mode). The guest has no way to that
+ * API, so the same split is read from exec's own memory list: the locked base is every header in the 24-bit space
+ * (Chip RAM and Zorro II Fast RAM, the fixed hardware), the dynamic pool every header above $01000000 (AC090 RAM,
+ * host-backed). The reserved headers AC090's memory controller lists with nothing free ("GFOpenExtMem aperture",
+ * "AmiCradle stacks", ac090_local_rom.s in amicradle) are left out. The mode follows from where the pool sits:
+ * the aperture means the 3 GB mode (its extended memory, from gfopenextmem.library's OEM_Info, joins the bar),
+ * RAM below the Zorro III window ($40000000) the 2 GB mode, the window alone the standard Zorro III board. With
+ * no dynamic pool (any other Amiga) the bars are Chip RAM and Fast RAM, as before. */
+#define OEM_INFO_LVO (-0x42)       /* gfopenextmem.library's OEM_Info(a0 info), libraries/gfopenextmem.h */
+struct oem_info { ULONG backend, page_size, total_pages, free_pages, largest, aperture, aperture_pages, aperture_free, reserved[4]; };
+
+static void oem_info(struct Library *base, struct oem_info *oi)
+{
+    register struct Library *a6 __asm("a6") = base;
+    register struct oem_info *a0 __asm("a0") = oi;
+    __asm__ __volatile__("jsr -66(%%a6)" : "+r"(a6), "+r"(a0) : : "d0", "d1", "a1", "cc", "memory");   /* OEM_INFO_LVO */
+}
+
+static void bytes_row(const char *label, unsigned long long freeb, unsigned long long total)
+{
+    char n[24];
+    row *r;
+    if (!total || !(r = add_row(label, C_MEM))) return;
+    thousands(n, sizeof n, freeb);
+    snprintf(r->value, sizeof r->value, "%s Bytes", n);
+    r->fill = used_of(total - freeb, total);
+}
+
+static int reserved_header(const char *name)
+{
+    return name && (!strcmp(name, "GFOpenExtMem aperture") || !strcmp(name, "AmiCradle stacks"));
+}
+
+/* 1 when it drew the two bars, 0 when there is no dynamic pool */
+static int allocation_rows(void)
+{
+    struct ExecBase *sys = *(struct ExecBase **)4;
+    struct MemHeader *mh;
+    unsigned long long lk_total = 0, lk_free = 0, dy_total = 0, dy_free = 0;
+    int below_z3 = 0, aperture = 0;
+    const char *mode;
+    char label[32];
+    Forbid();
+    for (mh = (struct MemHeader *)sys->MemList.lh_Head; mh->mh_Node.ln_Succ; mh = (struct MemHeader *)mh->mh_Node.ln_Succ) {
+        ULONG lo = (ULONG)mh->mh_Lower, hi = (ULONG)mh->mh_Upper;
+        if (reserved_header((const char *)mh->mh_Node.ln_Name)) {
+            if (!strcmp((const char *)mh->mh_Node.ln_Name, "GFOpenExtMem aperture")) aperture = 1;
+            continue;
+        }
+        if (hi <= lo) continue;
+        if (lo < 0x01000000UL) { lk_total += hi - lo; lk_free += mh->mh_Free; }
+        else { dy_total += hi - lo; dy_free += mh->mh_Free; if (lo < 0x40000000UL) below_z3 = 1; }
+    }
+    Permit();
+    if (!dy_total) return 0;
+    if (aperture) {
+        struct Library *oem = OpenLibrary((STRPTR)"gfopenextmem.library", 1);
+        mode = "3 GB";
+        if (oem) {
+            struct oem_info oi;
+            memset(&oi, 0, sizeof oi);
+            oem_info(oem, &oi);
+            if (oi.backend && oi.page_size) {
+                dy_total += (unsigned long long)oi.total_pages * oi.page_size;
+                dy_free += (unsigned long long)oi.free_pages * oi.page_size;
+            }
+            CloseLibrary(oem);
+        }
+    } else mode = below_z3 ? "2 GB" : "standard";
+    bytes_row("Locked RAM", lk_free, lk_total);
+    snprintf(label, sizeof label, "AC090 RAM (%s)", mode);
+    bytes_row(label, dy_free, dy_total);
+    return 1;
+}
+
 static void memory_row(const char *label, ULONG type)
 {
     unsigned long long freeb = AvailMem(type), total = AvailMem(type | MEMF_TOTAL);
@@ -386,8 +467,10 @@ static void read_all(void)
     snprintf(date_line, sizeof date_line, "%s, %d %s %d, %02d:%02d", days[cd.wday % 7], cd.mday,
              months[(cd.month + 11) % 12], cd.year, cd.hour, cd.min);
     if (!opt.nomemory) {
-        memory_row("Chip RAM", MEMF_CHIP);
-        memory_row("Fast RAM", MEMF_FAST);
+        if (!allocation_rows()) {
+            memory_row("Chip RAM", MEMF_CHIP);
+            memory_row("Fast RAM", MEMF_FAST);
+        }
     }
     if (!opt.novideo) video_row();
     if (!opt.novolumes) volume_rows();
