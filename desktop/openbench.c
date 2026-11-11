@@ -247,7 +247,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.46"
+#define OPENBENCH_VERSION "0.1.47"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -2164,7 +2164,7 @@ static void title_release(void)
 /* ---- menus ---------------------------------------------------------------------------------- */
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
-       M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT };
+       M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT };
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
@@ -2199,6 +2199,8 @@ static struct NewMenu newmenus[] = {
     /* 0.1.41: OS 3.2.3's Leave Out, before Put Away as there: an icon left out for the run, for good (.backdrop) */
     { NM_ITEM, (STRPTR)"Leave Out", (STRPTR)"L", 0, 0, (APTR)M_LEAVEOUT },
     { NM_ITEM, (STRPTR)"Put Away", (STRPTR)"P", 0, 0, (APTR)M_PUTAWAY },    /* 0.1.35: icons left out, back */
+    /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it */
+    { NM_ITEM, (STRPTR)"Eject", (STRPTR)"E", 0, 0, (APTR)M_USB_EJECT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Clean Up", (STRPTR)".", 0, 0, (APTR)M_CLEANUP },    /* 0.1.33: the desktop's icons flow again */
     /* the floppy drives from the desktop (Dale, 12 Oct 2026: "attach an adf to df0 so it can be booted"):
@@ -2239,6 +2241,75 @@ static void run_detached(const char *cmd, const char *missing)
         if (in) Close(in);
         if (out) Close(out);
         ask("GFOpenBench", missing, "OK");
+    }
+}
+
+/* 0.1.47: the USB drive a volume is in ("USB0"), from the DOS device in the same handler whose disk device is
+ * GFOpenUSB's (gfopenusbacfs.device, usbdisk.device); 0 when the volume isn't on a USB stick */
+static int usb_drive(const char *volume, char *drive, int size)
+{
+    struct DosList *d, *v, *start;
+    int found = 0;
+    d = start = LockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
+    v = FindDosEntry(start, (CONST_STRPTR)volume, LDF_VOLUMES);
+    while (v && (d = NextDosEntry(d, LDF_DEVICES))) {
+        const UBYTE *n = (const UBYTE *)BADDR(d->dol_Name);
+        ULONG su = (ULONG)d->dol_misc.dol_handler.dol_Startup;
+        const struct FileSysStartupMsg *fssm;
+        const UBYTE *dev;
+        int k;
+        if (d->dol_Task != v->dol_Task || !n || su <= 1024 || (su & 0xC0000000UL)) continue;
+        fssm = (const struct FileSysStartupMsg *)BADDR(su);
+        dev = (const UBYTE *)BADDR(fssm->fssm_Device);
+        if (!bname_is(dev, "gfopenusbacfs.device", 0) && !bname_is(dev, "usbdisk.device", 0)) continue;
+        k = n[0] < size - 1 ? n[0] : size - 1;
+        memcpy(drive, n + 1, (size_t)k);
+        drive[k] = 0;
+        found = 1;
+        break;
+    }
+    UnLockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
+    return found;
+}
+
+/* 0.1.47: Icons > Eject: each selected USB stick through GFOpenUSB's C:USBEject (TD_EJECT, and the host's
+ * POST /api/usb/eject for a stick passed through), then "safe to remove", or USBEject's own words */
+static void usb_eject_selected(void)
+{
+    int i, any = 0;
+    for (i = 0; i < nicons; i++) {
+        char drive[32], cmd[96], said[160];
+        BPTR out;
+        LONG rc, n;
+        if (!icons[i].selected || icons[i].lo >= 0) continue;
+        if (!usb_drive(icons[i].name, drive, sizeof drive)) continue;
+        any = 1;
+        if (!(out = Lock((CONST_STRPTR)"C:USBEject", SHARED_LOCK))) {
+            ask("GFOpenBench", "C:USBEject isn't here (GFOpenUSB), so the stick can't be ejected.", "OK");
+            return;
+        }
+        UnLock(out);
+        snprintf(cmd, sizeof cmd, "C:USBEject DRIVE=\"%s:\"", drive);
+        out = Open((CONST_STRPTR)"T:GFOpenBench.eject", MODE_NEWFILE);
+        rc = SystemTags((CONST_STRPTR)cmd, SYS_Output, (ULONG)out, NP_StackSize, 16384, TAG_DONE);
+        if (out) Close(out);
+        said[0] = 0;
+        if ((out = Open((CONST_STRPTR)"T:GFOpenBench.eject", MODE_OLDFILE))) {
+            n = Read(out, said, sizeof said - 1);
+            said[n > 0 ? n : 0] = 0;
+            Close(out);
+            DeleteFile((CONST_STRPTR)"T:GFOpenBench.eject");
+        }
+        if (rc == 0) {
+            snprintf(said, sizeof said, "%s is safe to remove.", icons[i].name);
+            ask("GFOpenBench", said, "OK");
+        } else
+            ask("GFOpenBench", said[0] ? said : "The stick wasn't ejected.", "OK");
+    }
+    if (!any) ask("GFOpenBench", "Eject is for a USB stick: select its icon first.", "OK");
+    else {
+        scan_volumes();
+        redraw_all();
     }
 }
 
@@ -3120,6 +3191,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                     }
                 break;
             }
+            case M_USB_EJECT: usb_eject_selected(); break;   /* 0.1.47 */
             case M_REDRAW: redraw_all(); break;
             case M_PUTAWAY: put_away(); break;      /* 0.1.35 */
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
