@@ -232,6 +232,7 @@
 #include "ob_snap.h"
 #include "ob_notify.h"
 #include "ob_vols.h"
+#include "ob_order.h"
 #include "ob_backdrop.h"
 #include "ob_strip.h"
 #include "ob_host.h"
@@ -246,7 +247,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.45"
+#define OPENBENCH_VERSION "0.1.46"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -1177,10 +1178,13 @@ static int ci_cmp(const char *a, const char *b)
 
 /* 0.1.34: the Clean Up order (GFOpenPrefs' Icons page): by name, by kind of drive, by size (the smallest first), by
  * date (the oldest first); by name among equals */
+static char boot_vol[64];                   /* 0.1.46: SYS:'s volume, second on the column (ob_order.h) */
+
 static int by_order(const void *a, const void *b)
 {
     const dicon *x = (const dicon *)a, *y = (const dicon *)b;
-    int c = 0;
+    int c = ob_vol_rank(x->kind, x->name, boot_vol) - ob_vol_rank(y->kind, y->name, boot_vol);
+    if (c) return c;                                /* 0.1.46: RAM Disk, then the boot volume, then the order */
     if (ip.order == WB_ORDER_KIND) c = ci_cmp(x->kind, y->kind);
     else if (ip.order == WB_ORDER_SIZE) c = x->kb < y->kb ? -1 : x->kb > y->kb;
     else if (ip.order == WB_ORDER_DATE) {
@@ -1592,6 +1596,21 @@ static void scan_volumes(void)
         nicons++;
     }
     UnLockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
+    boot_vol[0] = 0;                                /* 0.1.46: SYS:'s volume, by its lock's InfoData */
+    {
+        static struct InfoData bi __attribute__((aligned(4)));
+        BPTR l = Lock((CONST_STRPTR)"SYS:", SHARED_LOCK);
+        if (l) {
+            if (Info(l, &bi) && bi.id_VolumeNode) {
+                const struct DosList *v = (const struct DosList *)BADDR(bi.id_VolumeNode);
+                const UBYTE *b = (const UBYTE *)BADDR(v->dol_Name);
+                int n = b ? (b[0] < 63 ? b[0] : 63) : 0;
+                if (n) memcpy(boot_vol, b + 1, (size_t)n);
+                boot_vol[n] = 0;
+            }
+            UnLock(l);
+        }
+    }
     if (ip.order == WB_ORDER_SIZE)                  /* the sizes, only for this order: a lock and Info() each */
         for (i = 0; i < nicons; i++) {
             static struct InfoData id __attribute__((aligned(4)));
