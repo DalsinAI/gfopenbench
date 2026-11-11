@@ -113,6 +113,7 @@
 #define OPENMETERS_VERSION "0.3"
 static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
+extern struct ExecBase *SysBase;
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
 struct Library *UtilityBase, *IconBase, *GadToolsBase, *CyberGfxBase;
@@ -315,7 +316,7 @@ static int reserved_header(const char *name)
 /* 1 when it drew the two bars, 0 when there is no dynamic pool */
 static int allocation_rows(void)
 {
-    struct ExecBase *sys = *(struct ExecBase **)4;
+    struct ExecBase *sys = SysBase;                    /* libnix sets it from address 4 */
     struct MemHeader *mh;
     unsigned long long lk_total = 0, lk_free = 0, dy_total = 0, dy_free = 0;
     int below_z3 = 0, aperture = 0;
