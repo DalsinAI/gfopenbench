@@ -170,6 +170,10 @@
  *     requester instead). ob_drop hands the words over when the job ends (ob_drop_env.say); say_title keeps them in
  *     the title of every GFOpenBench window, the 2-second tick leaves them there, and the next click (the left button
  *     pressed in any GFOpenBench window) gives the usual title back;
+ *   - a volume with no Disk.info asks for its drive's own default icon, def_<device> ("DH0"), before def_<kind>, as
+ *     OS 3.2.3's Workbench (0.1.47; Dale, 11 November 2026, the chrome drive icons): GFOpenIcon draws a folder drive,
+ *     a USB stick, an IDE partition and the boot drive each its own way. With another icon.library the device's name
+ *     is asked for only when ENV:Sys/def_<device>.info is there (default_name);
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -247,7 +251,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.46"
+#define OPENBENCH_VERSION "0.1.47"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -860,6 +864,7 @@ typedef struct dicon {
     char name[64];                          /* the volume's name, the label (0.1.35: a left-out icon's file's) */
     char path[256];                         /* "Work:" (0.1.35: a left-out icon's file, "Work:Tools/GFOpenMeters") */
     const char *kind;                       /* its drive's default icon, def_<kind>, when it has no Disk.info */
+    char dev[32];                           /* 0.1.47: its drive's DOS device ("DH0"), for def_<device> first */
     struct DiskObject *dobj;
     LONG x, y, w, h;                        /* the picture's box in the root window */
     LONG ix, iy;                            /* where DrawIconState puts it for that box */
@@ -1211,13 +1216,18 @@ static int bname_is(const UBYTE *b, const char *s, int prefix)
  * disk, "Harddisk". 0.1.17: a volume without a Disk.info was given icon.library's default disk icon, which
  * is a floppy, so a hard disk partition (Work: on a new instance, which has no Disk.info) showed as a
  * floppy. Called with the DOS list locked for volumes and devices; start is what LockDosList gave. */
-static const char *drive_kind(struct DosList *start, const struct DosList *vol)
+static const char *drive_kind(struct DosList *start, const struct DosList *vol, char *dev, size_t devsz)
 {
     struct DosList *d = start;
+    dev[0] = 0;
     while ((d = NextDosEntry(d, LDF_DEVICES))) {
         const UBYTE *n = (const UBYTE *)BADDR(d->dol_Name);
         ULONG su = (ULONG)d->dol_misc.dol_handler.dol_Startup;
         if (d->dol_Task != vol->dol_Task) continue;
+        if (n && n[0] && (size_t)n[0] < devsz) {           /* 0.1.47: the device's name, for def_<device> */
+            memcpy(dev, n + 1, n[0]);
+            dev[n[0]] = 0;
+        }
         if (bname_is(n, "ram", 0)) return "RAM";
         if (bname_is(n, "cd", 1)) return "CDROM";
         if (bname_is(n, "df", 1)) return "Disk";
@@ -1229,6 +1239,27 @@ static const char *drive_kind(struct DosList *start, const struct DosList *vol)
         break;
     }
     return "Harddisk";
+}
+
+/* 0.1.47 (Dale, 11 November 2026: the chrome drive icons): the default icon name a volume without a Disk.info is
+ * asked for, as OS 3.2.3's Workbench: def_<device> ("DH0") first, so each drive can have its own picture, then
+ * def_<kind>. The device's name is asked for only when it can answer: an ENV:Sys/def_<device>.info is there, or
+ * icon.library is GFOpenIcon, whose built-in picture for a device's name is that drive's own (a folder drive, a
+ * USB stick, an IDE partition, the boot drive). Another icon.library with no def_<device> keeps def_<kind>, so a
+ * hard disk never falls back to the floppy. Not with the DOS list locked (it Locks ENV:). */
+static int icon_ours;                           /* icon.library is GFOpenIcon (set where it is opened) */
+static const char *default_name(const dicon *ic)
+{
+    char p[64];
+    BPTR l;
+    if (!ic->dev[0]) return ic->kind;
+    if (icon_ours) return ic->dev;
+    snprintf(p, sizeof p, "ENV:Sys/def_%s.info", ic->dev);
+    if ((l = Lock((CONST_STRPTR)p, SHARED_LOCK))) {
+        UnLock(l);
+        return ic->dev;
+    }
+    return ic->kind;
 }
 
 /* 1 when the volume is in a device Workbench's settings hide (wb_prefs_load). Called with the DOS list
@@ -1589,7 +1620,7 @@ static void scan_volumes(void)
         n = b[0] < 63 ? b[0] : 63;
         memcpy(icons[nicons].name, b + 1, (size_t)n);
         icons[nicons].name[n] = 0;
-        icons[nicons].kind = drive_kind(start, dl);
+        icons[nicons].kind = drive_kind(start, dl, icons[nicons].dev, sizeof icons[nicons].dev);
         icons[nicons].date = dl->dol_misc.dol_volume.dol_VolumeDate;
         icons[nicons].kb = 0;
         icons[nicons].lo = -1;
@@ -1638,8 +1669,8 @@ static void scan_volumes(void)
         /* 0.1.38: a Disk.info's place only when GFOpenBench snapshotted it there (ob_snap.h); 3.2.3's are passed over */
         ic->snapped = ic->dobj && ob_snap_honour(&snaps, ic->name, "", OB_SNAP_DESK, ic->dobj->do_CurrentX,
                                                  ic->dobj->do_CurrentY, &ic->sgx, &ic->sgy);
-        if (!ic->dobj)                              /* no Disk.info: def_<kind>, or the default disk icon */
-            ic->dobj = GetIconTags(NULL, ICONGETA_GetDefaultName, (ULONG)ic->kind, ICONGETA_GetDefaultType, WBDISK,
+        if (!ic->dobj)                              /* no Disk.info: def_<device> or def_<kind>, or the default disk icon */
+            ic->dobj = GetIconTags(NULL, ICONGETA_GetDefaultName, (ULONG)default_name(ic), ICONGETA_GetDefaultType, WBDISK,
                                    ICONGETA_Screen, (ULONG)look.scr, TAG_DONE);
         ic->w = 48; ic->h = 40;
         r.MinX = r.MinY = 0;
@@ -2637,7 +2668,7 @@ static void desk_snapshot(int all, int unsnap)
             else f.good++;
             continue;
         }
-        if ((err = snap_write(file, ic->ix, ic->iy, ic->lo < 0 ? ic->kind : NULL))) {
+        if ((err = snap_write(file, ic->ix, ic->iy, ic->lo < 0 ? default_name(ic) : NULL))) {
             snapfail_add(&f, ic->name, err, NULL);
             continue;
         }
@@ -3785,6 +3816,7 @@ static int run(void)
      * which wb_pic opens for itself: 0.1.20, which never opened it, drew them all as icons (Instance-32) */
     wb_pic_open();
     if (!IconBase) goto out;
+    icon_ours = IconBase->lib_IdString && strstr((const char *)IconBase->lib_IdString, "GFOpenIcon") != NULL;
     if (!(launch_port = CreateMsgPort())) {
         no_signal("the programs it starts");
         goto out;
