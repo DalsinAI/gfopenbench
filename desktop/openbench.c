@@ -2301,7 +2301,7 @@ static void usb_eject_selected(void)
             DeleteFile((CONST_STRPTR)"T:GFOpenBench.eject");
         }
         if (rc == 0) {
-            snprintf(said, sizeof said, "%s is safe to remove.", icons[i].name);
+            snprintf(said, sizeof said, "%.63s is safe to remove.", icons[i].name);
             ask("GFOpenBench", said, "OK");
         } else
             ask("GFOpenBench", said[0] ? said : "The stick wasn't ejected.", "OK");
