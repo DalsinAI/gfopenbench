@@ -179,6 +179,11 @@
  *     3 GB Fast if that's what it is ... the Workbench on that machine doesn't mention ExtMem at all". The split stays
  *     in the library's query, the SDK and the logs. With no such library (any Amiga but AmiCradle's 3 GB mode) Fast
  *     is exec's alone;
+ *   - a drawer window searches every drive (0.1.49; task 54, Dale, 12 November 2026: the results in the drawer
+ *     window): Shift-Return in its search field, or its menu, shows the hits grouped as names, inside files and in
+ *     databases, and opens one in its drawer, in GFOpenEdit at its line, or in GFOpenBase at its table and row
+ *     (gfopengadtools workbench/wb_find.c, ACFind's code from amicradle-guest). Its process is stopped before
+ *     GFOpenBench ends;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -249,6 +254,7 @@
 #include "wb_dir.h"
 #include "wb_fmt.h"
 #include "wb_thumb.h"
+#include "wb_find.h"
 #include "wb_pic.h"
 #include "wb_ghost.h"
 #include "wb_grid.h"
@@ -256,7 +262,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.48"
+#define OPENBENCH_VERSION "0.1.49"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -4014,7 +4020,7 @@ static int run(void)
         else FreeSignal(s);
     }
     for (;;) {
-        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() |
+        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
                           ob_drop_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
@@ -4113,6 +4119,8 @@ static int run(void)
         }
         if ((sigs & wb_thumb_sigmask()) && wb_thumb_collect())
             for (i = 0; i < ndrawers; i++) wb_drawer_thumbs(drawers[i]);
+        if ((sigs & wb_find_sigmask()) && wb_find_collect())   /* 0.1.49: the search of every drive, its hits */
+            for (i = 0; i < ndrawers; i++) wb_drawer_find_update(drawers[i]);
         if (sigs & (1UL << picture_sig)) {
             ULONG *old = NULL;
             if (root) LockLayer(0, root->WLayer);
@@ -4203,6 +4211,7 @@ out:
     desktop_down();                             /* the Information windows, the drawers, the root, the screen */
     wbc_stop();
     wb_thumb_stop();                            /* its process runs our code, and uses datatypes.library */
+    wb_find_stop();                             /* 0.1.49: the search's process runs our code too */
     wb_pic_close();
     if (DataTypesBase) { CloseLibrary(DataTypesBase); DataTypesBase = NULL; }
     if (launch_port) {
