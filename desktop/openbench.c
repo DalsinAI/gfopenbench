@@ -2462,6 +2462,7 @@ static void usb_eject_selected(void)
 
 static void go_down(void);
 static int go_up(void);
+static void desktop_down(void);
 
 /* Icons > Format Disk... (M24): SYS:System/Format started for the first selected disk, its WBArg the disk's root (a
  * lock on it and no name), as OS 3.2.3's Workbench starts it; Format's own window asks before anything is lost */
