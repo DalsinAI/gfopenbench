@@ -191,6 +191,10 @@
  *     their contents)?", then the engine's delete runs as a job of its own (ob_drop.c): to the volume's Trashcan, from
  *     which it can be put back until Empty Trash, and for good (with 3.2.3's warning) for what is in the trash already.
  *     Disks and trashcans aren't deleted;
+ *   - ARexx (0.1.53; gap rows R1 and R2, Dale, 12 November 2026: "it should declare itself openbench and
+ *     workbench"): two public ports, WORKBENCH and OPENBENCH, each taking OS 3.2.3's Workbench commands with its
+ *     templates (ob_rexx.c); OPEN and VERSION on OPENBENCH only. A name already taken is left to its owner and said
+ *     once. NEWDRAWER, RENAME and DELETE go through GFOpenFiles' engine (ob_arexx.c);
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -258,6 +262,7 @@
 #include "ob_backdrop.h"
 #include "ob_strip.h"
 #include "ob_host.h"
+#include "ob_arexx.h"
 #include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
@@ -271,7 +276,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.52"
+#define OPENBENCH_VERSION "0.1.53"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -4263,6 +4268,150 @@ static void notify_end(void)
     }
 }
 
+/* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
+
+static struct Screen *rx_screen(void)
+{
+    return root ? look.scr : NULL;
+}
+
+static struct TextFont *rx_icon_font(void)
+{
+    return look.label_font ? look.label_font : look.font;
+}
+
+static struct Window *rx_window_at(int i, char *name, int n)
+{
+    if (!root) return NULL;                         /* the screen is being reset */
+    if (i == 0) {
+        snprintf(name, (size_t)n, "root");
+        return root;
+    }
+    if (i < 1 || i > ndrawers) return NULL;
+    snprintf(name, (size_t)n, "%s", wb_drawer_path(drawers[i - 1]));
+    return wb_drawer_window(drawers[i - 1]);
+}
+
+static int rx_close_window(struct Window *w)
+{
+    int i;
+    for (i = 0; i < ndrawers; i++)
+        if (wb_drawer_window(drawers[i]) == w) {
+            close_index(i);
+            return 1;
+        }
+    return 0;                                       /* the root stays */
+}
+
+static int rx_info(const char *path)
+{
+    return look.scr && ob_info_open(look.scr, path);
+}
+
+static const char *rx_type(int type)
+{
+    switch (type) {
+    case WBDISK: return "DISK";
+    case WBDRAWER: return "DRAWER";
+    case WBTOOL: return "TOOL";
+    case WBPROJECT: return "PROJECT";
+    case WBGARBAGE: return "GARBAGE";
+    case WBDEVICE: return "DEVICE";
+    case WBKICK: return "KICK";
+    case WBAPPICON: return "APPICON";
+    default: return "PROJECT";
+    }
+}
+
+/* a drawer window's icons, read when the first is asked for (each GETATTR starts there) */
+static wb_dir rx_dir;
+static int rx_dir_read;
+
+static int rx_icon_at(struct Window *w, int i, ob_rexx_icon *out, int detail)
+{
+    int k;
+    memset(out, 0, sizeof *out);
+    if (!root) return 0;
+    if (w == root) {
+        int n = -1;
+        for (k = 0; k < nicons; k++) {
+            if (!ob_show_icons(&show)) break;      /* No icons: the desktop shows none */
+            if (++n == i) {
+                dicon *ic = &icons[k];
+                snprintf(out->name, sizeof out->name, "%s", ic->lo >= 0 ? ic->name : ic->path);
+                out->selected = ic->selected;
+                out->left = ic->x;
+                out->top = ic->y;
+                out->width = ic->w;
+                out->height = ic->h;
+                out->type = ic->lo < 0 ? "DISK" : rx_type(ic->dobj ? ic->dobj->do_Type : 0);
+                return 1;
+            }
+        }
+        return 0;
+    }
+    for (k = 0; k < ndrawers; k++)
+        if (wb_drawer_window(drawers[k]) == w) break;
+    if (k == ndrawers) return 0;
+    if (i == 0 || !rx_dir_read || ci_cmp(rx_dir.path, wb_drawer_path(drawers[k]))) {
+        if (rx_dir_read) wb_dir_free(&rx_dir);
+        memset(&rx_dir, 0, sizeof rx_dir);
+        rx_dir_read = wb_dir_read(&rx_dir, wb_drawer_path(drawers[k]), 0);
+        if (!rx_dir_read) return 0;
+        wb_dir_sort(&rx_dir, WB_SORT_NAME, 0);
+    }
+    if (i < 0 || i >= rx_dir.n) return 0;
+    snprintf(out->name, sizeof out->name, "%s", rx_dir.e[i].name);
+    out->selected = 0;                              /* a drawer's selection isn't told yet */
+    out->type = rx_dir.e[i].drawer ? "DRAWER" : "PROJECT";
+    if (detail) {
+        if (wb_entry_icon(&rx_dir, i, look.scr) && rx_dir.e[i].icon_type) out->type = rx_type(rx_dir.e[i].icon_type);
+        out->left = rx_dir.e[i].x;
+        out->top = rx_dir.e[i].y;
+        out->width = rx_dir.e[i].iw;
+        out->height = rx_dir.e[i].ih;
+    }
+    return 1;
+}
+
+static int rx_icon_select(struct Window *w, const char *name, int how)
+{
+    int k;
+    if (!root || w != root) return 0;               /* a drawer's selection: not yet */
+    for (k = 0; k < nicons; k++) {
+        dicon *ic = &icons[k];
+        if (ci_cmp(ic->lo >= 0 ? ic->name : ic->path, name) && ci_cmp(ic->name, name)) continue;
+        if (ic->selected != how) {
+            ic->selected = how;
+            redraw_around(ic);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void rx_changed(const char *dir)
+{
+    int i;
+    BPTR l = Lock((CONST_STRPTR)dir, ACCESS_READ), l2;
+    for (i = 0; i < ndrawers; i++) {
+        int same = !ci_cmp(wb_drawer_path(drawers[i]), dir);
+        if (!same && l && (l2 = Lock((CONST_STRPTR)wb_drawer_path(drawers[i]), ACCESS_READ))) {
+            same = SameLock(l, l2) == LOCK_SAME;
+            UnLock(l2);
+        }
+        if (same) wb_drawer_reread(drawers[i]);
+    }
+    if (l) UnLock(l);
+    if (rx_dir_read) wb_dir_free(&rx_dir);
+    rx_dir_read = 0;
+}
+
+static const ob_rexx_env rexx_env = {
+    "GFOpenBench " OPENBENCH_VERSION, rx_screen, rx_icon_font, rx_window_at, open_drawer, rx_close_window,
+    ob_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
+};
+
 static int run(void)
 {
     struct MsgPort *pub = NULL, *tport = NULL;
@@ -4365,6 +4514,8 @@ static int run(void)
     if (wbc_sig < 0 || !wbc_port) no_signal("GFOpenLook's close notice");
     /* 0.1.26: before the dock and WBStartup add AppWindows */
     if (!ob_drop_start(&drop_env)) no_signal("drag and drop's ports");
+    /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
+    if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
     run_wbstartup();
 
@@ -4390,7 +4541,7 @@ static int run(void)
         ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
-                          ob_drop_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
+                          ob_drop_sigmask() | ob_arexx_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
         struct IntuiMessage *im;
         struct Message *lm;
         unsigned todo;
@@ -4456,6 +4607,7 @@ static int run(void)
         }
         launches_reap();
         if (sigs & ob_drop_sigmask()) ob_drop_handle();   /* 0.1.26: copies done, AppMessages answered */
+        if (sigs & ob_arexx_sigmask()) ob_arexx_handle(); /* 0.1.53: ARexx's commands */
         while ((lm = GetMsg(pub))) {
             /* something to open, from the dock or another of the Team's programs (obmsg.h) */
             struct ob_msg *om = (struct ob_msg *)lm;
@@ -4578,6 +4730,8 @@ static int run(void)
     }
 
 out:
+    ob_arexx_stop();                            /* 0.1.53: the ARexx ports, their messages answered */
+    if (rx_dir_read) wb_dir_free(&rx_dir);
     aloha_stop();                               /* 0.1.22: Intuition's Workbench port given back first */
     ob_builtin_quit_all();                      /* the built-ins first: their code is ours */
 #ifdef OB_HAVE_TATA
