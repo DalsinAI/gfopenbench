@@ -979,6 +979,28 @@ void ob_drop_stop(void)
     app_port = NULL;
 }
 
+/* ---- Icons > Copy (WBGapTest M18, OS 3.2.3's Copy) ---- */
+
+/* A drawer window's Icons > Copy (wb_look's copy): each selected entry of dir copied beside itself, as a job like a
+ * drop's, by GFOpenFiles' engine, which names the copy "Name (2)" (of_copy's own rule for a copy onto its drawer).
+ * The drawer is read again when the job ends. 1 when the job started. */
+int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from)
+{
+    char **src;
+    int i, k = 0, ok;
+    (void)from;
+    if (n <= 0 || !(src = AllocVec((ULONG)n * sizeof *src, MEMF_ANY | MEMF_CLEAR))) return 0;
+    for (i = 0; i < n; i++) {
+        if (!(src[k] = AllocVec(OF_PATH_MAX, MEMF_ANY))) break;
+        if (of_path_join(src[k], dir, names[i])) k++;
+        else FreeVec(src[k]);
+    }
+    ok = k && job_for(src, k, dir, OP_COPY, NULL);
+    for (i = 0; i < k; i++) FreeVec(src[i]);
+    FreeVec(src);
+    return ok;
+}
+
 /* ---- Window > New drawer... (WBGapTest M8, OS 3.2.3's New Drawer) ---- */
 
 /* A drawer window's Window > New drawer... (wb_look's new_drawer): GFOpenFiles' name requester, offering the first
