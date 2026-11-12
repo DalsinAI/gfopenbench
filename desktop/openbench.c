@@ -3953,11 +3953,6 @@ static int nm_rows(struct NewMenu *nm, int k, const ob_wbp_row *r, int n)
     return k;
 }
 
-static int is_title(const struct NewMenu *n, const char *label)
-{
-    return n->nm_Type == NM_TITLE && n->nm_Label && !strcmp((const char *)n->nm_Label, label);
-}
-
 /* The root window's menus, laid out: newmenus (Resize to Window as desktop_up decided), then the programs' items in
  * Tools (a Tools menu of GFOpenBench's own, or one made after Icons) and their own menus (ob_wbplan). NULL with no
  * memory. */
