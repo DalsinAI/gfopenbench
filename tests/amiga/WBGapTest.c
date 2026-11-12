@@ -344,6 +344,8 @@ static int do_notify(void)
     struct Window *w;
     ULONG before;
     int how;
+    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1");        /* a run before left them: the file must be new */
+    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1.info");
     do_setup();
     if (!(w = open_drawer("RAM:WBGap", "WBGap", 10, &how))) { fail("F1", "RAM:WBGap's window didn't open"); skip("F2", "no window"); return 10; }
     printf("INFO RAM:WBGap opened by %s\n", how ? "DragTest OPEN" : "OpenWorkbenchObjectA");
