@@ -184,6 +184,13 @@
  *     databases, and opens one in its drawer, in GFOpenEdit at its line, or in GFOpenBase at its table and row
  *     (gfopengadtools workbench/wb_find.c, ACFind's code from amicradle-guest). Its process is stopped before
  *     GFOpenBench ends;
+ *   - Icons > Rename... and Icons > Delete..., in the drawers and on the desktop, as OS 3.2.3's (0.1.51; CM4 item 12,
+ *     rows M19 and M23, Dale, 12 November 2026: "we need to close this"). Rename asks for each selected icon in turn
+ *     ("Enter a new name for 'x'.", ob_name.c) and renames the file and its .info together with GFOpenFiles' engine
+ *     (of_rename); a disk is relabelled. Delete asks 3.2.3's question, "OK to delete: n file(s) and m drawer(s) (and
+ *     their contents)?", then the engine's delete runs as a job of its own (ob_drop.c): to the volume's Trashcan, from
+ *     which it can be put back until Empty Trash, and for good (with 3.2.3's warning) for what is in the trash already.
+ *     Disks and trashcans aren't deleted;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -237,6 +244,7 @@
 #include "barlogo.h"
 #include "ob_builtin.h"
 #include "ob_info.h"
+#include "ob_name.h"
 #ifdef OB_HAVE_TATA
 #include "tata_inspect.h"
 #endif
@@ -262,7 +270,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.49"
+#define OPENBENCH_VERSION "0.1.51"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -2244,7 +2252,7 @@ static void title_release(void)
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
-       M_RESETWB };
+       M_RESETWB, M_RENAME, M_DELETE };
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
@@ -2275,12 +2283,16 @@ static struct NewMenu newmenus[] = {
     { NM_TITLE, (STRPTR)"Icons", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Open", (STRPTR)"O", 0, 0, (APTR)M_ICON_OPEN },
     { NM_ITEM, (STRPTR)"Information...", (STRPTR)"I", 0, 0, (APTR)M_ICON_INFO },
+    /* 0.1.51: OS 3.2.3's Rename... (row M19); no key yet: 3.2.3's Amiga-R is the dock's here (row M28) */
+    { NM_ITEM, (STRPTR)"Rename...", NULL, 0, 0, (APTR)M_RENAME },
     /* 0.1.38: OS 3.2.3's, after Information...: the selected icons' places kept in their .info files, or cleared */
     { NM_ITEM, (STRPTR)"Snapshot", (STRPTR)"S", 0, 0, (APTR)M_SNAP },
     { NM_ITEM, (STRPTR)"Unsnapshot", (STRPTR)"U", 0, 0, (APTR)M_UNSNAP },
     /* 0.1.41: OS 3.2.3's Leave Out, before Put Away as there: an icon left out for the run, for good (.backdrop) */
     { NM_ITEM, (STRPTR)"Leave Out", (STRPTR)"L", 0, 0, (APTR)M_LEAVEOUT },
     { NM_ITEM, (STRPTR)"Put Away", (STRPTR)"P", 0, 0, (APTR)M_PUTAWAY },    /* 0.1.35: icons left out, back */
+    /* 0.1.51: OS 3.2.3's Delete... (row M23), after Put Away; Amiga-D stays Insert Disk's for now (row M28) */
+    { NM_ITEM, (STRPTR)"Delete...", NULL, 0, 0, (APTR)M_DELETE },
     /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it */
     { NM_ITEM, (STRPTR)"Eject", NULL, 0, 0, (APTR)M_USB_EJECT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
@@ -3015,6 +3027,125 @@ static void put_away(void)
     snapfail_end(&f, 0, "Put Away", NULL);
 }
 
+/* ---- Icons > Rename... and Delete... (0.1.51; CM4 item 12, rows M19 and M23) ------------------------------------- */
+
+/* The new name asked for path ("Work:Tools/x"), and the rename done (GFOpenFiles' engine, ob_drop_rename): 1 when
+ * renamed or left as it was (the same name), 0 for Cancel or an error, said in 3.2.3's words on window w (else the
+ * desktop's). newpath, when not NULL, gets the renamed path. */
+static int rename_asked(const char *path, struct Window *w, char *newpath, int n)
+{
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench", (UBYTE *)"Error while renaming \"%s\"\n%s",
+                             (UBYTE *)"OK" };
+    const char *name = path, *c;
+    char newname[108];
+    ULONG args[2];
+    int rc;
+    for (c = path; *c; c++)
+        if (*c == ':' || *c == '/') name = c + 1;
+    if (!*name || !ob_name_ask(look.scr, name, newname, sizeof newname)) return 0;
+    if (newpath && snprintf(newpath, n, "%.*s%s", (int)(name - path), path, newname) >= n) newpath[0] = 0;
+    if (!strcmp(newname, name)) return 1;
+    if (!(rc = ob_drop_rename(path, newname))) return 1;
+    args[0] = (ULONG)name;
+    args[1] = (ULONG)ob_drop_error(rc);
+    EasyRequestArgs(w ? w : root, &es, NULL, args);
+    return 0;
+}
+
+/* wb_look's rename_icon: Icons > Rename... in a drawer, for each selected entry in turn */
+static int drawer_rename(const char *path, wb_drawer *from)
+{
+    return rename_asked(path, wb_drawer_window(from), NULL, 0);
+}
+
+/* wb_look's delete_icons: Icons > Delete... in a drawer (dir), for its selected entries (names) */
+static int drawer_delete(const char *dir, const char *const *names, int n, wb_drawer *from)
+{
+    char **paths;
+    size_t dl = strlen(dir);
+    int i, m = 0, ok;
+    if (!(paths = AllocVec((ULONG)n * sizeof *paths, MEMF_ANY | MEMF_CLEAR))) return 0;
+    for (i = 0; i < n; i++) {
+        size_t k = dl + strlen(names[i]) + 2;
+        if (!(paths[m] = AllocVec(k, MEMF_ANY))) continue;
+        snprintf(paths[m], k, "%s%s%s", dir, dl && (dir[dl - 1] == ':' || dir[dl - 1] == '/') ? "" : "/", names[i]);
+        m++;
+    }
+    ok = ob_drop_delete((const char *const *)paths, m, wb_drawer_window(from));
+    for (i = 0; i < m; i++) FreeVec(paths[i]);
+    FreeVec(paths);
+    return ok;
+}
+
+/* Icons > Rename... on the desktop: a disk relabelled; an icon left out renamed with its file, and kept left out
+ * under its new name (in .backdrop too when it was there) */
+static void desk_rename(void)
+{
+    char (*sel)[256];
+    int *lo;
+    int i, n = 0, changed = 0;
+    if (!(sel = AllocVec(MAX_DESK * (sizeof *sel + sizeof *lo), MEMF_ANY))) return;
+    lo = (int *)(sel + MAX_DESK);
+    /* the paths first (off the stack: 24 KB of them): a rename reads the desktop's icons again */
+    for (i = 0; i < nicons && n < MAX_DESK; i++)
+        if (icons[i].selected) {
+            snprintf(sel[n], sizeof sel[0], "%s", icons[i].path);
+            lo[n++] = icons[i].lo;
+        }
+    if (!n) {
+        FreeVec(sel);
+        DisplayBeep(look.scr);
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        char newpath[256], full[256];
+        int k, permanent;
+        size_t len = strlen(sel[i]);
+        if (lo[i] < 0 && len && sel[i][len - 1] == ':') {
+            char old[64], newname[64];
+            struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
+                                     (UBYTE *)"Error while renaming \"%s\"\n%s", (UBYTE *)"OK" };
+            snprintf(old, sizeof old, "%.*s", (int)(len - 1), sel[i]);
+            if (!ob_name_ask(look.scr, old, newname, sizeof newname)) break;
+            if (!strcmp(old, newname)) continue;
+            if (!Relabel((STRPTR)sel[i], (STRPTR)newname)) {
+                ULONG args[2];
+                args[0] = (ULONG)old;
+                args[1] = (ULONG)"the disk could not be renamed";
+                EasyRequestArgs(root, &es, NULL, args);
+                continue;
+            }
+            changed = 1;
+            continue;
+        }
+        k = lout_find(sel[i]);
+        permanent = k >= 0 && louts[k].permanent;
+        if (!rename_asked(sel[i], NULL, newpath, sizeof newpath)) break;
+        if (!newpath[0] || !ci_cmp(newpath, sel[i]) || !full_name(newpath, full, sizeof full)) continue;
+        /* ob_drop_rename's leftouts_check has taken the old one away (and its .backdrop line): the new name comes back */
+        if (lout_find(full) < 0 && nlouts < MAX_LEFTOUT) {
+            k = nlouts++;
+            snprintf(louts[k].path, sizeof louts[0].path, "%s", full);
+            louts[k].permanent = (UBYTE)(permanent && !backdrop_change(full, 1));
+        }
+        changed = 1;
+    }
+    FreeVec(sel);
+    if (changed && root) leftouts_changed();       /* the disks' names and the icons left out read again */
+}
+
+/* Icons > Delete... on the desktop: the icons left out (disks aren't deleted, nor the trashcan: a beep when nothing
+ * else was selected) */
+static void desk_delete(void)
+{
+    const char *paths[MAX_DESK];
+    int i, n = 0;
+    for (i = 0; i < nicons && n < MAX_DESK; i++)
+        if (icons[i].selected && icons[i].lo >= 0) paths[n++] = icons[i].path;
+    if (!n) DisplayBeep(look.scr);
+    else ob_drop_delete(paths, n, root);
+}
+
 static const ob_drop_env drop_env = { &look.scr, &root, drawers, &ndrawers, desk_icon_at, leave_out, leftouts_check,
                                        say_title };
 
@@ -3282,6 +3413,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             case M_REDRAW: redraw_all(); break;
             case M_PUTAWAY: put_away(); break;      /* 0.1.35 */
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
+            case M_RENAME: desk_rename(); break;            /* 0.1.51 */
+            case M_DELETE: desk_delete(); break;
             case M_SNAP: desk_snapshot(0, 0); break;        /* 0.1.38 */
             case M_UNSNAP: desk_snapshot(0, 1); break;
             case M_SNAP_ALL: desk_snapshot(1, 0); break;
@@ -3995,6 +4128,8 @@ static int run(void)
     look.new_drawer = ob_new_drawer;               /* Window > New drawer... (WBGapTest M8) */
     look.copy = ob_copy;                           /* Icons > Copy (WBGapTest M18) */
     look.empty_trash = ob_empty_trash;             /* Icons > Empty trash (WBGapTest M25) */
+    look.rename_icon = drawer_rename;              /* 0.1.51: Icons > Rename... and Delete... in the drawers */
+    look.delete_icons = drawer_delete;
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
     aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */

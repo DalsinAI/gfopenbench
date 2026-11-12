@@ -59,6 +59,16 @@ int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from);
 /* A drawer window's Icons > Empty trash (wb_look's empty_trash): the selected trashcans emptied through GFOpenFiles'
  * engine, each after a requester. 1 when a job started. */
 int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *from);
+/* Icons > Rename... (CM4 item 12, row M19): path renamed newname in its drawer, its .info with it, by GFOpenFiles'
+ * engine (of_rename), and the drawers showing it read again. OF_OK, or the engine's OF_ERR_* (ob_drop_error says it). */
+int ob_drop_rename(const char *path, const char *newname);
+/* An OF_ERR_* in words, as the drops' requesters say it ("object already exists"). */
+const char *ob_drop_error(int err);
+/* Icons > Delete... (row M23): OS 3.2.3's question ("OK to delete: n file(s) and m drawer(s) (and their contents)?",
+ * OK or Cancel) on window win (NULL: the screen's front), then the engine's delete in a job of its own: to the volume's
+ * trash (of_delete; Empty Trash takes them for good), and for good what is in the trash already. Disks and trashcans
+ * are left. 1 when something was started. */
+int ob_drop_delete(const char *const *paths, int n, struct Window *win);
 /* The window whose layer is at (sx, sy) on the screen, or NULL (the screen's bar, say). */
 struct Window *ob_drop_window_at(WORD sx, WORD sy);
 /* The same, looking through skip (an icon's picture being dragged). */
