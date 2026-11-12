@@ -1667,6 +1667,8 @@ static int vol_fp_add(ob_volfp *f, const struct DosList *dl)
  * Mount DH2:, a RAD: or a drive Cradle adds brings a volume and no disk event (ob_vols.h). The list is read only when
  * no one is writing it (AttemptLockDosList), so the main loop never waits on it: a list being changed is looked at on
  * the next tick. */
+static int boot_exposed;                    /* ENV:GFOS/ExposeBoot is there: GFOSBOOT: gets its icon */
+
 static int volumes_moved(void)
 {
     struct DosList *dl;
@@ -1687,6 +1689,10 @@ static void scan_volumes(void)
     int i;
     free_icons();
     read_iconprefs();
+    {
+        char v[4];                                  /* the host's exposeBoot (amicradle gfos_boot.py) */
+        boot_exposed = GetVar((CONST_STRPTR)"GFOS/ExposeBoot", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) >= 0;
+    }
     ob_volfp_init(&vols_seen);
     dl = start = LockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
     while ((dl = NextDosEntry(dl, LDF_VOLUMES))) {
@@ -1695,6 +1701,7 @@ static void scan_volumes(void)
         if (!vol_fp_add(&vols_seen, dl)) continue;  /* not in a drive */
         if (nicons >= MAX_VOLUMES) continue;
         if (volume_hidden(start, dl)) continue;     /* hidden in Workbench's settings */
+        if (ob_vol_boot_hidden(b + 1, b[0], boot_exposed)) continue;   /* GFOSBOOT:, unless exposeBoot (amicradle #1067) */
         n = b[0] < 63 ? b[0] : 63;
         memcpy(icons[nicons].name, b + 1, (size_t)n);
         icons[nicons].name[n] = 0;
