@@ -1,4 +1,4 @@
-/* ob_arexx.h: GFOpenBench's ARexx ports, WORKBENCH and OPENBENCH (0.1.50; gap rows R1 and R2). The commands and
+/* ob_arexx.h: GFOpenBench's ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2). The commands and
  * their templates are ob_rexx.h's; this is the Amiga half: the ports, the messages, and what each command does,
  * through what GFOpenBench gives it here (ob_rexx_env) and GFOpenFiles' engine (NEWDRAWER, RENAME, DELETE).
  *
@@ -25,7 +25,7 @@ typedef struct ob_rexx_icon {
 } ob_rexx_icon;
 
 typedef struct ob_rexx_env {
-    const char *version;                    /* "GFOpenBench 0.1.50" */
+    const char *version;                    /* "GFOpenBench 0.1.53" */
     struct Screen *(*screen)(void);         /* the Workbench screen, or NULL while it is being reset */
     /* the icons' font, or NULL: the screen's */
     struct TextFont *(*icon_font)(void);

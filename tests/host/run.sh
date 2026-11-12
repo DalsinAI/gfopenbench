@@ -68,7 +68,7 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/hos
 cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/benchmark/dhry_1.c" "$HERE/benchmark/dhry_2.c" \
   "$HERE/benchmark/whet.c" "$HERE/benchmark/linpack.c" "$HERE/benchmark/sgl.c" "$HERE/tests/host/test_benchmark.c" -lm \
   -o "$OUT/test_benchmark"
-# ob_rexx: the ARexx ports' commands, finding them and GETATTR's names (GFOpenBench 0.1.50)
+# ob_rexx: the ARexx ports' commands, finding them and GETATTR's names (GFOpenBench 0.1.53)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_rexx.c" \
   "$HERE/tests/host/test_ob_rexx.c" -o "$OUT/test_ob_rexx"

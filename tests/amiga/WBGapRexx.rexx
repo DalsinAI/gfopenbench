@@ -1,7 +1,7 @@
 /* WBGapRexx: rows R1 and R2 of amicradle-teams designs/OPENBENCH-GAPS-20261112.md, the Workbench's
    ARexx port, on GFOpenBench and on OS 3.2.3's Workbench alike. RAM:WBGap must exist (WBGapTest SETUP).
      rx WBGapRexx.rexx                 the WORKBENCH port: rows R1 and R2
-     rx WBGapRexx.rexx OPENBENCH       GFOpenBench's own name for it (0.1.50): rows R1b and R2b, SKIP where there
+     rx WBGapRexx.rexx OPENBENCH       GFOpenBench's own name for it (0.1.53): rows R1b and R2b, SKIP where there
                                        is no such port (OS 3.2.3's Workbench), FAIL on GFOpenBench without it
    MIT, Copyright (c) 2026 AmiCradle Team. */
 OPTIONS RESULTS

@@ -1,4 +1,4 @@
-/* ob_rexx.h: GFOpenBench's ARexx ports (0.1.50; gap rows R1 and R2, amicradle-teams
+/* ob_rexx.h: GFOpenBench's ARexx ports (0.1.53; gap rows R1 and R2, amicradle-teams
  * designs/OPENBENCH-GAPS-CLOSE-PLAN-20261112.md item 7). The plain C half, with no Amiga headers, tested on the host
  * (tests/host/test_ob_rexx.c): the commands and their ReadArgs templates, finding a command in the line a script
  * sent, and matching GETATTR's object names. The ports themselves, the messages and what each command does are in

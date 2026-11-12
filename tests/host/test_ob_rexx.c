@@ -1,4 +1,4 @@
-/* ob_rexx's host test: GFOpenBench's ARexx commands (0.1.50). Commands are found in any case with their arguments
+/* ob_rexx's host test: GFOpenBench's ARexx commands (0.1.53). Commands are found in any case with their arguments
  * after them, GFOpenBench's own only on OPENBENCH; GETATTR's object names match with their numbers taken out; HELP
  * lists the commands and gives a template.
  *   test_ob_rexx
