@@ -426,7 +426,7 @@ static int stem_list(struct RexxMsg *rm, const char *obj, const char *wname, con
         struct Window *w;
         for (i = 0; (w = env->window_at(i, wn, sizeof wn)); i++) {
             snprintf(var, sizeof var, "%s.%d", stem, i);
-            SetRexxVar((struct Message *)rm, (CONST_STRPTR)var, (CONST_STRPTR)wn, (LONG)strlen(wn));
+            SetRexxVar(rm, (CONST_STRPTR)var, (CONST_STRPTR)wn, (LONG)strlen(wn));
         }
         n = i;
     } else {
@@ -442,14 +442,14 @@ static int stem_list(struct RexxMsg *rm, const char *obj, const char *wname, con
             ob_rexx_icon ic;
             while (icon_of(w, k, n, &ic)) {
                 snprintf(var, sizeof var, "%s.%d", stem, n);
-                SetRexxVar((struct Message *)rm, (CONST_STRPTR)var, (CONST_STRPTR)ic.name, (LONG)strlen(ic.name));
+                SetRexxVar(rm, (CONST_STRPTR)var, (CONST_STRPTR)ic.name, (LONG)strlen(ic.name));
                 n++;
             }
         }
     }
     snprintf(var, sizeof var, "%s.COUNT", stem);
     snprintf(wn, sizeof wn, "%d", n);
-    SetRexxVar((struct Message *)rm, (CONST_STRPTR)var, (CONST_STRPTR)wn, (LONG)strlen(wn));
+    SetRexxVar(rm, (CONST_STRPTR)var, (CONST_STRPTR)wn, (LONG)strlen(wn));
     return 1;
 }
 
@@ -702,7 +702,7 @@ static void command(struct RexxMsg *rm, const char *line, int own, answer *a)
         getattr(a, obj, STR(1));
         if (a->rc) break;
         if (var || stem) {                              /* the value into the variable, not RESULT */
-            SetRexxVar((struct Message *)rm, (CONST_STRPTR)(var ? var : stem), (CONST_STRPTR)a->result,
+            SetRexxVar(rm, (CONST_STRPTR)(var ? var : stem), (CONST_STRPTR)a->result,
                        (LONG)strlen(a->result));
             a->has_result = 0;
         }
