@@ -195,6 +195,9 @@
  *     workbench"): two public ports, WORKBENCH and OPENBENCH, each taking OS 3.2.3's Workbench commands with its
  *     templates (ob_rexx.c); OPEN and VERSION on OPENBENCH only. A name already taken is left to its owner and said
  *     once. NEWDRAWER, RENAME and DELETE go through GFOpenFiles' engine (ob_arexx.c);
+ *   - Drawers refresh by themselves (0.1.54; gap rows F1 and F2): each drawer window asks DOS to notify it of
+ *     changes to the drawer it shows (gfopengadtools wb_drawer.c), and reads it again 200 ms after the last one, as
+ *     Window > Update does; on ACFS that read comes from the drive's index;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -276,7 +279,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.53"
+#define OPENBENCH_VERSION "0.1.54"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -4538,7 +4541,7 @@ static int run(void)
         else FreeSignal(s);
     }
     for (;;) {
-        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() |
+        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
                           ob_drop_sigmask() | ob_arexx_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
@@ -4645,6 +4648,8 @@ static int run(void)
             for (i = 0; i < ndrawers; i++) wb_drawer_thumbs(drawers[i]);
         if ((sigs & wb_find_sigmask()) && wb_find_collect())   /* 0.1.49: the search of every drive, its hits */
             for (i = 0; i < ndrawers; i++) wb_drawer_find_update(drawers[i]);
+        if (sigs & wb_notify_sigmask())             /* 0.1.54: a drawer shown changed (gap rows F1, F2): read again 200 ms after */
+            wb_notify_collect();
         if (sigs & (1UL << picture_sig)) {
             ULONG *old = NULL;
             if (root) LockLayer(0, root->WLayer);
@@ -4751,6 +4756,7 @@ out:
     wbc_stop();
     wb_thumb_stop();                            /* its process runs our code, and uses datatypes.library */
     wb_find_stop();                             /* 0.1.49: the search's process runs our code too */
+    wb_notify_end();                            /* 0.1.54: the drawers' notifications (desktop_down closed them all) */
     wb_pic_close();
     if (DataTypesBase) { CloseLibrary(DataTypesBase); DataTypesBase = NULL; }
     if (launch_port) {
