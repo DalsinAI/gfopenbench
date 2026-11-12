@@ -6,8 +6,8 @@
 
 #include <intuition/screens.h>
 
-/* Asks on screen scr for a new name for old (its name alone, "GFOpenMeters"), started with old and selected for
- * typing over. Waits for the answer, as 3.2.3's does. 1 with the name in out (size bytes, not empty, no ':' or '/'),
+/* Asks on screen scr for a new name for old (its name alone, "GFOpenMeters"), the field holding old with the cursor
+ * in it (Right-Amiga X clears it). Waits for the answer, as 3.2.3's does. 1 with the name in out (size bytes, not empty, no ':' or '/'),
  * 0 for Cancel, Esc, the close gadget, or no window. */
 int ob_name_ask(struct Screen *scr, const char *old, char *out, int size);
 
