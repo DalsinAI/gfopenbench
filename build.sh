@@ -64,6 +64,10 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
 # DragTest: a lab's mouse and keys from inside it, at exact places, for the drag and drop tests (GFOpenBench 0.1.35)
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
+# WBGapTest: the Workbench gap rows (amicradle-teams designs/OPENBENCH-GAPS-20261112.md), with DragTest
+# shellcheck disable=SC2086
+"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c"
+cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$OUT/"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/wbspy" "$HERE/tools/wbspy.c" "$HERE/tools/spyfmt.c"
 # r1swap: lets OS 3.2's own Workbench start under R1, for step L2 (lab only)
