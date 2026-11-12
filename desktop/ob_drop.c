@@ -1106,6 +1106,12 @@ void ob_drop_stop(void)
     app_port = NULL;
 }
 
+/* GFOpenFiles' one-line requester (of_req_string), for GFOpenBench's own menus (Execute Command...) */
+int ob_req_string(struct Window *parent, const char *title, const char *question, const char *ok, char *buf, int size)
+{
+    return parent && of_req_string(parent, parent->WScreen->Font, title, question, ok, buf, size);
+}
+
 /* ---- Icons > Copy (WBGapTest M18, OS 3.2.3's Copy) ---- */
 
 /* A drawer window's Icons > Copy (wb_look's copy): each selected entry of dir copied beside itself, as a job like a

@@ -53,6 +53,8 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual);
 /* A drawer window's Window > New drawer... (wb_look's new_drawer): asks for the name (GFOpenFiles' requester), makes
  * the drawer in dir through GFOpenFiles' engine and gives it a drawer icon. 1 when made. */
 int ob_new_drawer(const char *dir, wb_drawer *from);
+/* GFOpenFiles' one-line requester over parent (Execute Command...): 1 when OK was chosen, buf holding the line */
+int ob_req_string(struct Window *parent, const char *title, const char *question, const char *ok, char *buf, int size);
 /* A drawer window's Icons > Copy (wb_look's copy): the selected entries copied beside themselves, as a job through
  * GFOpenFiles' engine. 1 when started. */
 int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from);
