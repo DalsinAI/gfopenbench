@@ -174,6 +174,9 @@
  *     OS 3.2.3's Workbench (0.1.47; Dale, 11 November 2026, the chrome drive icons): GFOpenIcon draws a folder drive,
  *     a USB stick, an IDE partition and the boot drive each its own way. With another icon.library the device's name
  *     is asked for only when ENV:Sys/def_<device>.info is there (default_name);
+ *   - the screen's title gives free memory in MB and GB, and the extended memory beside it, "Chip 8 MB, Fast 1.7 GB,
+ *     ExtMem 1.2 GB" (0.1.48; Dale, 12 November 2026: "it doesn't say ExtMem at all"), the ExtMem from
+ *     gfopenextmem.library's own OEM_Info; with no such library (any Amiga but AmiCradle's 3 GB mode) it isn't shown;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -251,8 +254,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.47"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.48"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -402,19 +405,6 @@ static int load_theme(int *mode)
 
 /* ---- the screen's title ---------------------------------------------------------------------- */
 
-static void thousands(char *out, int n, ULONG v)
-{
-    char tmp[16];
-    int len, i, k = 0;
-    snprintf(tmp, sizeof tmp, "%lu", (unsigned long)v);
-    len = (int)strlen(tmp);
-    for (i = 0; i < len && k < n - 1; i++) {
-        if (i && (len - i) % 3 == 0 && k < n - 1) out[k++] = ',';
-        out[k++] = tmp[i];
-    }
-    out[k] = 0;
-}
-
 /* The boards AmiCradle presents through AutoConfig (AmiCradle Team $DA15): product 9 or 15 a graphics card (ACRTG,
  * the 16 MiB board or the 64 MiB one; before 0.1.18 only 9 counted, so a 64 MiB machine showed GPU = 0),
  * product 7 the CPU cores board (ACSV block, CLASS 2, UNITS its cores). As GFOpenTitle 0.6.15 counts them. */
@@ -480,15 +470,69 @@ static void read_host(void)
     FreeVec(status);
 }
 
+/* 0.1.48: the extended memory free, from gfopenextmem.library's OEM_Info (libraries/gfopenextmem.h in
+ * amicradle-guest libraries/openextmem; its numbers here, as the desktop builds without that checkout). The library
+ * is opened once and kept; an Amiga without it is asked 3 times, at the start and on the next 2 ticks, then never
+ * again (as read_host), so no tick goes to the disk for it. */
+#define OB_OEM_INFO_LVO (-0x42)
+struct ob_oem_info { ULONG backend, page_size, total_pages, free_pages, largest, aperture, aperture_pages, aperture_free,
+                     reserved[4]; };
+static struct Library *oem_base;
+static UBYTE oem_asked;
+
+/* 1 with the free extended memory in *freeb, 0 when there is none */
+static int extmem_free(unsigned long long *freeb)
+{
+    struct ob_oem_info oi;
+    if (!oem_base) {
+        if (oem_asked >= 3) return 0;
+        oem_asked++;
+        if (!(oem_base = OpenLibrary((CONST_STRPTR)"gfopenextmem.library", 1))) return 0;
+    }
+    memset(&oi, 0, sizeof oi);
+    {
+        register struct Library *a6 __asm("a6") = oem_base;
+        register struct ob_oem_info *a0 __asm("a0") = &oi;
+        __asm__ __volatile__("jsr -66(%%a6)" : "+r"(a6), "+r"(a0) : : "d0", "d1", "a1", "cc", "memory");   /* OEM_Info */
+    }
+    if (!oi.backend || !oi.page_size || !oi.total_pages) return 0;
+    *freeb = (unsigned long long)oi.free_pages * oi.page_size;
+    return 1;
+}
+
+static void extmem_close(void)
+{
+    if (oem_base) { CloseLibrary(oem_base); oem_base = NULL; }
+}
+
+/* 0.1.48: an amount the way people read it: "512 KB" under a megabyte, "8 MB" under a gigabyte (rounded), else
+ * "1.7 GB" (to a tenth) */
+static void human_size(char *buf, size_t size, unsigned long long b)
+{
+    const unsigned long long MB = 1ULL << 20, GB = 1ULL << 30;
+    if (b < MB) snprintf(buf, size, "%lu KB", (unsigned long)((b + 512) >> 10));
+    else if (b < GB - MB / 2) snprintf(buf, size, "%lu MB", (unsigned long)((b + MB / 2) / MB));
+    else {
+        unsigned long tenths = (unsigned long)((b * 10 + GB / 2) / GB);
+        snprintf(buf, size, "%lu.%lu GB", tenths / 10, tenths % 10);
+    }
+}
+
 /* 1 when the title changed. */
 static int make_title(void)
 {
-    char chip[16], fast[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
+    char chip[16], fast[16], ext[32], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
+    unsigned long long extfree;
     int k;
     count_boards();                           /* each time: the cores board may give its cores after we start */
     read_host();
-    thousands(chip, sizeof chip, AvailMem(MEMF_CHIP) >> 10);
-    thousands(fast, sizeof fast, AvailMem(MEMF_FAST) >> 10);
+    human_size(chip, sizeof chip, AvailMem(MEMF_CHIP));
+    human_size(fast, sizeof fast, AvailMem(MEMF_FAST));
+    ext[0] = 0;
+    if (extmem_free(&extfree)) {
+        k = snprintf(ext, sizeof ext, ", ExtMem ");
+        human_size(ext + k, sizeof ext - k, extfree);
+    }
     barlogo_pad(look.scr, pad);               /* made again each time: GFOpenLook may make the bar taller after we start */
     /* "1 (68k)", the cores board's "+ 10 (m68k/x64)" when it is fitted, and the host's "+ 12 (x64)" */
     k = snprintf(cpu, sizeof cpu, "1 (68k)");
@@ -496,8 +540,8 @@ static int make_title(void)
         k += snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)cores, barlogo_isas(isas));
     if (host_cores)
         snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)host_cores, host_isa[0] ? host_isa : "host");
-    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s KB, Fast %s KB, GPU = %lu, CPU = %s",
-             pad, chip, fast, (unsigned long)gpus, cpu);
+    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s, Fast %s%s, GPU = %lu, CPU = %s",
+             pad, chip, fast, ext, (unsigned long)gpus, cpu);
     if (!strcmp(t, screen_title))
         return 0;
     strcpy(screen_title, t);
@@ -4175,6 +4219,7 @@ out:
     }
     if (picture_sig >= 0) FreeSignal(picture_sig);
     if (idcmp) DeleteMsgPort(idcmp);
+    extmem_close();                             /* 0.1.48 */
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     if (WorkbenchBase) CloseLibrary(WorkbenchBase);
     if (IconBase) CloseLibrary(IconBase);
