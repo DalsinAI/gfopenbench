@@ -138,8 +138,16 @@ for f in of_ops of_path of_fs_amiga of_alloc_amiga; do
     "$CC" $FLAGS -DOF_AMIGA -I"$E" -c -o "$TMP/$f.o" "$E/$f.c"
     DROP_OBJS="$DROP_OBJS $TMP/$f.o"
 done
+# GFOpenFiles' requesters (app/of_req.c, with the list code its rename preview needs, app/of_dir.c): Window > New
+# drawer...'s name (WBGapTest M8)
+FA="$FILES/app"
+for f in of_req of_dir; do
+    # shellcheck disable=SC2086
+    "$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$FA" -c -o "$TMP/$f.o" "$FA/$f.c"
+    DROP_OBJS="$DROP_OBJS $TMP/$f.o"
+done
 # shellcheck disable=SC2086
-"$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$W" -I"$L" -c -o "$TMP/ob_drop.o" "$HERE/ob_drop.c"
+"$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$FA" -I"$W" -I"$L" -c -o "$TMP/ob_drop.o" "$HERE/ob_drop.c"
 DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
 # wb_dir, as it is (0.1.23 to 0.1.31 renamed its wb_dir_read and wb_entry_icon for ROM:Prefs's editors; the ROM has
 # no ROM: since the no-ROM-volume design, 24 October 2026)
