@@ -19,7 +19,7 @@ fetch() {   # fetch NAME [optional]
     fi
     echo "build-amiga.sh: $1 at $(git -C "$DEPS/$1" rev-parse --short HEAD)"
 }
-fetch gfopengadtools
+fetch gfopengadtools; git -C "$DEPS/gfopengadtools" fetch -q --depth 1 origin team3/ogt-aa-text-20261112 && git -C "$DEPS/gfopengadtools" checkout -q FETCH_HEAD && echo "lab: gfopengadtools at $(git -C "$DEPS/gfopengadtools" rev-parse --short HEAD)"
 fetch gfopenprefs
 fetch gfopenfilemanager
 fetch gfopentata optional
