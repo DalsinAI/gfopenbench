@@ -34,6 +34,8 @@
 #include <proto/icon.h>
 
 #include "ob_wb.h"
+int wb_drawer_show_name(wb_drawer *d, const char *name);
+int wb_drawer_each(wb_drawer *d, int (*fn)(void *, const char *, int, int, WORD, WORD), void *ctx);
 
 static ob_wb_env env;
 static struct MsgPort *req_port;                /* registered with workbench.library: its calls come here */
@@ -361,3 +363,8 @@ int ob_wb_send(APTR handle, int kind, const char *const *paths, int n, WORD mx, 
     if (!sent) app_free(am);
     return sent;
 }
+
+/* BUILD CHECK ONLY (not for merge): stand-ins until gfopengadtools #105 is on main */
+__attribute__((weak)) int wb_drawer_show_name(wb_drawer *d, const char *name) { (void)d; (void)name; return 0; }
+__attribute__((weak)) int wb_drawer_each(wb_drawer *d, int (*fn)(void *, const char *, int, int, WORD, WORD), void *ctx)
+{ (void)d; (void)fn; (void)ctx; return 0; }
