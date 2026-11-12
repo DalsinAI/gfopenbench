@@ -44,3 +44,13 @@ int ob_volfp_same(const ob_volfp *a, const ob_volfp *b)
 {
     return a->n == b->n && a->sum == b->sum && a->mix == b->mix;
 }
+
+int ob_vol_boot_hidden(const unsigned char *name, unsigned len, int exposed)
+{
+    static const char boot[] = "GFOSBOOT";
+    unsigned i;
+    if (exposed || !name || len != sizeof boot - 1) return 0;
+    for (i = 0; i < len; i++)
+        if ((name[i] | 0x20) != (boot[i] | 0x20)) return 0;
+    return 1;
+}

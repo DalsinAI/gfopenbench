@@ -185,8 +185,20 @@ static void ticks(void)
     CHECK(scans == 4, "the tick after: no scan (%d)", scans);
 }
 
+/* the GFOS boot volume has no icon unless the host's exposeBoot says so */
+static void boot_volume(void)
+{
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"GFOSBOOT", 8, 0) == 1, "GFOSBOOT: hidden");
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"GfosBoot", 8, 0) == 1, "case aside");
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"GFOSBOOT", 8, 1) == 0, "exposeBoot: shown");
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"Workbench", 9, 0) == 0, "other volumes: shown");
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"GFOSBOOT2", 9, 0) == 0, "only that name");
+    CHECK(ob_vol_boot_hidden((const unsigned char *)"GFOSBOO", 7, 0) == 0, "not a prefix");
+}
+
 int main(void)
 {
+    boot_volume();
     unchanged();
     changed();
     apart();

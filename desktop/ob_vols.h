@@ -37,6 +37,11 @@ void ob_volfp_init(ob_volfp *f);
 void ob_volfp_add(ob_volfp *f, const unsigned char *name, unsigned len, long days, long minute, long tick,
                   unsigned long drive);
 
+/* 1 when the volume named name (len bytes, a BSTR's) is the GFOS boot volume, GFOSBOOT (case aside), and isn't to
+ * be shown: the host mounts it read-only for the thin ROM's kickload and leaves its icon off the Workbench unless
+ * its exposeBoot is on, which it says as ENV:GFOS/ExposeBoot (exposed: 1). amicradle docs/gfos-boot-volume.md. */
+int ob_vol_boot_hidden(const unsigned char *name, unsigned len, int exposed);
+
 /* 1 when a and b are the same volumes */
 int ob_volfp_same(const ob_volfp *a, const ob_volfp *b);
 
