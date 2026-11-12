@@ -50,6 +50,13 @@ extern struct WBStartup *_WBenchMsg;   /* libnix: the Workbench's message, when 
 struct Library *WorkbenchBase, *IconBase, *CyberGfxBase;
 
 static int fails;
+static char dragtest[256] = "DragTest";   /* the full path of the DragTest beside this program */
+
+static void find_dragtest(void)
+{
+    BPTR dir = GetProgramDir();
+    if (dir && NameFromLock(dir, (STRPTR)dragtest, sizeof dragtest - 10)) AddPart((STRPTR)dragtest, (CONST_STRPTR)"DragTest", sizeof dragtest);
+}
 static void pass(const char *row) { printf("PASS %s\n", row); }
 static void fail(const char *row, const char *why) { printf("FAIL %s %s\n", row, why); fails++; }
 static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row, why); }
@@ -78,7 +85,7 @@ static void norm(char *d, const char *s, int n)
     while (*s == ' ') s++;
     for (; *s && i < n - 1; s++) d[i++] = (*s >= 'A' && *s <= 'Z') ? *s + 32 : *s;
     d[i] = 0;
-    while (i > 0 && (d[i - 1] == '.' || d[i - 1] == ' ')) d[--i] = 0;
+    while (i > 0 && (d[i - 1] == '.' || d[i - 1] == ' ' || d[i - 1] == '?')) d[--i] = 0;   /* "Backdrop?" */
 }
 
 static const char *item_text(struct MenuItem *it)
@@ -156,7 +163,7 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M10", "window:close"},
     {"M11", "window:update"},
     {"M12", "*:select contents|select all"},
-    {"M13", "window:clean up"},
+    {"M13", "window:clean up by|clean up"},
     {"M14", "window:snapshot/window|snapshot window"},
     {"M15", "*:show/all files|show all files"},
     {"M16", "*:view by/name|as a list"},
@@ -170,6 +177,13 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
     {"M26", "tools:resetwb"},
+    {"M29", "workbench|gfopenbench:open volume"},
+    {"M30", "window:clear selection"},
+    {"M31", "window:resize to fit"},
+    {"M32", "window:sort order/reverse"},
+    {"M33", "window:find"},
+    {"M34", "tools:auto-arrange icons"},
+    {"M35", "icons:eject disk|eject"},
 };
 
 static int do_menus(int dump)
@@ -250,8 +264,8 @@ static struct Window *open_drawer(const char *path, const char *title, int secs,
     int t;
     *how = 0;
     if (!OpenWorkbenchObjectA((STRPTR)path, NULL)) {
-        char cmd[160];
-        snprintf(cmd, sizeof cmd, "PROGDIR:DragTest OPEN %s", path);
+        char cmd[320];
+        snprintf(cmd, sizeof cmd, "%s OPEN %s", dragtest, path);
         SystemTags((CONST_STRPTR)cmd, TAG_DONE);
         *how = 1;
     }
@@ -361,7 +375,7 @@ static int do_screens(void)
 {
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench"), *s;
     struct Gadget *g;
-    char cmd[96];
+    char cmd[320];
     int x = -1, y = -1;
     if (wb) pass("C4"); else { fail("C4", "LockPubScreen(Workbench) NULL"); return 20; }
     s = OpenScreenTags(NULL, SA_LikeWorkbench, TRUE, SA_Title, (ULONG)"WBGapScreen", SA_ShowTitle, TRUE, TAG_DONE);
@@ -375,19 +389,21 @@ static int do_screens(void)
         }
     if (x < 0) fail("C1", "the screen has no depth gadget");
     else {
-        snprintf(cmd, sizeof cmd, "PROGDIR:DragTest CLICK %d %d", x, y);
+        snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
         run(cmd);
         Delay(50);
         if (IntuitionBase->FirstScreen != s) pass("C1"); else fail("C1", "the depth gadget left the screen in front");
     }
     ScreenToFront(s);
     Delay(50);
-    run("PROGDIR:DragTest KEY 0x37 QUAL LAMIGA");   /* M: the front screen to the back */
+    snprintf(cmd, sizeof cmd, "%s KEY 0x37 QUAL LAMIGA", dragtest);
+    run(cmd);   /* M: the front screen to the back */
     Delay(50);
     if (IntuitionBase->FirstScreen != s) pass("C2a"); else fail("C2a", "Left-Amiga-M left the front screen in front");
     ScreenToFront(s);
     Delay(50);
-    run("PROGDIR:DragTest KEY 0x36 QUAL LAMIGA");   /* N: Workbench to the front */
+    snprintf(cmd, sizeof cmd, "%s KEY 0x36 QUAL LAMIGA", dragtest);
+    run(cmd);   /* N: Workbench to the front */
     Delay(50);
     if (IntuitionBase->FirstScreen == wb) pass("C2b"); else fail("C2b", "Left-Amiga-N didn't bring Workbench to the front");
     CloseScreen(s);
@@ -499,6 +515,7 @@ int main(int argc, char **argv)
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
     if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK\n"); goto out; }
+    find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
