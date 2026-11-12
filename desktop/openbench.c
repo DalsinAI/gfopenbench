@@ -184,6 +184,13 @@
  *     databases, and opens one in its drawer, in GFOpenEdit at its line, or in GFOpenBase at its table and row
  *     (gfopengadtools workbench/wb_find.c, ACFind's code from amicradle-guest). Its process is stopped before
  *     GFOpenBench ends;
+ *   - Icons > Rename... and Icons > Delete..., in the drawers and on the desktop, as OS 3.2.3's (0.1.51; CM4 item 12,
+ *     rows M19 and M23, Dale, 12 November 2026: "we need to close this"). Rename asks for each selected icon in turn
+ *     ("Enter a new name for 'x'.", ob_name.c) and renames the file and its .info together with GFOpenFiles' engine
+ *     (of_rename); a disk is relabelled. Delete asks 3.2.3's question, "OK to delete: n file(s) and m drawer(s) (and
+ *     their contents)?", then the engine's delete runs as a job of its own (ob_drop.c): to the volume's Trashcan, from
+ *     which it can be put back until Empty Trash, and for good (with 3.2.3's warning) for what is in the trash already.
+ *     Disks and trashcans aren't deleted;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -237,6 +244,7 @@
 #include "barlogo.h"
 #include "ob_builtin.h"
 #include "ob_info.h"
+#include "ob_name.h"
 #ifdef OB_HAVE_TATA
 #include "tata_inspect.h"
 #endif
@@ -263,7 +271,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.50"
+#define OPENBENCH_VERSION "0.1.52"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -556,11 +564,11 @@ static int make_title(void)
 /* ---- the root window: the backdrop ----------------------------------------------------------- */
 
 static struct Window *root;
-/* 0.1.50: Workbench > Backdrop off (OS 3.2.3's, the gap matrix's M1): the root is a window of its own, with a frame,
+/* 0.1.52: Workbench > Backdrop off (OS 3.2.3's, the gap matrix's M1): the root is a window of its own, with a frame,
  * moved, sized and sent back as any other (GimmeZeroZero, so the icons are drawn and found as before in its inside),
  * and the strip covers the whole screen behind it. ENV:GFOpenBench/Backdrop "0"; anything else, or none, is on. */
 static int root_framed;
-static int auto_arrange;                    /* 0.1.50: Tools > Auto-arrange icons (M34), ENV:GFOpenBench/AutoArrange "1" */
+static int auto_arrange;                    /* 0.1.52: Tools > Auto-arrange icons (M34), ENV:GFOpenBench/AutoArrange "1" */
 #define ROOT_W (root_framed ? root->GZZWidth : root->Width)
 #define ROOT_H (root_framed ? root->GZZHeight : root->Height)
 #define ROOT_X (root->LeftEdge + (root_framed ? root->BorderLeft : 0))
@@ -631,7 +639,7 @@ static void strip_open(void)
     ob_box b;
     if (strip || !look.scr) return;
     b = ob_strip_box(look.scr->Width, look.scr->BarHeight);
-    if (root_framed) b.height = look.scr->Height;     /* 0.1.50: the backdrop behind a framed root, all of it */
+    if (root_framed) b.height = look.scr->Height;     /* 0.1.52: the backdrop behind a framed root, all of it */
     strip = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, b.left, WA_Top, b.top, WA_Width, b.width,
                            WA_Height, b.height, WA_PubScreen, (ULONG)look.scr, WA_Backdrop, TRUE,
                            WA_Borderless, TRUE, WA_SimpleRefresh, TRUE, WA_NoCareRefresh, TRUE,
@@ -1219,7 +1227,7 @@ static void drop_on_desktop(dicon *ic)
     p = place_for(place_key(ic));
     p->x = (WORD)x;
     p->y = (WORD)y;
-    place_icons(auto_arrange);                  /* 0.1.50: Auto-arrange icons on: back in the laid-out order */
+    place_icons(auto_arrange);                  /* 0.1.52: Auto-arrange icons on: back in the laid-out order */
     redraw_all();
 }
 
@@ -1802,7 +1810,7 @@ static BPTR parent_and_name(const char *path, char *name, int n)
         return p;
     }
     if (!(p = ParentDir(l))) {
-        /* 0.1.50: a disk's root ("DF0:"): its WBArg is the root's own lock and no name, as Workbench gives a disk
+        /* 0.1.52: a disk's root ("DF0:"): its WBArg is the root's own lock and no name, as Workbench gives a disk
          * (Icons > Format Disk...) */
         name[0] = 0;
         return l;
@@ -2237,7 +2245,7 @@ static const char *title_now(void)
     return title_held ? held_title : screen_title;
 }
 
-static char last_said[sizeof screen_title];   /* 0.1.50: Workbench > Last Message's words */
+static char last_said[sizeof screen_title];   /* 0.1.52: Workbench > Last Message's words */
 
 static void say_title(const char *text)
 {
@@ -2263,19 +2271,22 @@ static void title_release(void)
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
-       M_BACKDROP, M_OPENVOL, M_LASTMSG, M_FIND, M_FORMAT, M_AUTOARRANGE };   /* 0.1.50 */
+       M_RENAME, M_DELETE,
+       M_BACKDROP, M_OPENVOL, M_LASTMSG, M_FIND, M_FORMAT, M_AUTOARRANGE };   /* 0.1.52 */
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
 #define RESIZE_INDEX 4
 #define RESIZE_ITEM 3
 static struct NewMenu newmenus[] = {
+    /* Amiga-keys as OS 3.2.3's Workbench gives them (WBGapTest M28): N is New drawer, E Execute command, D Delete,
+     * S and U Snapshot and UnSnapshot of icons; New Shell, Eject and Insert Disk take none of those */
     { NM_TITLE, (STRPTR)"GFOpenBench", NULL, 0, 0, NULL },
-    { NM_ITEM, (STRPTR)"New Shell", (STRPTR)"N", 0, 0, (APTR)M_SHELL },
+    { NM_ITEM, (STRPTR)"New Shell", NULL, 0, 0, (APTR)M_SHELL },
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
-    /* 0.1.50: OS 3.2.3's Backdrop (the root as a backdrop, or a window of its own), Open Volume (a disk's window,
+    /* 0.1.52: OS 3.2.3's Backdrop (the root as a backdrop, or a window of its own), Open Volume (a disk's window,
      * picked from a list) and Last Message (the last words the title bar held) */
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Backdrop", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_BACKDROP },
@@ -2295,30 +2306,34 @@ static struct NewMenu newmenus[] = {
     { NM_SUB, (STRPTR)"Window", NULL, NM_ITEMDISABLED, 0, (APTR)M_SNAP_WINDOW },
     { NM_SUB, (STRPTR)"All", NULL, 0, 0, (APTR)M_SNAP_ALL },
     { NM_ITEM, (STRPTR)"No icons", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_NOICONS },
-    /* 0.1.50: OS 3.2.3's Find: the search of every drive (gfopengadtools' wb_find.c), its hits in a drawer window */
+    /* 0.1.52: OS 3.2.3's Find: the search of every drive (gfopengadtools' wb_find.c), its hits in a drawer window */
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Find...", NULL, 0, 0, (APTR)M_FIND },
     { NM_TITLE, (STRPTR)"Icons", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Open", (STRPTR)"O", 0, 0, (APTR)M_ICON_OPEN },
     { NM_ITEM, (STRPTR)"Information...", (STRPTR)"I", 0, 0, (APTR)M_ICON_INFO },
+    /* 0.1.51: OS 3.2.3's Rename... (row M19); no key yet: 3.2.3's Amiga-R is the dock's here (row M28) */
+    { NM_ITEM, (STRPTR)"Rename...", NULL, 0, 0, (APTR)M_RENAME },
     /* 0.1.38: OS 3.2.3's, after Information...: the selected icons' places kept in their .info files, or cleared */
-    { NM_ITEM, (STRPTR)"Snapshot", NULL, 0, 0, (APTR)M_SNAP },
-    { NM_ITEM, (STRPTR)"Unsnapshot", NULL, 0, 0, (APTR)M_UNSNAP },
+    { NM_ITEM, (STRPTR)"Snapshot", (STRPTR)"S", 0, 0, (APTR)M_SNAP },
+    { NM_ITEM, (STRPTR)"Unsnapshot", (STRPTR)"U", 0, 0, (APTR)M_UNSNAP },
     /* 0.1.41: OS 3.2.3's Leave Out, before Put Away as there: an icon left out for the run, for good (.backdrop) */
     { NM_ITEM, (STRPTR)"Leave Out", (STRPTR)"L", 0, 0, (APTR)M_LEAVEOUT },
     { NM_ITEM, (STRPTR)"Put Away", (STRPTR)"P", 0, 0, (APTR)M_PUTAWAY },    /* 0.1.35: icons left out, back */
+    /* 0.1.51: OS 3.2.3's Delete... (row M23), after Put Away; Amiga-D stays Insert Disk's for now (row M28) */
+    { NM_ITEM, (STRPTR)"Delete...", NULL, 0, 0, (APTR)M_DELETE },
     /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it */
-    { NM_ITEM, (STRPTR)"Eject", (STRPTR)"E", 0, 0, (APTR)M_USB_EJECT },
-    /* 0.1.50: OS 3.2.3's Format Disk...: SYS:System/Format started with the selected disk, as Workbench starts it */
+    { NM_ITEM, (STRPTR)"Eject", NULL, 0, 0, (APTR)M_USB_EJECT },
+    /* 0.1.52: OS 3.2.3's Format Disk...: SYS:System/Format started with the selected disk, as Workbench starts it */
     { NM_ITEM, (STRPTR)"Format Disk...", NULL, 0, 0, (APTR)M_FORMAT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Clean Up", (STRPTR)".", 0, 0, (APTR)M_CLEANUP },    /* 0.1.33: the desktop's icons flow again */
     /* the floppy drives from the desktop (Dale, 12 Oct 2026: "attach an adf to df0 so it can be booted"):
      * amicradle-guest's InsertDisk window and ACDisk, through accontrol.device */
     { NM_TITLE, (STRPTR)"Disks", NULL, 0, 0, NULL },
-    { NM_ITEM, (STRPTR)"Insert Disk...", (STRPTR)"D", 0, 0, (APTR)M_DISK_INSERT },
+    { NM_ITEM, (STRPTR)"Insert Disk...", NULL, 0, 0, (APTR)M_DISK_INSERT },
     { NM_ITEM, (STRPTR)"Eject DF0", NULL, 0, 0, (APTR)M_DISK_EJECT },
-    /* 0.1.50: OS 3.2.3's Tools menu, with its Auto-arrange icons: the desktop laid out as Clean Up lays it out, again
+    /* 0.1.52: OS 3.2.3's Tools menu, with its Auto-arrange icons: the desktop laid out as Clean Up lays it out, again
      * whenever a disk comes or goes or an icon is let go of (ENV:GFOpenBench/AutoArrange "1") */
     { NM_TITLE, (STRPTR)"Tools", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Auto-arrange icons", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_AUTOARRANGE },
@@ -2334,7 +2349,7 @@ static int ask(const char *title, const char *text, const char *gadgets)
     return EasyRequestArgs(root, &es, NULL, NULL);
 }
 
-/* 0.1.50: a GFOpenBench setting in ENV: and ENVARC: (ENV:GFOpenBench/<name>), as deskicons_write writes its own */
+/* 0.1.52: a GFOpenBench setting in ENV: and ENVARC: (ENV:GFOpenBench/<name>), as deskicons_write writes its own */
 static int setting_on(const char *name, int dflt)
 {
     char var[48], buf[8];
@@ -2419,7 +2434,7 @@ static void usb_eject_selected(void)
         LONG rc, n;
         if (!icons[i].selected || icons[i].lo >= 0) continue;
         if (!usb_drive(icons[i].name, drive, sizeof drive)) {
-            /* 0.1.50: a floppy disk (DF0: to DF3:) out of its drive, as Disks > Eject DF0 does, through ACDisk */
+            /* 0.1.52: a floppy disk (DF0: to DF3:) out of its drive, as Disks > Eject DF0 does, through ACDisk */
             const char *dv = icons[i].dev;
             if ((dv[0] == 'D' || dv[0] == 'd') && (dv[1] == 'F' || dv[1] == 'f') && dv[2] >= '0' && dv[2] <= '3' && !dv[3]) {
                 any = 1;
@@ -2458,7 +2473,7 @@ static void usb_eject_selected(void)
     }
 }
 
-/* ---- 0.1.50: the gap matrix's row 12 (amicradle-teams designs/OPENBENCH-GAPS-20261112.md) ---------------- */
+/* ---- 0.1.52: the gap matrix's row 12 (amicradle-teams designs/OPENBENCH-GAPS-20261112.md) ---------------- */
 
 static void go_down(void);
 static int go_up(void);
@@ -3161,6 +3176,125 @@ static void put_away(void)
     snapfail_end(&f, 0, "Put Away", NULL);
 }
 
+/* ---- Icons > Rename... and Delete... (0.1.51; CM4 item 12, rows M19 and M23) ------------------------------------- */
+
+/* The new name asked for path ("Work:Tools/x"), and the rename done (GFOpenFiles' engine, ob_drop_rename): 1 when
+ * renamed or left as it was (the same name), 0 for Cancel or an error, said in 3.2.3's words on window w (else the
+ * desktop's). newpath, when not NULL, gets the renamed path. */
+static int rename_asked(const char *path, struct Window *w, char *newpath, int n)
+{
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench", (UBYTE *)"Error while renaming \"%s\"\n%s",
+                             (UBYTE *)"OK" };
+    const char *name = path, *c;
+    char newname[108];
+    ULONG args[2];
+    int rc;
+    for (c = path; *c; c++)
+        if (*c == ':' || *c == '/') name = c + 1;
+    if (!*name || !ob_name_ask(look.scr, name, newname, sizeof newname)) return 0;
+    if (newpath && snprintf(newpath, n, "%.*s%s", (int)(name - path), path, newname) >= n) newpath[0] = 0;
+    if (!strcmp(newname, name)) return 1;
+    if (!(rc = ob_drop_rename(path, newname))) return 1;
+    args[0] = (ULONG)name;
+    args[1] = (ULONG)ob_drop_error(rc);
+    EasyRequestArgs(w ? w : root, &es, NULL, args);
+    return 0;
+}
+
+/* wb_look's rename_icon: Icons > Rename... in a drawer, for each selected entry in turn */
+static int drawer_rename(const char *path, wb_drawer *from)
+{
+    return rename_asked(path, wb_drawer_window(from), NULL, 0);
+}
+
+/* wb_look's delete_icons: Icons > Delete... in a drawer (dir), for its selected entries (names) */
+static int drawer_delete(const char *dir, const char *const *names, int n, wb_drawer *from)
+{
+    char **paths;
+    size_t dl = strlen(dir);
+    int i, m = 0, ok;
+    if (!(paths = AllocVec((ULONG)n * sizeof *paths, MEMF_ANY | MEMF_CLEAR))) return 0;
+    for (i = 0; i < n; i++) {
+        size_t k = dl + strlen(names[i]) + 2;
+        if (!(paths[m] = AllocVec(k, MEMF_ANY))) continue;
+        snprintf(paths[m], k, "%s%s%s", dir, dl && (dir[dl - 1] == ':' || dir[dl - 1] == '/') ? "" : "/", names[i]);
+        m++;
+    }
+    ok = ob_drop_delete((const char *const *)paths, m, wb_drawer_window(from));
+    for (i = 0; i < m; i++) FreeVec(paths[i]);
+    FreeVec(paths);
+    return ok;
+}
+
+/* Icons > Rename... on the desktop: a disk relabelled; an icon left out renamed with its file, and kept left out
+ * under its new name (in .backdrop too when it was there) */
+static void desk_rename(void)
+{
+    char (*sel)[256];
+    int *lo;
+    int i, n = 0, changed = 0;
+    if (!(sel = AllocVec(MAX_DESK * (sizeof *sel + sizeof *lo), MEMF_ANY))) return;
+    lo = (int *)(sel + MAX_DESK);
+    /* the paths first (off the stack: 24 KB of them): a rename reads the desktop's icons again */
+    for (i = 0; i < nicons && n < MAX_DESK; i++)
+        if (icons[i].selected) {
+            snprintf(sel[n], sizeof sel[0], "%s", icons[i].path);
+            lo[n++] = icons[i].lo;
+        }
+    if (!n) {
+        FreeVec(sel);
+        DisplayBeep(look.scr);
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        char newpath[256], full[256];
+        int k, permanent;
+        size_t len = strlen(sel[i]);
+        if (lo[i] < 0 && len && sel[i][len - 1] == ':') {
+            char old[64], newname[64];
+            struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
+                                     (UBYTE *)"Error while renaming \"%s\"\n%s", (UBYTE *)"OK" };
+            snprintf(old, sizeof old, "%.*s", (int)(len - 1), sel[i]);
+            if (!ob_name_ask(look.scr, old, newname, sizeof newname)) break;
+            if (!strcmp(old, newname)) continue;
+            if (!Relabel((STRPTR)sel[i], (STRPTR)newname)) {
+                ULONG args[2];
+                args[0] = (ULONG)old;
+                args[1] = (ULONG)"the disk could not be renamed";
+                EasyRequestArgs(root, &es, NULL, args);
+                continue;
+            }
+            changed = 1;
+            continue;
+        }
+        k = lout_find(sel[i]);
+        permanent = k >= 0 && louts[k].permanent;
+        if (!rename_asked(sel[i], NULL, newpath, sizeof newpath)) break;
+        if (!newpath[0] || !ci_cmp(newpath, sel[i]) || !full_name(newpath, full, sizeof full)) continue;
+        /* ob_drop_rename's leftouts_check has taken the old one away (and its .backdrop line): the new name comes back */
+        if (lout_find(full) < 0 && nlouts < MAX_LEFTOUT) {
+            k = nlouts++;
+            snprintf(louts[k].path, sizeof louts[0].path, "%s", full);
+            louts[k].permanent = (UBYTE)(permanent && !backdrop_change(full, 1));
+        }
+        changed = 1;
+    }
+    FreeVec(sel);
+    if (changed && root) leftouts_changed();       /* the disks' names and the icons left out read again */
+}
+
+/* Icons > Delete... on the desktop: the icons left out (disks aren't deleted, nor the trashcan: a beep when nothing
+ * else was selected) */
+static void desk_delete(void)
+{
+    const char *paths[MAX_DESK];
+    int i, n = 0;
+    for (i = 0; i < nicons && n < MAX_DESK; i++)
+        if (icons[i].selected && icons[i].lo >= 0) paths[n++] = icons[i].path;
+    if (!n) DisplayBeep(look.scr);
+    else ob_drop_delete(paths, n, root);
+}
+
 static const ob_drop_env drop_env = { &look.scr, &root, drawers, &ndrawers, desk_icon_at, leave_out, leftouts_check,
                                        say_title };
 
@@ -3293,7 +3427,7 @@ static void volumes_again(void)
     drag_img_close();                           /* 0.1.35: a drag ends with the icons it was of */
     dragging = pressed_on = last_click = NULL;
     scan_volumes();
-    if (auto_arrange) place_icons(1);           /* 0.1.50: Auto-arrange icons */
+    if (auto_arrange) place_icons(1);           /* 0.1.52: Auto-arrange icons */
     EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
     draw_icons();
 }
@@ -3306,7 +3440,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         draw_icons();
         EndRefresh(root, TRUE);
         break;
-    case IDCMP_NEWSIZE:                         /* 0.1.50: the framed root sized: its icons laid out in its new inside */
+    case IDCMP_NEWSIZE:                         /* 0.1.52: the framed root sized: its icons laid out in its new inside */
         place_icons(auto_arrange);
         EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
         draw_icons();
@@ -3430,8 +3564,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                     }
                 break;
             }
-            case M_USB_EJECT: usb_eject_selected(); break;   /* 0.1.47; 0.1.50 floppies too */
-            case M_FORMAT: format_selected(); break;         /* 0.1.50 */
+            case M_USB_EJECT: usb_eject_selected(); break;   /* 0.1.47; 0.1.52 floppies too */
+            case M_FORMAT: format_selected(); break;         /* 0.1.52 */
             case M_OPENVOL: open_volume(); break;
             case M_LASTMSG: last_message(); break;
             case M_FIND: find_everywhere(); break;
@@ -3444,6 +3578,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             case M_REDRAW: redraw_all(); break;
             case M_PUTAWAY: put_away(); break;      /* 0.1.35 */
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
+            case M_RENAME: desk_rename(); break;            /* 0.1.51 */
+            case M_DELETE: desk_delete(); break;
             case M_SNAP: desk_snapshot(0, 0); break;        /* 0.1.38 */
             case M_UNSNAP: desk_snapshot(0, 1); break;
             case M_SNAP_ALL: desk_snapshot(1, 0); break;
@@ -3468,7 +3604,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             case M_RESIZE: want_resize = 1; break;   /* not here: it closes the menus being read */
             case M_UPDATE:
                 scan_volumes();
-                if (auto_arrange) place_icons(1);   /* 0.1.50 */
+                if (auto_arrange) place_icons(1);   /* 0.1.52 */
                 redraw_all();
                 break;
             case M_ABOUT:
@@ -3652,9 +3788,9 @@ static int desktop_up(void)
     /* 0.1.22: a Workbench window (WFLG_WBENCHWINDOW, first: the other tags add to it), as all of GFOpenBench's
      * are (mark_ours), so CloseWorkBench() asks GFOpenBench to close it instead of refusing at once */
     rb = ob_root_box(look.scr->Width, look.scr->Height, look.scr->BarHeight);
-    auto_arrange = setting_on("AutoArrange", 0);        /* 0.1.50 */
+    auto_arrange = setting_on("AutoArrange", 0);        /* 0.1.52 */
     if (root_framed) {
-        /* 0.1.50: Backdrop off: a window of its own, titled as OS 3.2.3's, a fifth in from each side, no close gadget */
+        /* 0.1.52: Backdrop off: a window of its own, titled as OS 3.2.3's, a fifth in from each side, no close gadget */
         LONG mx = rb.width / 10, my = rb.height / 10;
         root = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, rb.left + mx, WA_Top, rb.top + my,
                               WA_Width, rb.width - 2 * mx, WA_Height, rb.height - 2 * my, WA_PubScreen, (ULONG)look.scr,
@@ -3687,7 +3823,7 @@ static int desktop_up(void)
         nm[k] = newmenus[i];
         if (i == RESIZE_INDEX && !native_differs()) nm[k].nm_Flags |= NM_ITEMDISABLED;
         if (nm[k].nm_UserData == (APTR)M_NOICONS && ob_show_checked(&show)) nm[k].nm_Flags |= CHECKED;
-        if (nm[k].nm_UserData == (APTR)M_BACKDROP && !root_framed) nm[k].nm_Flags |= CHECKED;     /* 0.1.50 */
+        if (nm[k].nm_UserData == (APTR)M_BACKDROP && !root_framed) nm[k].nm_Flags |= CHECKED;     /* 0.1.52 */
         if (nm[k].nm_UserData == (APTR)M_AUTOARRANGE && auto_arrange) nm[k].nm_Flags |= CHECKED;
         k++;
     }
@@ -3717,7 +3853,7 @@ static int desktop_up(void)
  * are called from a process of GFOpenBench's own (reset_entry): Intuition waits for GFOpenBench's answer to
  * WBENCHCLOSE, which GFOpenBench's own process could not give while inside the call. */
 /* 0: the desktop is up; 1: down, the screen being reset; 2: to come up again (tried each time round) (declared with
- * Backdrop, 0.1.50) */
+ * Backdrop, 0.1.52) */
 static struct MsgPort *aloha_port;          /* Intuition's Workbench messages */
 static int aloha_on;
 static struct Library *OpenRTGBase;         /* gfopenrtg.library 0.17 or later, for the Native size; else NULL */
@@ -4160,10 +4296,12 @@ static int run(void)
     look.snapped = drawer_snapped;                 /* 0.1.38: Snapshot in the drawers */
     look.snap = drawer_snap;
     look.leave_out = drawer_leave_out;             /* 0.1.41: Icons > Leave Out in the drawers (.backdrop) */
+    look.rename_icon = drawer_rename;              /* 0.1.51: Icons > Rename... and Delete... in the drawers */
+    look.delete_icons = drawer_delete;
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
     aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */
-    root_framed = !setting_on("Backdrop", 1);      /* 0.1.50: Workbench > Backdrop, as last left */
+    root_framed = !setting_on("Backdrop", 1);      /* 0.1.52: Workbench > Backdrop, as last left */
     if (!desktop_up()) {
         root_framed = 0;                           /* a framed root that can't open: the backdrop, as always */
         desktop_down();
@@ -4361,7 +4499,7 @@ static int run(void)
             /* 0.1.44: words held in the title (say_title) go at the next click, in any of GFOpenBench's windows */
             if (title_held && cl == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) title_release();
             if (root && win == root) {
-                if (root_framed) {                  /* 0.1.50: a GimmeZeroZero window's mouse is its outside's */
+                if (root_framed) {                  /* 0.1.52: a GimmeZeroZero window's mouse is its outside's */
                     mx -= root->BorderLeft;
                     my -= root->BorderTop;
                 }
@@ -4384,7 +4522,7 @@ static int run(void)
             want_resize = 0;
             if (root && !reset_busy) resize_to_window();
         }
-        if (want_backdrop) {                        /* 0.1.50: Workbench > Backdrop */
+        if (want_backdrop) {                        /* 0.1.52: Workbench > Backdrop */
             int on = want_backdrop == 2;
             want_backdrop = 0;
             if (root && !reset_busy && !wb_down) backdrop_set(on);

@@ -1,4 +1,4 @@
-/* ob_pick.c: GFOpenBench's small modal requesters (ob_pick.h, 0.1.50).
+/* ob_pick.c: GFOpenBench's small modal requesters (ob_pick.h, 0.1.52).
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
