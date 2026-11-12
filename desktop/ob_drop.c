@@ -675,6 +675,9 @@ static void job_entry(void)
             es.es_TextFormat = (UBYTE *)"%ld could not be %s:\n%s:\n%s.";
             EasyRequest(NULL, &es, NULL, (LONG)j->failed, (ULONG)op_done(j), (ULONG)j->first_failed,
                         (ULONG)err_text(j->first_err));
+        } else if (j->op == OP_EMPTY) {
+            es.es_TextFormat = (UBYTE *)"The trash couldn't be emptied:\n%s:\n%s.";
+            EasyRequest(NULL, &es, NULL, (ULONG)j->dst, (ULONG)err_text(j->rc));
         } else {
             es.es_TextFormat = (UBYTE *)"Nothing could be %s to\n%s:\n%s.";
             EasyRequest(NULL, &es, NULL, (ULONG)op_done(j), (ULONG)j->dst, (ULONG)err_text(j->rc));
@@ -1015,8 +1018,8 @@ int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from)
 /* ---- Icons > Empty trash (WBGapTest M25, OS 3.2.3's Empty Trash) ---- */
 
 /* A drawer window's Icons > Empty trash (wb_look's empty_trash): each selected entry that is a trashcan (its icon a
- * WBGARBAGE one) emptied for good by GFOpenFiles' engine (of_empty_trash, with the trashcan's own name), as a job,
- * after one requester. Nothing selected is a trashcan: a beep. 1 when a job started. */
+ * WBGARBAGE one) at its volume's top emptied for good by GFOpenFiles' engine (of_empty_trash, with the trashcan's own
+ * name), as a job, after one requester. Nothing selected is a trashcan: a beep. 1 when a job started. */
 int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *from)
 {
     struct Window *w = from ? wb_drawer_window(from) : *env.root;
@@ -1024,7 +1027,11 @@ int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *
     for (i = 0; i < n; i++) {
         char path[OF_PATH_MAX];
         job *j;
-        if (strlen(names[i]) >= sizeof j->trash || !of_path_join(path, dir, names[i]) || !is_trash(path)) continue;
+        char vol[OF_PATH_MAX];
+        /* the engine empties the trashcan at its volume's top (of_empty_trash), so only that one is taken */
+        if (strlen(names[i]) >= sizeof j->trash || !of_path_join(path, dir, names[i]) || !is_trash(path) ||
+            !of_path_volume(vol, path) || !of_path_equal(vol, dir))
+            continue;
         any = 1;
         {
             struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
