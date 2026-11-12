@@ -2250,8 +2250,10 @@ enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, 
 #define RESIZE_INDEX 4
 #define RESIZE_ITEM 3
 static struct NewMenu newmenus[] = {
+    /* Amiga-keys as OS 3.2.3's Workbench gives them (WBGapTest M28): N is New drawer, E Execute command, D Delete,
+     * S and U Snapshot and UnSnapshot of icons; New Shell, Eject and Insert Disk take none of those */
     { NM_TITLE, (STRPTR)"GFOpenBench", NULL, 0, 0, NULL },
-    { NM_ITEM, (STRPTR)"New Shell", (STRPTR)"N", 0, 0, (APTR)M_SHELL },
+    { NM_ITEM, (STRPTR)"New Shell", NULL, 0, 0, (APTR)M_SHELL },
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
@@ -2273,19 +2275,19 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Open", (STRPTR)"O", 0, 0, (APTR)M_ICON_OPEN },
     { NM_ITEM, (STRPTR)"Information...", (STRPTR)"I", 0, 0, (APTR)M_ICON_INFO },
     /* 0.1.38: OS 3.2.3's, after Information...: the selected icons' places kept in their .info files, or cleared */
-    { NM_ITEM, (STRPTR)"Snapshot", NULL, 0, 0, (APTR)M_SNAP },
-    { NM_ITEM, (STRPTR)"Unsnapshot", NULL, 0, 0, (APTR)M_UNSNAP },
+    { NM_ITEM, (STRPTR)"Snapshot", (STRPTR)"S", 0, 0, (APTR)M_SNAP },
+    { NM_ITEM, (STRPTR)"Unsnapshot", (STRPTR)"U", 0, 0, (APTR)M_UNSNAP },
     /* 0.1.41: OS 3.2.3's Leave Out, before Put Away as there: an icon left out for the run, for good (.backdrop) */
     { NM_ITEM, (STRPTR)"Leave Out", (STRPTR)"L", 0, 0, (APTR)M_LEAVEOUT },
     { NM_ITEM, (STRPTR)"Put Away", (STRPTR)"P", 0, 0, (APTR)M_PUTAWAY },    /* 0.1.35: icons left out, back */
     /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it */
-    { NM_ITEM, (STRPTR)"Eject", (STRPTR)"E", 0, 0, (APTR)M_USB_EJECT },
+    { NM_ITEM, (STRPTR)"Eject", NULL, 0, 0, (APTR)M_USB_EJECT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Clean Up", (STRPTR)".", 0, 0, (APTR)M_CLEANUP },    /* 0.1.33: the desktop's icons flow again */
     /* the floppy drives from the desktop (Dale, 12 Oct 2026: "attach an adf to df0 so it can be booted"):
      * amicradle-guest's InsertDisk window and ACDisk, through accontrol.device */
     { NM_TITLE, (STRPTR)"Disks", NULL, 0, 0, NULL },
-    { NM_ITEM, (STRPTR)"Insert Disk...", (STRPTR)"D", 0, 0, (APTR)M_DISK_INSERT },
+    { NM_ITEM, (STRPTR)"Insert Disk...", NULL, 0, 0, (APTR)M_DISK_INSERT },
     { NM_ITEM, (STRPTR)"Eject DF0", NULL, 0, 0, (APTR)M_DISK_EJECT },
     { NM_END, NULL, NULL, 0, 0, NULL }
 };
