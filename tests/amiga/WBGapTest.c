@@ -78,6 +78,9 @@ static ULONG rgb_pixel(struct RastPort *rp, UWORD x, UWORD y)
 #define MAXNAMES 400
 static char names[MAXNAMES][64];   /* "menu/item" and "menu/item/sub", lower case, without "..." */
 static int nnames;
+static char keys[MAXNAMES];          /* each name's Amiga-key, 0 for none */
+static char leaves[MAXNAMES][40];    /* the item's (or sub-item's) own text, normalised */
+static char menus_of[MAXNAMES][24];  /* its menu's title, normalised */
 
 static void norm(char *d, const char *s, int n)
 {
@@ -102,7 +105,12 @@ static void add_name(const char *menu, const char *item, const char *sub, int ke
     if (sub) norm(s, sub, sizeof s);
     if (dump) printf("MENU %s / %s%s%s%s%c\n", menu ? menu : "?", item, sub ? " / " : "", sub ? sub : "",
                      key ? "  key Amiga-" : "", key ? key : ' ');
-    if (nnames < MAXNAMES) snprintf(names[nnames++], 64, sub ? "%s/%s/%s" : "%s/%s", m, i, sub ? s : "");
+    if (nnames < MAXNAMES) {
+        keys[nnames] = (char)key;
+        strcpy(leaves[nnames], sub ? s : i);
+        strcpy(menus_of[nnames], m);
+        snprintf(names[nnames++], 64, sub ? "%s/%s/%s" : "%s/%s", m, i, sub ? s : "");
+    }
 }
 
 static void walk_strip(struct Menu *menu, int dump)
@@ -186,6 +194,37 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M35", "icons:eject disk|eject"},
 };
 
+/* M28: every Amiga-key the Workbench's windows give means what it means on OS 3.2.3 (the leaf texts it may have;
+ * a key 3.2.3 doesn't use may mean anything). The Dock's own window and menus are left out. */
+static const struct { char key; const char *leaves; } wb_keys[] = {
+    {'O', "open"}, {'K', "close"}, {'M', "update"}, {'A', "select contents|select all"}, {'Z', "clear selection"},
+    {'S', "snapshot"}, {'U', "unsnapshot"}, {'L', "leave out"}, {'P', "put away"}, {'C', "copy"}, {'R', "rename"},
+    {'I', "information"}, {'D', "delete"}, {'B', "backdrop"}, {'E', "execute command"}, {'?', "about"},
+    {'Q', "quit|quit gfopenbench"}, {'N', "new drawer"}, {'-', "only icons"}, {'+', "all files|show all files"},
+    {'F', "find"}, {'Y', "auto-arrange icons"}, {'G', "forward"}, {'H', "reverse"}, {'1', "icon|as icons"},
+    {'2', "name|as a list"}, {'3', "date"}, {'4', "size"}, {'5', "type"}, {'.', "column|clean up"},
+    {'6', "name"}, {'7', "date"}, {'8', "size"}, {'9', "type"},
+};
+
+static int check_keys(void)
+{
+    int n, k, bad = 0;
+    for (n = 0; n < nnames; n++) {
+        char up = keys[n] >= 'a' && keys[n] <= 'z' ? keys[n] - 32 : keys[n];
+        if (!up || !strcmp(menus_of[n], "gfopendock")) continue;
+        for (k = 0; k < (int)(sizeof wb_keys / sizeof wb_keys[0]); k++)
+            if (wb_keys[k].key == up) {
+                char tmp[80], *t;
+                int ok = 0;
+                strcpy(tmp, wb_keys[k].leaves);
+                for (t = strtok(tmp, "|"); t && !ok; t = strtok(NULL, "|")) ok = !strcmp(t, leaves[n]);
+                if (!ok) { printf("INFO M28 Amiga-%c is \"%s\" (%s), on 3.2.3 \"%s\"\n", up, names[n], menus_of[n], wb_keys[k].leaves); bad++; }
+                break;
+            }
+    }
+    return bad;
+}
+
 static int do_menus(int dump)
 {
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
@@ -204,6 +243,7 @@ static int do_menus(int dump)
     for (i = 0; i < (int)(sizeof menu_rows / sizeof menu_rows[0]); i++)
         if (has(menu_rows[i].spec)) pass(menu_rows[i].row);
         else fail(menu_rows[i].row, menu_rows[i].spec);
+    if (check_keys()) fail("M28", "Amiga-keys that mean something else than on 3.2.3 (INFO lines)"); else pass("M28");
     return fails ? 5 : 0;
 }
 
@@ -304,6 +344,8 @@ static int do_notify(void)
     struct Window *w;
     ULONG before;
     int how;
+    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1");        /* a run before left them: the file must be new */
+    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1.info");
     do_setup();
     if (!(w = open_drawer("RAM:WBGap", "WBGap", 10, &how))) { fail("F1", "RAM:WBGap's window didn't open"); skip("F2", "no window"); return 10; }
     printf("INFO RAM:WBGap opened by %s\n", how ? "DragTest OPEN" : "OpenWorkbenchObjectA");
