@@ -263,6 +263,7 @@
 #include "ob_strip.h"
 #include "ob_host.h"
 #include "ob_arexx.h"
+#include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
 #include "wb_fmt.h"
@@ -568,6 +569,15 @@ static int make_title(void)
 /* ---- the root window: the backdrop ----------------------------------------------------------- */
 
 static struct Window *root;
+/* 0.1.52: Workbench > Backdrop off (OS 3.2.3's, the gap matrix's M1): the root is a window of its own, with a frame,
+ * moved, sized and sent back as any other (GimmeZeroZero, so the icons are drawn and found as before in its inside),
+ * and the strip covers the whole screen behind it. ENV:GFOpenBench/Backdrop "0"; anything else, or none, is on. */
+static int root_framed;
+static int auto_arrange;                    /* 0.1.52: Tools > Auto-arrange icons (M34), ENV:GFOpenBench/AutoArrange "1" */
+#define ROOT_W (root_framed ? root->GZZWidth : root->Width)
+#define ROOT_H (root_framed ? root->GZZHeight : root->Height)
+#define ROOT_X (root->LeftEdge + (root_framed ? root->BorderLeft : 0))
+#define ROOT_Y (root->TopEdge + (root_framed ? root->BorderTop : 0))
 static struct Window *strip;                /* 0.1.43: the backdrop under the screen's title bar (strip_open) */
 static ULONG *volatile backdrop;            /* the screen's size, ARGB, screen coordinates */
 static LONG bd_w, bd_h;
@@ -634,6 +644,7 @@ static void strip_open(void)
     ob_box b;
     if (strip || !look.scr) return;
     b = ob_strip_box(look.scr->Width, look.scr->BarHeight);
+    if (root_framed) b.height = look.scr->Height;     /* 0.1.52: the backdrop behind a framed root, all of it */
     strip = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, b.left, WA_Top, b.top, WA_Width, b.width,
                            WA_Height, b.height, WA_PubScreen, (ULONG)look.scr, WA_Backdrop, TRUE,
                            WA_Borderless, TRUE, WA_SimpleRefresh, TRUE, WA_NoCareRefresh, TRUE,
@@ -1083,8 +1094,8 @@ static void redraw_box(LONG x0, LONG y0, LONG x1, LONG y1)
     int i;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
-    if (x1 > root->Width - 1) x1 = root->Width - 1;
-    if (y1 > root->Height - 1) y1 = root->Height - 1;
+    if (x1 > ROOT_W - 1) x1 = ROOT_W - 1;
+    if (y1 > ROOT_H - 1) y1 = ROOT_H - 1;
     if (x1 < x0 || y1 < y0) return;
     EraseRect(root->RPort, x0, y0, x1, y1);
     for (i = 0; i < nicons; i++) {
@@ -1199,7 +1210,7 @@ static void place_icons(int clean)
             c->y = icons[i].sgy;
         }
     }
-    wb_grid_columns(&gspec, gcells, nicons, root->Width - 2 * GRID_X, root->Height - 2 * GRID_Y, ip.right, &glay);
+    wb_grid_columns(&gspec, gcells, nicons, ROOT_W - 2 * GRID_X, ROOT_H - 2 * GRID_Y, ip.right, &glay);
     for (i = 0; i < nicons; i++) put_in(&icons[i], &gcells[i]);
 }
 
@@ -1217,11 +1228,11 @@ static void drop_on_desktop(dicon *ic)
     if (y < 0) y = 0;
     /* 0.1.35: on the grid, never onto another icon the user put there: the next free cell down (an icon not put
      * anywhere goes round it, as every icon does round the user's) */
-    if (ip.snap) wb_grid_free(&gspec, &glay, gcells, nicons, i, (int)(root->Height - 2 * GRID_Y), &x, &y);
+    if (ip.snap) wb_grid_free(&gspec, &glay, gcells, nicons, i, (int)(ROOT_H - 2 * GRID_Y), &x, &y);
     p = place_for(place_key(ic));
     p->x = (WORD)x;
     p->y = (WORD)y;
-    place_icons(0);
+    place_icons(auto_arrange);                  /* 0.1.52: Auto-arrange icons on: back in the laid-out order */
     redraw_all();
 }
 
@@ -1803,7 +1814,12 @@ static BPTR parent_and_name(const char *path, char *name, int n)
         snprintf(name, (size_t)n, "%s", fp);
         return p;
     }
-    p = ParentDir(l);
+    if (!(p = ParentDir(l))) {
+        /* 0.1.52: a disk's root ("DF0:"): its WBArg is the root's own lock and no name, as Workbench gives a disk
+         * (Icons > Format Disk...) */
+        name[0] = 0;
+        return l;
+    }
     UnLock(l);
     snprintf(name, (size_t)n, "%s", fp);
     return p;
@@ -2234,10 +2250,13 @@ static const char *title_now(void)
     return title_held ? held_title : screen_title;
 }
 
+static char last_said[sizeof screen_title];   /* 0.1.52: Workbench > Last Message's words */
+
 static void say_title(const char *text)
 {
     char pad[BARLOGO_MAX_SPACES + 1];
     int i;
+    if (text != last_said) snprintf(last_said, sizeof last_said, "%s", text);
     barlogo_pad(look.scr, pad);                     /* the bar logo's room, as make_title leaves it */
     snprintf(held_title, sizeof held_title, "%s%s", pad, text);
     title_held = 1;
@@ -2257,7 +2276,8 @@ static void title_release(void)
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
-       M_RESETWB, M_EXECUTE, M_RENAME, M_DELETE };
+       M_RESETWB, M_EXECUTE, M_RENAME, M_DELETE,
+       M_BACKDROP, M_OPENVOL, M_LASTMSG, M_FIND, M_FORMAT, M_AUTOARRANGE };   /* 0.1.52 */
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
@@ -2271,6 +2291,12 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
+    /* 0.1.52: OS 3.2.3's Backdrop (the root as a backdrop, or a window of its own), Open Volume (a disk's window,
+     * picked from a list) and Last Message (the last words the title bar held) */
+    { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
+    { NM_ITEM, (STRPTR)"Backdrop", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_BACKDROP },
+    { NM_ITEM, (STRPTR)"Open Volume...", NULL, 0, 0, (APTR)M_OPENVOL },
+    { NM_ITEM, (STRPTR)"Last Message", NULL, 0, 0, (APTR)M_LASTMSG },
     /* OS 3.2.3's Execute Command..., with its Amiga-E (WBGapTest M2): a command line run in a console of its own */
     { NM_ITEM, (STRPTR)"Execute Command...", (STRPTR)"E", 0, 0, (APTR)M_EXECUTE },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
@@ -2287,6 +2313,9 @@ static struct NewMenu newmenus[] = {
     { NM_SUB, (STRPTR)"Window", NULL, NM_ITEMDISABLED, 0, (APTR)M_SNAP_WINDOW },
     { NM_SUB, (STRPTR)"All", NULL, 0, 0, (APTR)M_SNAP_ALL },
     { NM_ITEM, (STRPTR)"No icons", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_NOICONS },
+    /* 0.1.52: OS 3.2.3's Find: the search of every drive (gfopengadtools' wb_find.c), its hits in a drawer window */
+    { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
+    { NM_ITEM, (STRPTR)"Find...", NULL, 0, 0, (APTR)M_FIND },
     { NM_TITLE, (STRPTR)"Icons", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Open", (STRPTR)"O", 0, 0, (APTR)M_ICON_OPEN },
     { NM_ITEM, (STRPTR)"Information...", (STRPTR)"I", 0, 0, (APTR)M_ICON_INFO },
@@ -2302,6 +2331,8 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Delete...", NULL, 0, 0, (APTR)M_DELETE },
     /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it */
     { NM_ITEM, (STRPTR)"Eject", NULL, 0, 0, (APTR)M_USB_EJECT },
+    /* 0.1.52: OS 3.2.3's Format Disk...: SYS:System/Format started with the selected disk, as Workbench starts it */
+    { NM_ITEM, (STRPTR)"Format Disk...", NULL, 0, 0, (APTR)M_FORMAT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Clean Up", (STRPTR)".", 0, 0, (APTR)M_CLEANUP },    /* 0.1.33: the desktop's icons flow again */
     /* the floppy drives from the desktop (Dale, 12 Oct 2026: "attach an adf to df0 so it can be booted"):
@@ -2309,10 +2340,12 @@ static struct NewMenu newmenus[] = {
     { NM_TITLE, (STRPTR)"Disks", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Insert Disk...", NULL, 0, 0, (APTR)M_DISK_INSERT },
     { NM_ITEM, (STRPTR)"Eject DF0", NULL, 0, 0, (APTR)M_DISK_EJECT },
-    /* OS 3.2.3's Tools > ResetWB (WBGapTest M26): the Workbench screen closed and opened again, the drawers where
+    /* OS 3.2.3's Tools menu: ResetWB (WBGapTest M26) and, 0.1.52, Auto-arrange icons (ENV:GFOpenBench/AutoArrange "1").
+     * Tools > ResetWB (WBGapTest M26): the Workbench screen closed and opened again, the drawers where
      * they were, as Resize to Window does it (start_reset) */
     { NM_TITLE, (STRPTR)"Tools", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"ResetWB", NULL, 0, 0, (APTR)M_RESETWB },
+    { NM_ITEM, (STRPTR)"Auto-arrange icons", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_AUTOARRANGE },
     { NM_END, NULL, NULL, 0, 0, NULL }
 };
 
@@ -2324,6 +2357,28 @@ static int ask(const char *title, const char *text, const char *gadgets)
 {
     struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)title, (UBYTE *)text, (UBYTE *)gadgets };
     return EasyRequestArgs(root, &es, NULL, NULL);
+}
+
+/* 0.1.52: a GFOpenBench setting in ENV: and ENVARC: (ENV:GFOpenBench/<name>), as deskicons_write writes its own */
+static int setting_on(const char *name, int dflt)
+{
+    char var[48], buf[8];
+    LONG n;
+    snprintf(var, sizeof var, "GFOpenBench/%s", name);
+    n = GetVar((CONST_STRPTR)var, (STRPTR)buf, sizeof buf, GVF_GLOBAL_ONLY);
+    return n > 0 ? buf[0] != '0' : dflt;
+}
+
+static void setting_write(const char *name, int on)
+{
+    char var[48];
+    int i;
+    snprintf(var, sizeof var, "GFOpenBench/%s", name);
+    for (i = 0; i < 5; i++) {
+        if (SetVar((CONST_STRPTR)var, (CONST_STRPTR)(on ? "1" : "0"), -1, GVF_GLOBAL_ONLY | GVF_SAVE_VAR)) return;
+        Delay(10);
+    }
+    if (look.scr) DisplayBeep(look.scr);
 }
 
 static void new_shell(void)
@@ -2409,7 +2464,16 @@ static void usb_eject_selected(void)
         BPTR out;
         LONG rc, n;
         if (!icons[i].selected || icons[i].lo >= 0) continue;
-        if (!usb_drive(icons[i].name, drive, sizeof drive)) continue;
+        if (!usb_drive(icons[i].name, drive, sizeof drive)) {
+            /* 0.1.52: a floppy disk (DF0: to DF3:) out of its drive, as Disks > Eject DF0 does, through ACDisk */
+            const char *dv = icons[i].dev;
+            if ((dv[0] == 'D' || dv[0] == 'd') && (dv[1] == 'F' || dv[1] == 'f') && dv[2] >= '0' && dv[2] <= '3' && !dv[3]) {
+                any = 1;
+                snprintf(cmd, sizeof cmd, "C:ACDisk DRIVE DF%c EJECT QUIET", dv[2]);
+                run_detached(cmd, "The disk couldn't be ejected.\nIt needs C:ACDisk from AmiCradle.");
+            }
+            continue;
+        }
         any = 1;
         if (!(out = Lock((CONST_STRPTR)"C:USBEject", SHARED_LOCK))) {
             ask("GFOpenBench", "C:USBEject isn't here (GFOpenUSB), so the stick can't be ejected.", "OK");
@@ -2433,11 +2497,99 @@ static void usb_eject_selected(void)
         } else
             ask("GFOpenBench", said[0] ? said : "The stick wasn't ejected.", "OK");
     }
-    if (!any) ask("GFOpenBench", "Eject is for a USB stick: select its icon first.", "OK");
+    if (!any) ask("GFOpenBench", "Eject is for a USB stick or a floppy disk: select its icon first.", "OK");
     else {
         scan_volumes();
         redraw_all();
     }
+}
+
+/* ---- 0.1.52: the gap matrix's row 12 (amicradle-teams designs/OPENBENCH-GAPS-20261112.md) ---------------- */
+
+static void go_down(void);
+static int go_up(void);
+static void desktop_down(void);
+
+/* Icons > Format Disk... (M24): SYS:System/Format started for the first selected disk, its WBArg the disk's root (a
+ * lock on it and no name), as OS 3.2.3's Workbench starts it; Format's own window asks before anything is lost */
+static void format_selected(void)
+{
+    int i;
+    for (i = 0; i < nicons; i++) {
+        char text[160];
+        if (!icons[i].selected || icons[i].lo >= 0) continue;
+        if (!Lock_exists("SYS:System/Format")) {
+            ask("GFOpenBench", "SYS:System/Format isn't here, so the disk can't be formatted.", "OK");
+            return;
+        }
+        if (!start_tool("SYS:System/Format", icons[i].path, 0)) {
+            snprintf(text, sizeof text, "Format couldn't start for %.63s.", icons[i].name);
+            ask("GFOpenBench", text, "OK");
+        }
+        return;
+    }
+    ask("GFOpenBench", "Format Disk is for a disk: select its icon first.", "OK");
+}
+
+/* Workbench > Open Volume... (M29): every disk on the desktop in a list; the one picked opens in its window */
+static void open_volume(void)
+{
+    const char *names[OB_PICK_MAX];
+    int map[OB_PICK_MAX], i, n = 0, k;
+    for (i = 0; i < nicons && n < OB_PICK_MAX; i++)
+        if (icons[i].lo < 0) { names[n] = icons[i].name; map[n++] = i; }
+    if (!n) { DisplayBeep(look.scr); return; }
+    if ((k = ob_pick_list(look.scr, "Open Volume", "Open", names, n)) >= 0) open_drawer(icons[map[k]].path);
+}
+
+/* Window > Find... (M33): words asked for, then the search of every drive, its hits in a drawer window: the first
+ * open drawer's, else the boot disk's (SYS:) opened for it */
+static char find_words[64];
+
+static void find_everywhere(void)
+{
+    wb_drawer *d = NULL;
+    if (!ob_pick_string(look.scr, "Find", "Find on every drive:", "Find", find_words, sizeof find_words)) return;
+    if (ndrawers) d = drawers[0];
+    else if (open_drawer("SYS:") && ndrawers) d = drawers[ndrawers - 1];
+    if (!d) { DisplayBeep(look.scr); return; }
+    WindowToFront(wb_drawer_window(d));
+    ActivateWindow(wb_drawer_window(d));
+    if (!wb_drawer_find(d, find_words)) DisplayBeep(look.scr);
+}
+
+/* Workbench > Last Message (M5): the last words the title bar held, held there again until the next click */
+static void last_message(void)
+{
+    say_title(last_said[0] ? last_said : "No message since GFOpenBench started.");
+}
+
+/* Tools > Auto-arrange icons (M34): auto_arrange, with root_framed */
+
+static void arrange_if_auto(void)
+{
+    if (!auto_arrange || !root) return;
+    place_icons(1);                             /* the user's places for the run go: the grid lays every icon out */
+    redraw_all();
+}
+
+/* Workbench > Backdrop (M1): the desktop taken down and put up again, the root a backdrop or a window of its own
+ * (desktop_up opens it as root_framed says), the drawers back where they were */
+static int wb_down;
+static int want_backdrop;                   /* 1 off, 2 on: done once the menu's messages are read (it closes them) */
+
+static void backdrop_set(int on)
+{
+    if (on == !root_framed) return;
+    setting_write("Backdrop", on);
+    go_down();
+    root_framed = !on;
+    if (go_up()) return;
+    desktop_down();
+    root_framed = 0;                            /* as it always was, if the framed one can't open */
+    if (go_up()) return;
+    desktop_down();
+    wb_down = 2;                                /* tried again each tick, as after a font change */
 }
 
 static void run_loadwb(void)
@@ -2543,7 +2695,7 @@ static int rtg_here(struct Screen *s)
 static void redraw_all(void)
 {
     int i;
-    EraseRect(root->RPort, 0, 0, root->Width - 1, root->Height - 1);
+    EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
     draw_icons();
     for (i = 0; i < ndrawers; i++) wb_drawer_redraw(drawers[i]);
 }
@@ -2570,7 +2722,7 @@ static dicon *drag_skip;                    /* 0.1.35: the icon being let go, no
 static int desk_icon_at(WORD sx, WORD sy, char *out, int n)
 {
     int i;
-    LONG x = root ? sx - root->LeftEdge : 0, y = root ? sy - root->TopEdge : 0;
+    LONG x = root ? sx - ROOT_X : 0, y = root ? sy - ROOT_Y : 0;
     /* 0.1.37: No icons: no icon to drop onto, so the desktop's space (an icon from a drawer is left out there, unseen
      * until the icons come back) */
     if (!root || !ob_show_icons(&show)) return OB_DESK_NONE;
@@ -2617,8 +2769,8 @@ static int leave_out(const char *const *paths, int n, WORD sx, WORD sy)
         if (ic->lo < 0) continue;
         for (j = 0; j < added && !mine; j++) mine = !ci_cmp(ic->path, added_path[j]);
         if (!mine) continue;
-        nx = sx - root->LeftEdge - ic->w / 2 + k++ * (ic->w + 16);
-        ny = sy - root->TopEdge - ic->h / 2;
+        nx = sx - ROOT_X - ic->w / 2 + k++ * (ic->w + 16);
+        ny = sy - ROOT_Y - ic->h / 2;
         ic->ix += nx - ic->x;
         ic->iy += ny - ic->y;
         ic->x = nx;
@@ -3283,7 +3435,7 @@ static void noicons_apply(int what)
     }
     noicons_check();
     if (what != OB_SHOW_KEEP && root) {
-        EraseRect(root->RPort, 0, 0, root->Width - 1, root->Height - 1);
+        EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
         draw_icons();
     }
 }
@@ -3306,7 +3458,8 @@ static void volumes_again(void)
     drag_img_close();                           /* 0.1.35: a drag ends with the icons it was of */
     dragging = pressed_on = last_click = NULL;
     scan_volumes();
-    EraseRect(root->RPort, 0, 0, root->Width - 1, root->Height - 1);
+    if (auto_arrange) place_icons(1);           /* 0.1.52: Auto-arrange icons */
+    EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
     draw_icons();
 }
 
@@ -3317,6 +3470,11 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         BeginRefresh(root);
         draw_icons();
         EndRefresh(root, TRUE);
+        break;
+    case IDCMP_NEWSIZE:                         /* 0.1.52: the framed root sized: its icons laid out in its new inside */
+        place_icons(auto_arrange);
+        EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
+        draw_icons();
         break;
     case IDCMP_MOUSEBUTTONS:
         if (code == SELECTDOWN) {
@@ -3360,7 +3518,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 /* 0.1.26: let go over another window: into that drawer, or to that program's AppWindow;
                  * the disk's icon goes back where it was. 0.1.35: every selected icon goes, the icons left out
                  * as from a drawer; and onto a disk, a drawer or the trash on the desktop the same way */
-                WORD sx = (WORD)(root->LeftEdge + mx), sy = (WORD)(root->TopEdge + my);
+                WORD sx = (WORD)(ROOT_X + mx), sy = (WORD)(ROOT_Y + my);
                 struct Window *w;
                 char on[256];
                 int k;
@@ -3392,16 +3550,16 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             dragging = pressed_on;
             /* 0.1.26: over another window, its picture follows the pointer above the windows; the icon
              * stays where it was last on the desktop */
-            w = ob_drop_window_under((WORD)(root->LeftEdge + mx), (WORD)(root->TopEdge + my), wb_ghost_window(drag_img));
+            w = ob_drop_window_under((WORD)(ROOT_X + mx), (WORD)(ROOT_Y + my), wb_ghost_window(drag_img));
             if (w && w != root) {
-                drag_img_at(dragging, root->LeftEdge + nx, root->TopEdge + ny);
+                drag_img_at(dragging, ROOT_X + nx, ROOT_Y + ny);
                 break;
             }
             drag_img_close();
             if (nx < 0) nx = 0;
             if (ny < 0) ny = 0;
-            if (nx > root->Width - pressed_on->w) nx = root->Width - pressed_on->w;
-            if (ny > root->Height - pressed_on->h - label_h) ny = root->Height - pressed_on->h - label_h;
+            if (nx > ROOT_W - pressed_on->w) nx = ROOT_W - pressed_on->w;
+            if (ny > ROOT_H - pressed_on->h - label_h) ny = ROOT_H - pressed_on->h - label_h;
             if (nx != ox || ny != oy)
                 move_icon(pressed_on, nx, ny);
         }
@@ -3438,7 +3596,17 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                     }
                 break;
             }
-            case M_USB_EJECT: usb_eject_selected(); break;   /* 0.1.47 */
+            case M_USB_EJECT: usb_eject_selected(); break;   /* 0.1.47; 0.1.52 floppies too */
+            case M_FORMAT: format_selected(); break;         /* 0.1.52 */
+            case M_OPENVOL: open_volume(); break;
+            case M_LASTMSG: last_message(); break;
+            case M_FIND: find_everywhere(); break;
+            case M_BACKDROP: want_backdrop = (it->Flags & CHECKED) ? 2 : 1; break;   /* not here: it closes the menus */
+            case M_AUTOARRANGE:
+                auto_arrange = (it->Flags & CHECKED) != 0;
+                setting_write("AutoArrange", auto_arrange);
+                arrange_if_auto();
+                break;
             case M_REDRAW: redraw_all(); break;
             case M_PUTAWAY: put_away(); break;      /* 0.1.35 */
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
@@ -3469,6 +3637,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             case M_RESETWB: want_resetwb = 1; break; /* the same */
             case M_UPDATE:
                 scan_volumes();
+                if (auto_arrange) place_icons(1);   /* 0.1.52 */
                 redraw_all();
                 break;
             case M_ABOUT:
@@ -3580,7 +3749,7 @@ static void new_picture(void)
     backdrop = grad;
     if (strip) UnlockLayer(strip->WLayer);
     UnlockLayer(root->WLayer);
-    EraseRect(root->RPort, 0, 0, root->Width - 1, root->Height - 1);
+    EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
     strip_redraw();
     draw_icons();
     start_picture();
@@ -3652,6 +3821,18 @@ static int desktop_up(void)
     /* 0.1.22: a Workbench window (WFLG_WBENCHWINDOW, first: the other tags add to it), as all of GFOpenBench's
      * are (mark_ours), so CloseWorkBench() asks GFOpenBench to close it instead of refusing at once */
     rb = ob_root_box(look.scr->Width, look.scr->Height, look.scr->BarHeight);
+    auto_arrange = setting_on("AutoArrange", 0);        /* 0.1.52 */
+    if (root_framed) {
+        /* 0.1.52: Backdrop off: a window of its own, titled as OS 3.2.3's, a fifth in from each side, no close gadget */
+        LONG mx = rb.width / 10, my = rb.height / 10;
+        root = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, rb.left + mx, WA_Top, rb.top + my,
+                              WA_Width, rb.width - 2 * mx, WA_Height, rb.height - 2 * my, WA_PubScreen, (ULONG)look.scr,
+                              WA_Title, (ULONG)"Workbench", WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_SizeGadget, TRUE,
+                              WA_SizeBBottom, TRUE, WA_MinWidth, 120, WA_MinHeight, 60, WA_MaxWidth, ~0, WA_MaxHeight, ~0,
+                              WA_GimmeZeroZero, TRUE, WA_SimpleRefresh, TRUE, WA_BackFill, (ULONG)&backfill_hook,
+                              WA_ReportMouse, TRUE, WA_NewLookMenus, TRUE, WA_Activate, TRUE,
+                              WA_ScreenTitle, (ULONG)screen_title, WA_IDCMP, 0, TAG_DONE);
+    } else
     root = OpenWindowTags(NULL, WA_Flags, WFLG_WBENCHWINDOW, WA_Left, rb.left, WA_Top, rb.top, WA_Width, rb.width,
                           WA_Height, rb.height, WA_PubScreen, (ULONG)look.scr,
                           WA_Backdrop, TRUE, WA_Borderless, TRUE, WA_SimpleRefresh, TRUE, WA_BackFill, (ULONG)&backfill_hook,
@@ -3660,7 +3841,7 @@ static int desktop_up(void)
     if (!root) return 0;
     root->UserPort = idcmp;
     ModifyIDCMP(root, IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_REFRESHWINDOW | IDCMP_MENUPICK |
-                      IDCMP_DISKINSERTED | IDCMP_DISKREMOVED);
+                      IDCMP_DISKINSERTED | IDCMP_DISKREMOVED | (root_framed ? IDCMP_NEWSIZE : 0));
     if (look.label_font) SetFont(root->RPort, look.label_font);    /* the root window draws only the labels */
     else if (look.font) SetFont(root->RPort, look.font);
     SetDrMd(root->RPort, JAM1);
@@ -3675,6 +3856,8 @@ static int desktop_up(void)
         nm[k] = newmenus[i];
         if (i == RESIZE_INDEX && !native_differs()) nm[k].nm_Flags |= NM_ITEMDISABLED;
         if (nm[k].nm_UserData == (APTR)M_NOICONS && ob_show_checked(&show)) nm[k].nm_Flags |= CHECKED;
+        if (nm[k].nm_UserData == (APTR)M_BACKDROP && !root_framed) nm[k].nm_Flags |= CHECKED;     /* 0.1.52 */
+        if (nm[k].nm_UserData == (APTR)M_AUTOARRANGE && auto_arrange) nm[k].nm_Flags |= CHECKED;
         k++;
     }
     resize_greyed = resize_shown && !native_differs();
@@ -3702,8 +3885,8 @@ static int desktop_up(void)
  * GFOpenLook its close notice comes first, as in 0.1.19, and the two agree. CloseWorkBench() and OpenWorkBench()
  * are called from a process of GFOpenBench's own (reset_entry): Intuition waits for GFOpenBench's answer to
  * WBENCHCLOSE, which GFOpenBench's own process could not give while inside the call. */
-/* 0: the desktop is up; 1: down, the screen being reset; 2: to come up again (tried each time round) */
-static int wb_down;
+/* 0: the desktop is up; 1: down, the screen being reset; 2: to come up again (tried each time round) (declared with
+ * Backdrop, 0.1.52) */
 static struct MsgPort *aloha_port;          /* Intuition's Workbench messages */
 static int aloha_on;
 static struct Library *OpenRTGBase;         /* gfopenrtg.library 0.17 or later, for the Native size; else NULL */
@@ -4306,7 +4489,12 @@ static int run(void)
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
     aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */
-    if (!desktop_up()) goto out;
+    root_framed = !setting_on("Backdrop", 1);      /* 0.1.52: Workbench > Backdrop, as last left */
+    if (!desktop_up()) {
+        root_framed = 0;                           /* a framed root that can't open: the backdrop, as always */
+        desktop_down();
+        if (!desktop_up()) goto out;
+    }
     ok = 1;
 
     /* 0.1.39: the files' notifies, on one port (each had a signal up to 0.1.38) */
@@ -4468,7 +4656,7 @@ static int run(void)
             if (root) UnlockLayer(root->WLayer);
             if (old) FreeVec(old);
             if (root && (backdrop || pic_bm)) {
-                EraseRect(root->RPort, 0, 0, root->Width - 1, root->Height - 1);
+                EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
                 strip_redraw();
                 draw_icons();
             }
@@ -4507,6 +4695,10 @@ static int run(void)
             /* 0.1.44: words held in the title (say_title) go at the next click, in any of GFOpenBench's windows */
             if (title_held && cl == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) title_release();
             if (root && win == root) {
+                if (root_framed) {                  /* 0.1.52: a GimmeZeroZero window's mouse is its outside's */
+                    mx -= root->BorderLeft;
+                    my -= root->BorderTop;
+                }
                 if (!root_event(cl, code, qual, mx, my, secs, micros)) quit = 1;
                 continue;
             }
@@ -4525,6 +4717,11 @@ static int run(void)
         if (want_resize) {
             want_resize = 0;
             if (root && !reset_busy) resize_to_window();
+        }
+        if (want_backdrop) {                        /* 0.1.52: Workbench > Backdrop */
+            int on = want_backdrop == 2;
+            want_backdrop = 0;
+            if (root && !reset_busy && !wb_down) backdrop_set(on);
         }
         if (want_resetwb) {
             want_resetwb = 0;
