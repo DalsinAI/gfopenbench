@@ -53,6 +53,14 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual);
 /* A drawer window's Window > New drawer... (wb_look's new_drawer): asks for the name (GFOpenFiles' requester), makes
  * the drawer in dir through GFOpenFiles' engine and gives it a drawer icon. 1 when made. */
 int ob_new_drawer(const char *dir, wb_drawer *from);
+/* GFOpenFiles' one-line requester over parent (Execute Command...): 1 when OK was chosen, buf holding the line */
+int ob_req_string(struct Window *parent, const char *title, const char *question, const char *ok, char *buf, int size);
+/* A drawer window's Icons > Copy (wb_look's copy): the selected entries copied beside themselves, as a job through
+ * GFOpenFiles' engine. 1 when started. */
+int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from);
+/* A drawer window's Icons > Empty trash (wb_look's empty_trash): the selected trashcans emptied through GFOpenFiles'
+ * engine, each after a requester. 1 when a job started. */
+int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *from);
 /* Icons > Rename... (CM4 item 12, row M19): path renamed newname in its drawer, its .info with it, by GFOpenFiles'
  * engine (of_rename), and the drawers showing it read again. OF_OK, or the engine's OF_ERR_* (ob_drop_error says it). */
 int ob_drop_rename(const char *path, const char *newname);

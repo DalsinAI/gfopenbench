@@ -2252,7 +2252,7 @@ static void title_release(void)
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
-       M_RENAME, M_DELETE };
+       M_RESETWB, M_EXECUTE, M_RENAME, M_DELETE };
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
@@ -2266,6 +2266,8 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
+    /* OS 3.2.3's Execute Command..., with its Amiga-E (WBGapTest M2): a command line run in a console of its own */
+    { NM_ITEM, (STRPTR)"Execute Command...", (STRPTR)"E", 0, 0, (APTR)M_EXECUTE },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"About...", (STRPTR)"?", 0, 0, (APTR)M_ABOUT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
@@ -2302,11 +2304,16 @@ static struct NewMenu newmenus[] = {
     { NM_TITLE, (STRPTR)"Disks", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Insert Disk...", NULL, 0, 0, (APTR)M_DISK_INSERT },
     { NM_ITEM, (STRPTR)"Eject DF0", NULL, 0, 0, (APTR)M_DISK_EJECT },
+    /* OS 3.2.3's Tools > ResetWB (WBGapTest M26): the Workbench screen closed and opened again, the drawers where
+     * they were, as Resize to Window does it (start_reset) */
+    { NM_TITLE, (STRPTR)"Tools", NULL, 0, 0, NULL },
+    { NM_ITEM, (STRPTR)"ResetWB", NULL, 0, 0, (APTR)M_RESETWB },
     { NM_END, NULL, NULL, 0, 0, NULL }
 };
 
 static void resize_to_window(void);
 static int want_resize;                     /* 0.1.22: Resize to Window picked: done once the messages are read */
+static int want_resetwb;                    /* Tools > ResetWB picked: the same, once the messages are read */
 
 static int ask(const char *title, const char *text, const char *gadgets)
 {
@@ -2322,6 +2329,27 @@ static void new_shell(void)
         Close(in);
         Close(out);
         DisplayBeep(look.scr);
+    }
+}
+
+/* Execute Command... (WBGapTest M2, as OS 3.2.3's): the command line asked for with GFOpenFiles' requester (the one
+ * New drawer uses), then run on its own in an output console that waits for its close gadget once the command ends
+ * (SYS_Output NULL: a new handle on the same console). The last line is offered again next time. */
+static void execute_command(void)
+{
+    static char line[256];
+    BPTR in;
+    if (!root || !ob_req_string(root, "Execute Command", "Enter Command and its Arguments:", "OK", line, sizeof line)
+        || !line[0])
+        return;
+    if (!(in = Open((CONST_STRPTR)"CON:0/50//130/Output Window/AUTO/CLOSE/WAIT", MODE_OLDFILE))) {
+        DisplayBeep(look.scr);
+        return;
+    }
+    if (SystemTags((CONST_STRPTR)line, SYS_Input, (ULONG)in, SYS_Output, 0, SYS_Asynch, TRUE, SYS_UserShell, TRUE,
+                   NP_StackSize, 16384, TAG_DONE) == -1) {
+        Close(in);
+        ask("Execute Command", "The command couldn't be started.", "OK");
     }
 }
 
@@ -3387,6 +3415,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             ULONG id = it ? (ULONG)GTMENUITEM_USERDATA(it) : 0;
             switch (id) {
             case M_SHELL: new_shell(); break;
+            case M_EXECUTE: execute_command(); break;
             case M_DISK_INSERT:
                 run_detached("C:InsertDisk", "Insert Disk couldn't start.\nIt needs C:InsertDisk from AmiCradle.");
                 break;
@@ -3432,6 +3461,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 break;
             }
             case M_RESIZE: want_resize = 1; break;   /* not here: it closes the menus being read */
+            case M_RESETWB: want_resetwb = 1; break; /* the same */
             case M_UPDATE:
                 scan_volumes();
                 redraw_all();
@@ -3854,6 +3884,13 @@ static volatile LONG reset_closed, reset_opened;
 static BYTE reset_sig = -1;
 static char reset_blockers[480];
 static int reset_refused;                   /* the last reset was refused: say so once the desktop is back */
+static int reset_wb;                        /* the reset is Tools > ResetWB's, not Resize to Window's */
+
+/* What the reset does, for its requesters */
+static const char *reset_what(void)
+{
+    return reset_wb ? "reset" : "made the window's size";
+}
 
 static void reset_entry(void)
 {
@@ -3877,8 +3914,8 @@ static int start_reset(void)
     if (reset_busy || reset_sig < 0 || !root) return 0;
     for (;;) {
         if (!blocking_windows(look.scr, names, sizeof names)) break;
-        snprintf(text, sizeof text, "The Workbench screen can't be made the window's size\n"
-                 "while these windows are open on it:\n%s\nClose them, then Try Again.", names);
+        snprintf(text, sizeof text, "The Workbench screen can't be %s\n"
+                 "while these windows are open on it:\n%s\nClose them, then Try Again.", reset_what(), names);
         if (!ask("GFOpenBench", text, "Try Again|Cancel")) return 0;
         if (!root) return 0;                    /* the screen was reset meanwhile */
     }
@@ -3901,6 +3938,7 @@ static void resize_to_window(void)
         if (look.scr) DisplayBeep(look.scr);
         return;
     }
+    reset_wb = 0;
     start_reset();
 }
 
@@ -3922,7 +3960,7 @@ static void native_tick(void)
     }
     if (ns.ask != last_ask) {
         last_ask = ns.ask;
-        if (differs && !reset_busy) start_reset();
+        if (differs && !reset_busy) { reset_wb = 0; start_reset(); }
     }
 }
 
@@ -4112,6 +4150,8 @@ static int run(void)
     look.snap = drawer_snap;
     look.leave_out = drawer_leave_out;             /* 0.1.41: Icons > Leave Out in the drawers (.backdrop) */
     look.new_drawer = ob_new_drawer;               /* Window > New drawer... (WBGapTest M8) */
+    look.copy = ob_copy;                           /* Icons > Copy (WBGapTest M18) */
+    look.empty_trash = ob_empty_trash;             /* Icons > Empty trash (WBGapTest M25) */
     look.rename_icon = drawer_rename;              /* 0.1.51: Icons > Rename... and Delete... in the drawers */
     look.delete_icons = drawer_delete;
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
@@ -4214,12 +4254,17 @@ static int run(void)
             char text[640];
             reset_refused = 0;
             if (reset_blockers[0])
-                snprintf(text, sizeof text, "The Workbench screen couldn't be made the window's size\n"
-                         "while these windows are open on it:\n%s\nClose them, then Try Again.", reset_blockers);
+                snprintf(text, sizeof text, "The Workbench screen couldn't be %s\n"
+                         "while these windows are open on it:\n%s\nClose them, then Try Again.", reset_what(),
+                         reset_blockers);
             else
-                snprintf(text, sizeof text, "The Workbench screen couldn't be made the window's size:\n"
-                         "a program is still using the screen.\nQuit the programs you started on it, then Try Again.");
-            if (ask("GFOpenBench", text, "Try Again|Cancel")) resize_to_window();
+                snprintf(text, sizeof text, "The Workbench screen couldn't be %s:\n"
+                         "a program is still using the screen.\nQuit the programs you started on it, then Try Again.",
+                         reset_what());
+            if (ask("GFOpenBench", text, "Try Again|Cancel")) {
+                if (reset_wb) start_reset();
+                else resize_to_window();
+            }
         }
         launches_reap();
         if (sigs & ob_drop_sigmask()) ob_drop_handle();   /* 0.1.26: copies done, AppMessages answered */
@@ -4328,6 +4373,10 @@ static int run(void)
         if (want_resize) {
             want_resize = 0;
             if (root && !reset_busy) resize_to_window();
+        }
+        if (want_resetwb) {
+            want_resetwb = 0;
+            if (root && !reset_busy) { reset_wb = 1; start_reset(); }
         }
     }
 
