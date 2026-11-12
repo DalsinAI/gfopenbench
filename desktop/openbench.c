@@ -2285,6 +2285,12 @@ static void title_release(void)
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT };
 
+/* 0.1.50: programs' AppMenuItems (menus_make): each picked one's id is M_APP0 + its place in app_menus */
+#define MAX_APPMENU 160
+#define M_APP0 1000
+static ob_wb_menu app_menus[MAX_APPMENU];
+static int napp_menus;
+
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
 #define RESIZE_INDEX 4
@@ -3544,10 +3550,6 @@ static void mark_ours(void);
 /* 0.1.50 (gap item 4): programs' AppMenuItems (AddAppMenuItemA, read through ob_wb): in the Tools menu, under their
  * parent items, or in menus of their own after GFOpenBench's, as OS 3.2.3 shows them. Each picked one's id is
  * M_APP0 + its place in app_menus. */
-#define MAX_APPMENU 160
-#define M_APP0 1000
-static ob_wb_menu app_menus[MAX_APPMENU];
-static int napp_menus;
 
 static int nm_app(struct NewMenu *nm, int k, UBYTE type, int i)
 {
