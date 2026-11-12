@@ -50,6 +50,9 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
 /* A disk's icon from the desktop let go at (sx, sy), over a window that isn't the desktop's: its contents
  * into a drawer (a new drawer named after the disk), or to a program's AppWindow. 1 when taken. */
 int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual);
+/* A drawer window's Window > New drawer... (wb_look's new_drawer): asks for the name (GFOpenFiles' requester), makes
+ * the drawer in dir through GFOpenFiles' engine and gives it a drawer icon. 1 when made. */
+int ob_new_drawer(const char *dir, wb_drawer *from);
 /* The window whose layer is at (sx, sy) on the screen, or NULL (the screen's bar, say). */
 struct Window *ob_drop_window_at(WORD sx, WORD sy);
 /* The same, looking through skip (an icon's picture being dragged). */

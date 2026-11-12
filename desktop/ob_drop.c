@@ -69,6 +69,7 @@
 #include "of_ops.h"
 #include "of_fs_amiga.h"
 #include "of_path.h"
+#include "of_req.h"
 
 extern struct Library *WorkbenchBase;
 
@@ -976,4 +977,50 @@ void ob_drop_stop(void)
     else app_port->mp_Flags = PA_IGNORE;        /* left: a late reply goes to a port still there, and signals
                                                  * no one */
     app_port = NULL;
+}
+
+/* ---- Window > New drawer... (WBGapTest M8, OS 3.2.3's New Drawer) ---- */
+
+/* A drawer window's Window > New drawer... (wb_look's new_drawer): GFOpenFiles' name requester, offering the first
+ * free "UnnamedN" as OS 3.2.3 does; the drawer made by GFOpenFiles' engine (of_mkdir), then given a drawer's icon,
+ * as 3.2.3 gives one. Other windows on the same drawer are read again; from reads itself when this says 1. */
+int ob_new_drawer(const char *dir, wb_drawer *from)
+{
+    struct Window *w = from ? wb_drawer_window(from) : *env.root;
+    char name[108], path[OF_PATH_MAX];
+    of_fs fs;
+    of_ctx c;
+    struct DiskObject *o;
+    BPTR l;
+    int i, rc;
+    if (!w || !dir || !*dir) return 0;
+    of_fs_amiga_init(&fs);
+    of_ctx_init(&c, &fs);
+    for (i = 1; i < 1000; i++) {
+        snprintf(name, sizeof name, "Unnamed%d", i);
+        if (!of_path_join(path, dir, name)) return 0;
+        if (!(l = Lock((CONST_STRPTR)path, ACCESS_READ))) break;
+        UnLock(l);
+    }
+    if (!of_req_string(w, w->WScreen->Font, "New drawer", "Enter a name for the new drawer:", "OK", name, sizeof name))
+        return 0;
+    if (!name[0] || strchr(name, '/') || strchr(name, ':') || !of_path_join(path, dir, name)) {
+        DisplayBeep(w->WScreen);
+        return 0;
+    }
+    if ((rc = of_mkdir(&c, path)) != OF_OK) {
+        struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
+                                 (UBYTE *)"Could not make the drawer\n\"%s\":\n%s.", (UBYTE *)"OK" };
+        EasyRequest(w, &es, NULL, (ULONG)name, (ULONG)err_text(rc));
+        return 0;
+    }
+    if ((o = GetDefDiskObject(WBDRAWER))) {
+        o->do_CurrentX = o->do_CurrentY = NO_ICON_POSITION;
+        PutDiskObject((CONST_STRPTR)path, o);
+        FreeDiskObject(o);
+    }
+    for (i = 0; i < *env.ndrawers; i++)
+        if (env.drawers[i] != from && of_path_equal(wb_drawer_path(env.drawers[i]), dir))
+            wb_drawer_reread(env.drawers[i]);
+    return 1;
 }
