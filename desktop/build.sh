@@ -152,7 +152,8 @@ DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
 # workbench.library's Workbench (0.1.56, gap item 4): its calls, programs' AppIcons and AppMenuItems
 # shellcheck disable=SC2086
 "$CC" $FLAGS -I"$W" -I"$L" -c -o "$TMP/ob_wb.o" "$HERE/ob_wb.c"
-DROP_OBJS="$DROP_OBJS $TMP/ob_wb.o"
+"$CC" $FLAGS -c -o "$TMP/ob_wbplan.o" "$HERE/ob_wbplan.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_wb.o $TMP/ob_wbplan.o"
 # The ARexx ports WORKBENCH and OPENBENCH (0.1.53): ob_rexx.c (the commands, plain C) and ob_arexx.c (the ports and
 # what each command does; NEWDRAWER, RENAME and DELETE through the same GFOpenFiles engine)
 "$CC" $FLAGS -c -o "$TMP/ob_rexx.o" "$HERE/ob_rexx.c"

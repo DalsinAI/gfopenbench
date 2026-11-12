@@ -34,6 +34,11 @@
 #include <proto/icon.h>
 
 #include "ob_wb.h"
+#include "ob_wbplan.h"
+
+/* ob_wbplan's numbers are workbench.h's */
+typedef char check_ism[ISMACTION_Unselect == OB_WBP_UNSELECT && ISMACTION_Select == OB_WBP_SELECT &&
+                       ISMACTION_Ignore == OB_WBP_IGNORE && ISMACTION_Stop == OB_WBP_STOP ? 1 : -1];
 
 static ob_wb_env env;
 static struct MsgPort *req_port;                /* registered with workbench.library: its calls come here */
@@ -57,18 +62,6 @@ static void control(ULONG tag, ULONG data)
 }
 
 /* ---- the calls programs make ---- */
-
-/* "Work:Pictures/x" into its drawer ("Work:Pictures") and its name ("x"); "Work:" into "Work:" and "" */
-static void split(const char *path, char *dir, int n, const char **name)
-{
-    const char *part = (const char *)FilePart((CONST_STRPTR)path);
-    int len = (int)(part - path);
-    if (len > 0 && path[len - 1] == '/') len--;
-    if (len >= n) len = n - 1;
-    memcpy(dir, path, (size_t)len);
-    dir[len] = 0;
-    *name = part;
-}
 
 /* A program's hook, as utility.library's CallHookPkt calls it: a0 the hook, a2 the object, a1 the message, through
  * h_Entry (without needing utility.library open here) */
@@ -100,12 +93,7 @@ static int select_one(void *c, const char *name, int type, int selected, WORD x,
     s->ism.ism_Left = x;
     s->ism.ism_Top = y;
     r = call_hook(s->hook, NULL, &s->ism);
-    switch (r) {
-    case ISMACTION_Unselect: return 0;
-    case ISMACTION_Select: return 1;
-    case ISMACTION_Stop: return -1;
-    default: return 2;
-    }
+    return ob_wbp_hook_answer(r);
 }
 
 static void answer(struct OWBRequest *rq)
@@ -125,7 +113,7 @@ static void answer(struct OWBRequest *rq)
     case OWBREQ_VISIBLE:
         /* an icon in an open drawer's window, scrolled to; a disk's is always on the desktop */
         if (!rq->or_Name) break;
-        split((const char *)rq->or_Name, dir, sizeof dir, &name);
+        name = ob_wbp_split((const char *)rq->or_Name, dir, sizeof dir);
         if (!*name) {
             BPTR l = Lock(rq->or_Name, ACCESS_READ);
             if (l) { UnLock(l); rq->or_Result = TRUE; }
@@ -321,8 +309,7 @@ int ob_wb_send(APTR handle, int kind, const char *const *paths, int n, WORD mx, 
         const char *name = is_dir(paths[i]) ? "" : (const char *)FilePart((CONST_STRPTR)paths[i]);
         BPTR l;
         if (*name) {
-            const char *dn;
-            split(paths[i], parent, sizeof parent, &dn);
+            ob_wbp_split(paths[i], parent, sizeof parent);
             l = Lock((CONST_STRPTR)parent, ACCESS_READ);
         } else
             l = Lock((CONST_STRPTR)paths[i], ACCESS_READ);

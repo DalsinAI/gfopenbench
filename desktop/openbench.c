@@ -260,6 +260,7 @@
 #include "wb_drawer.h"
 #include "ob_drop.h"
 #include "ob_wb.h"
+#include "ob_wbplan.h"
 #include "ob_show.h"
 #include "ob_snap.h"
 #include "ob_notify.h"
@@ -3944,18 +3945,11 @@ static int nm_app(struct NewMenu *nm, int k, UBYTE type, int i)
     return k + 1;
 }
 
-/* the items under handle (Tools: NULL) as type, each parent item followed by its sub items */
-static int nm_app_items(struct NewMenu *nm, int k, APTR under, UBYTE type)
+/* the rows ob_wbplan laid out, as NewMenus */
+static int nm_rows(struct NewMenu *nm, int k, const ob_wbp_row *r, int n)
 {
-    int i, j;
-    for (i = 0; i < napp_menus; i++) {
-        ob_wb_menu *m = &app_menus[i];
-        if (m->parent != under || m->role == OWB_MENU_TITLE || !m->visible) continue;
-        k = nm_app(nm, k, type, i);
-        if (m->role == OWB_MENU_PARENT)
-            for (j = 0; j < napp_menus; j++)
-                if (app_menus[j].parent == m->handle && app_menus[j].role != OWB_MENU_TITLE) k = nm_app(nm, k, NM_SUB, j);
-    }
+    int i;
+    for (i = 0; i < n; i++) k = nm_app(nm, k, r[i].level == 0 ? NM_TITLE : r[i].level == 1 ? NM_ITEM : NM_SUB, r[i].index);
     return k;
 }
 
@@ -3965,33 +3959,38 @@ static int is_title(const struct NewMenu *n, const char *label)
 }
 
 /* The root window's menus, laid out: newmenus (Resize to Window as desktop_up decided), then the programs' items in
- * Tools (a Tools menu of GFOpenBench's own, or one made after Icons) and their own menus. NULL with no memory. */
+ * Tools (a Tools menu of GFOpenBench's own, or one made after Icons) and their own menus (ob_wbplan). NULL with no
+ * memory. */
 static struct Menu *menus_make(void)
 {
-    int nnew = (int)(sizeof newmenus / sizeof newmenus[0]), i, k = 0, has_tools = 0, in_tools = 0, icons_seen = 0;
-    int any = 0, done = 0;
+    static ob_wbp_menu pm[MAX_APPMENU];
+    static ob_wbp_row tools[MAX_APPMENU], own_rows[MAX_APPMENU];
+    const char *titles[16];
+    int nnew = (int)(sizeof newmenus / sizeof newmenus[0]), i, k = 0, nt = 0, t = -1, at, own, ntools, nown;
     struct NewMenu *nm;
     struct Menu *made;
     napp_menus = ob_wb_menus(app_menus, MAX_APPMENU);
-    for (i = 0; i < napp_menus; i++)
-        if (app_menus[i].visible && app_menus[i].role != OWB_MENU_TITLE && !app_menus[i].parent) any = 1;
-    for (i = 0; i < nnew; i++)
-        if (is_title(&newmenus[i], "Tools")) has_tools = 1;
-    if (!(nm = AllocVec(sizeof *nm * (ULONG)(nnew + 2 + 2 * napp_menus + 1), MEMF_ANY | MEMF_CLEAR))) return NULL;
+    for (i = 0; i < napp_menus; i++) {
+        pm[i].handle = app_menus[i].handle;
+        pm[i].parent = app_menus[i].parent;
+        pm[i].role = app_menus[i].role;
+        pm[i].visible = app_menus[i].visible;
+    }
+    ntools = ob_wbp_items(pm, napp_menus, NULL, tools, MAX_APPMENU);
+    nown = ob_wbp_own(pm, napp_menus, own_rows, MAX_APPMENU);
+    for (i = 0; i < nnew && newmenus[i].nm_Type != NM_END; i++)
+        if (newmenus[i].nm_Type == NM_TITLE && nt < 16) titles[nt++] = (const char *)newmenus[i].nm_Label;
+    at = ob_wbp_tools_at(titles, nt, ob_wbp_any_tools(pm, napp_menus), &own);
+    if (!(nm = AllocVec(sizeof *nm * (ULONG)(nnew + 1 + ntools + nown + 1), MEMF_ANY | MEMF_CLEAR))) return NULL;
     for (i = 0; i < nnew && newmenus[i].nm_Type != NM_END; i++) {
         if (newmenus[i].nm_Type == NM_TITLE) {
-            if (in_tools && !done) {            /* the end of GFOpenBench's own Tools menu: the programs' items */
-                k = nm_app_items(nm, k, NULL, NM_ITEM);
-                done = 1;
-            }
-            if (icons_seen && !has_tools && any && !done) {   /* no Tools of its own: one made after Icons */
+            if (own && at == t) k = nm_rows(nm, k, tools, ntools);         /* the end of its own Tools menu */
+            t++;
+            if (!own && at == t) {                                        /* a Tools menu made before this one */
                 nm[k].nm_Type = NM_TITLE;
                 nm[k++].nm_Label = (STRPTR)"Tools";
-                k = nm_app_items(nm, k, NULL, NM_ITEM);
-                done = 1;
+                k = nm_rows(nm, k, tools, ntools);
             }
-            in_tools = is_title(&newmenus[i], "Tools");
-            icons_seen = is_title(&newmenus[i], "Icons");
         }
         if (i == RESIZE_INDEX && !resize_shown) continue;
         nm[k] = newmenus[i];
@@ -4001,18 +4000,13 @@ static struct Menu *menus_make(void)
         if (nm[k].nm_UserData == (APTR)M_AUTOARRANGE && auto_arrange) nm[k].nm_Flags |= CHECKED;
         k++;
     }
-    if (!done && (in_tools || any)) {           /* Tools was the last menu, or none came after Icons */
-        if (!in_tools) {
-            nm[k].nm_Type = NM_TITLE;
-            nm[k++].nm_Label = (STRPTR)"Tools";
-        }
-        k = nm_app_items(nm, k, NULL, NM_ITEM);
+    if (own && at == t) k = nm_rows(nm, k, tools, ntools);                 /* Tools was the last menu */
+    if (!own && at == nt) {
+        nm[k].nm_Type = NM_TITLE;
+        nm[k++].nm_Label = (STRPTR)"Tools";
+        k = nm_rows(nm, k, tools, ntools);
     }
-    for (i = 0; i < napp_menus; i++)            /* the programs' own menus */
-        if (app_menus[i].role == OWB_MENU_TITLE && app_menus[i].visible) {
-            k = nm_app(nm, k, NM_TITLE, i);
-            k = nm_app_items(nm, k, app_menus[i].handle, NM_ITEM);
-        }
+    k = nm_rows(nm, k, own_rows, nown);                                   /* the programs' own menus */
     nm[k].nm_Type = NM_END;
     made = CreateMenus(nm, TAG_DONE);
     FreeVec(nm);
