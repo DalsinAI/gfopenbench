@@ -135,6 +135,10 @@ done
 # shellcheck disable=SC2086
 "$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$W" -I"$L" -c -o "$TMP/ob_drop.o" "$HERE/ob_drop.c"
 DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
+# workbench.library's Workbench (0.1.50, gap item 4): its calls, programs' AppIcons and AppMenuItems
+# shellcheck disable=SC2086
+"$CC" $FLAGS -I"$W" -I"$L" -c -o "$TMP/ob_wb.o" "$HERE/ob_wb.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_wb.o"
 # wb_dir, as it is (0.1.23 to 0.1.31 renamed its wb_dir_read and wb_entry_icon for ROM:Prefs's editors; the ROM has
 # no ROM: since the no-ROM-volume design, 24 October 2026)
 # shellcheck disable=SC2086

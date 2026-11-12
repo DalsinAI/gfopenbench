@@ -242,6 +242,7 @@
 #endif
 #include "wb_drawer.h"
 #include "ob_drop.h"
+#include "ob_wb.h"
 #include "ob_show.h"
 #include "ob_snap.h"
 #include "ob_notify.h"
@@ -923,7 +924,10 @@ typedef struct dicon {
     int lo;                                 /* 0.1.35: a left-out icon's louts[] entry; -1: a disk */
     int snapped;                            /* 0.1.38: snapshotted by GFOpenBench, its .info still so: on cell sgx, sgy */
     int sgx, sgy;
+    APTR app;                               /* 0.1.50: a program's AppIcon (lo OB_LO_APP): workbench.library's handle */
 } dicon;
+
+#define OB_LO_APP (-2)                      /* 0.1.50: dicon.lo of a program's AppIcon (ob_wb.h) */
 
 static dicon icons[MAX_DESK];
 static int nicons;
@@ -1651,6 +1655,41 @@ static int volumes_moved(void)
 
 /* The mounted volumes, their Disk.info (where there is none, the default icon for their kind of drive), on the
  * column grid in the Clean Up order. 0.1.40: their fingerprint kept, every volume in a drive's, hidden or not. */
+/* 0.1.50 (gap item 4): programs' AppIcons (AddAppIconA, workbench.library's, read through ob_wb), on the desktop
+ * after the disks and the icons left out, each with GFOpenBench's copy of its picture and its label */
+static void appicons_add(void)
+{
+    static ob_wb_icon ai[MAX_DESK];
+    int n, i;
+    n = ob_wb_icons(ai, MAX_DESK);
+    for (i = 0; i < n; i++) {
+        dicon *ic;
+        struct Rectangle r;
+        if (nicons >= MAX_DESK) {
+            if (ai[i].dobj) FreeDiskObject(ai[i].dobj);
+            continue;
+        }
+        ic = &icons[nicons];
+        memset(ic, 0, sizeof *ic);
+        snprintf(ic->name, sizeof ic->name, "%s", ai[i].label);
+        ic->kind = "";
+        ic->lo = OB_LO_APP;
+        ic->app = ai[i].handle;
+        ic->dobj = ai[i].dobj ? ai[i].dobj
+                 : GetIconTags(NULL, ICONGETA_GetDefaultType, WBTOOL, ICONGETA_Screen, (ULONG)look.scr, TAG_DONE);
+        ic->w = 48; ic->h = 40;
+        r.MinX = r.MinY = 0;
+        if (ic->dobj && GetIconRectangle(root->RPort, ic->dobj, NULL, &r, ICONDRAWA_Borderless, TRUE, TAG_DONE)) {
+            ic->w = r.MaxX - r.MinX + 1;
+            ic->h = r.MaxY - r.MinY + 1;
+        }
+        ic->lt = ic->h + LABEL_GAP;
+        ic->ix = -r.MinX;
+        ic->iy = -r.MinY;
+        nicons++;
+    }
+}
+
 static void scan_volumes(void)
 {
     struct DosList *dl, *start;
@@ -1739,6 +1778,7 @@ static void scan_volumes(void)
         ic->iy = -r.MinY;
     }
     leftouts_add();                                 /* 0.1.35: the icons left out, after the disks */
+    appicons_add();                                 /* 0.1.50: programs' AppIcons, last */
     place_icons(0);
 }
 
@@ -2360,7 +2400,7 @@ static void usb_eject_selected(void)
         char drive[32], cmd[96], said[160];
         BPTR out;
         LONG rc, n;
-        if (!icons[i].selected || icons[i].lo >= 0) continue;
+        if (!icons[i].selected || icons[i].lo != -1) continue;
         if (!usb_drive(icons[i].name, drive, sizeof drive)) continue;
         any = 1;
         if (!(out = Lock((CONST_STRPTR)"C:USBEject", SHARED_LOCK))) {
@@ -2533,6 +2573,7 @@ static int desk_icon_at(WORD sx, WORD sy, char *out, int n)
         icon_extent(ic, &x0, &y0, &x1, &y1);
         if (x < x0 || x > x1 || y < y0 || y > y1) continue;
         snprintf(out, (size_t)n, "%s", ic->path);
+        if (ic->lo == OB_LO_APP) return OB_DESK_FILE;  /* 0.1.50: ob_drop asks appicon_drop first */
         if (ic->lo < 0) return OB_DESK_DISK;
         if (ic->dobj && ic->dobj->do_Type == WBGARBAGE) return OB_DESK_TRASH;
         if (ic->dobj && (ic->dobj->do_Type == WBDRAWER || ic->dobj->do_Type == WBDISK)) return OB_DESK_DRAWER;
@@ -2764,6 +2805,7 @@ static void desk_snapshot(int all, int unsnap)
         LONG err;
         int r;
         if (!all && !ic->selected) continue;
+        if (ic->lo == OB_LO_APP) continue;          /* 0.1.50: a program's AppIcon has no file to keep its place in */
         if (!ob_snap_split(ic->path, vol, sizeof vol, rest, sizeof rest)) {
             snapfail_add(&f, ic->name, 0, "its name is too long to be kept");
             continue;
@@ -3007,8 +3049,44 @@ static void put_away(void)
     snapfail_end(&f, 0, "Put Away", NULL);
 }
 
+/* 0.1.50: the selected desktop icons' paths (disks and icons left out; not AppIcons), for an AppMessage */
+static int selected_paths(const char **paths, int max, const dicon *skip)
+{
+    int i, n = 0;
+    for (i = 0; i < nicons && n < max; i++)
+        if (icons[i].selected && &icons[i] != skip && icons[i].lo != OB_LO_APP) paths[n++] = icons[i].path;
+    return n;
+}
+
+/* 0.1.50: a double-click on a program's AppIcon, or Icons > Open: its AppMessage, with no icons */
+static void appicon_open(dicon *ic, WORD mx, WORD my)
+{
+    if (!ob_wb_send(ic->app, OWB_AO_APPICON, NULL, 0, mx, my, AMCLASSICON_Open)) DisplayBeep(look.scr);
+}
+
+/* 0.1.50: icons let go on a program's AppIcon at (sx, sy): its AppMessage with them. 1 when there was one there */
+static int appicon_drop(const char *const *paths, int n, WORD sx, WORD sy)
+{
+    int i;
+    LONG x, y;
+    if (!root || !ob_show_icons(&show)) return 0;
+    x = sx - root->LeftEdge;
+    y = sy - root->TopEdge;
+    for (i = nicons - 1; i >= 0; i--) {
+        dicon *ic = &icons[i];
+        LONG x0, y0, x1, y1;
+        if (ic == drag_skip) continue;
+        icon_extent(ic, &x0, &y0, &x1, &y1);
+        if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+        if (ic->lo != OB_LO_APP) return 0;
+        if (!ob_wb_send(ic->app, OWB_AO_APPICON, paths, n, (WORD)x, (WORD)y, 0)) DisplayBeep(look.scr);
+        return 1;
+    }
+    return 0;
+}
+
 static const ob_drop_env drop_env = { &look.scr, &root, drawers, &ndrawers, desk_icon_at, leave_out, leftouts_check,
-                                       say_title };
+                                       say_title, appicon_drop };
 
 static void drag_img_close(void)
 {
@@ -3037,6 +3115,7 @@ static void drop_selected(dicon *dragged, WORD sx, WORD sy, UWORD qual)
     for (i = 0; i < nicons; i++) {
         dicon *ic = &icons[i];
         if (!ic->selected && ic != dragged) continue;
+        if (ic->lo == OB_LO_APP) continue;          /* 0.1.50: a program's AppIcon only moves on the desktop */
         if (ic->lo < 0) ob_drop_volume(ic->path, sx, sy, qual);
         else if (n < MAX_LEFTOUT) paths[n++] = ic->path;
     }
@@ -3168,7 +3247,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             if (ic && ic == last_click && DoubleClick(last_secs, last_micros, secs, micros)) {
                 last_click = NULL;
                 pressed_on = NULL;
-                if (ic->lo >= 0) ob_open_object(ic->path);  /* 0.1.35: left out: what it stands for */
+                if (ic->lo == OB_LO_APP) appicon_open(ic, mx, my);   /* 0.1.50: the program's AppMessage */
+                else if (ic->lo >= 0) ob_open_object(ic->path);  /* 0.1.35: left out: what it stands for */
                 else open_drawer(ic->path);
                 break;
             }
@@ -3251,6 +3331,12 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         while (num != MENUNULL && picked++ < 32) {
             struct MenuItem *it = ItemAddress(root->MenuStrip, num);
             ULONG id = it ? (ULONG)GTMENUITEM_USERDATA(it) : 0;
+            if (id >= M_APP0 && id < M_APP0 + (ULONG)napp_menus) {   /* 0.1.50: a program's item, with the icons selected */
+                const char *paths[MAX_LEFTOUT];
+                int n = selected_paths(paths, MAX_LEFTOUT, NULL);
+                if (!ob_wb_send(app_menus[id - M_APP0].handle, OWB_AO_APPMENU, paths, n, 0, 0, 0)) DisplayBeep(look.scr);
+                id = 0;
+            }
             switch (id) {
             case M_SHELL: new_shell(); break;
             case M_DISK_INSERT:
@@ -3264,7 +3350,9 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 int i;
                 for (i = 0; i < nicons; i++)
                     if (icons[i].selected) {
-                        if (id == M_ICON_OPEN && icons[i].lo >= 0) ob_open_object(icons[i].path);
+                        if (id == M_ICON_OPEN && icons[i].lo == OB_LO_APP) appicon_open(&icons[i], 0, 0);
+                        else if (icons[i].lo == OB_LO_APP) DisplayBeep(look.scr);  /* no Information for it */
+                        else if (id == M_ICON_OPEN && icons[i].lo >= 0) ob_open_object(icons[i].path);
                         else if (id == M_ICON_OPEN) open_drawer(icons[i].path);
                         else if (!ob_info_open(look.scr, icons[i].path)) DisplayBeep(look.scr);
                     }
@@ -3453,14 +3541,120 @@ static int native_monitor(ULONG *mode_id);
 static int native_differs(void);
 static void mark_ours(void);
 
+/* 0.1.50 (gap item 4): programs' AppMenuItems (AddAppMenuItemA, read through ob_wb): in the Tools menu, under their
+ * parent items, or in menus of their own after GFOpenBench's, as OS 3.2.3 shows them. Each picked one's id is
+ * M_APP0 + its place in app_menus. */
+#define MAX_APPMENU 160
+#define M_APP0 1000
+static ob_wb_menu app_menus[MAX_APPMENU];
+static int napp_menus;
+
+static int nm_app(struct NewMenu *nm, int k, UBYTE type, int i)
+{
+    ob_wb_menu *m = &app_menus[i];
+    nm[k].nm_Type = type;
+    nm[k].nm_Label = m->separator ? NM_BARLABEL : (STRPTR)m->label;
+    nm[k].nm_CommKey = m->key[0] && type != NM_TITLE ? (STRPTR)m->key : NULL;
+    nm[k].nm_Flags = 0;
+    nm[k].nm_MutualExclude = 0;
+    nm[k].nm_UserData = m->role == OWB_MENU_ITEM && !m->separator ? (APTR)(ULONG)(M_APP0 + i) : NULL;
+    return k + 1;
+}
+
+/* the items under handle (Tools: NULL) as type, each parent item followed by its sub items */
+static int nm_app_items(struct NewMenu *nm, int k, APTR under, UBYTE type)
+{
+    int i, j;
+    for (i = 0; i < napp_menus; i++) {
+        ob_wb_menu *m = &app_menus[i];
+        if (m->parent != under || m->role == OWB_MENU_TITLE || !m->visible) continue;
+        k = nm_app(nm, k, type, i);
+        if (m->role == OWB_MENU_PARENT)
+            for (j = 0; j < napp_menus; j++)
+                if (app_menus[j].parent == m->handle && app_menus[j].role != OWB_MENU_TITLE) k = nm_app(nm, k, NM_SUB, j);
+    }
+    return k;
+}
+
+static int is_title(const struct NewMenu *n, const char *label)
+{
+    return n->nm_Type == NM_TITLE && n->nm_Label && !strcmp((const char *)n->nm_Label, label);
+}
+
+/* The root window's menus, laid out: newmenus (Resize to Window as desktop_up decided), then the programs' items in
+ * Tools (a Tools menu of GFOpenBench's own, or one made after Icons) and their own menus. NULL with no memory. */
+static struct Menu *menus_make(void)
+{
+    int nnew = (int)(sizeof newmenus / sizeof newmenus[0]), i, k = 0, has_tools = 0, in_tools = 0, icons_seen = 0;
+    int any = 0, done = 0;
+    struct NewMenu *nm;
+    struct Menu *made;
+    napp_menus = ob_wb_menus(app_menus, MAX_APPMENU);
+    for (i = 0; i < napp_menus; i++)
+        if (app_menus[i].visible && app_menus[i].role != OWB_MENU_TITLE && !app_menus[i].parent) any = 1;
+    for (i = 0; i < nnew; i++)
+        if (is_title(&newmenus[i], "Tools")) has_tools = 1;
+    if (!(nm = AllocVec(sizeof *nm * (ULONG)(nnew + 2 + 2 * napp_menus + 1), MEMF_ANY | MEMF_CLEAR))) return NULL;
+    for (i = 0; i < nnew && newmenus[i].nm_Type != NM_END; i++) {
+        if (newmenus[i].nm_Type == NM_TITLE) {
+            if (in_tools && !done) {            /* the end of GFOpenBench's own Tools menu: the programs' items */
+                k = nm_app_items(nm, k, NULL, NM_ITEM);
+                done = 1;
+            }
+            if (icons_seen && !has_tools && any && !done) {   /* no Tools of its own: one made after Icons */
+                nm[k].nm_Type = NM_TITLE;
+                nm[k++].nm_Label = (STRPTR)"Tools";
+                k = nm_app_items(nm, k, NULL, NM_ITEM);
+                done = 1;
+            }
+            in_tools = is_title(&newmenus[i], "Tools");
+            icons_seen = is_title(&newmenus[i], "Icons");
+        }
+        if (i == RESIZE_INDEX && !resize_shown) continue;
+        nm[k] = newmenus[i];
+        if (i == RESIZE_INDEX && resize_greyed) nm[k].nm_Flags |= NM_ITEMDISABLED;
+        if (nm[k].nm_UserData == (APTR)M_NOICONS && ob_show_checked(&show)) nm[k].nm_Flags |= CHECKED;
+        k++;
+    }
+    if (!done && (in_tools || any)) {           /* Tools was the last menu, or none came after Icons */
+        if (!in_tools) {
+            nm[k].nm_Type = NM_TITLE;
+            nm[k++].nm_Label = (STRPTR)"Tools";
+        }
+        k = nm_app_items(nm, k, NULL, NM_ITEM);
+    }
+    for (i = 0; i < napp_menus; i++)            /* the programs' own menus */
+        if (app_menus[i].role == OWB_MENU_TITLE && app_menus[i].visible) {
+            k = nm_app(nm, k, NM_TITLE, i);
+            k = nm_app_items(nm, k, app_menus[i].handle, NM_ITEM);
+        }
+    nm[k].nm_Type = NM_END;
+    made = CreateMenus(nm, TAG_DONE);
+    FreeVec(nm);
+    if (made && !LayoutMenus(made, vi, GTMN_NewLookMenus, TRUE, TAG_DONE)) {
+        FreeMenus(made);
+        made = NULL;
+    }
+    return made;
+}
+
+/* 0.1.50: the programs' AppMenuItems changed: the menus made again */
+static void menus_again(void)
+{
+    struct Menu *m;
+    if (!root || !vi || !(m = menus_make())) return;
+    ClearMenuStrip(root);
+    if (menus) FreeMenus(menus);
+    menus = m;
+    SetMenuStrip(root, menus);
+}
+
 /* The desktop on the Workbench screen: the theme, the root window with its menus and icons, the picture.
  * 1 when it is up; 0 with whatever was opened still to be given up with desktop_down. */
 static int desktop_up(void)
 {
     int mode;
     ob_box rb;
-    struct NewMenu nm[sizeof newmenus / sizeof newmenus[0]];
-    int i, k;
     if (!look.scr && !(look.scr = LockPubScreen((CONST_STRPTR)"Workbench"))) return 0;
     load_theme(&mode);
     if (!ogt_ctx_init(&ctx, look.scr, &theme, mode) && !ogt_ctx_init(&ctx, look.scr, &theme, OGT_LIGHT)) return 0;
@@ -3499,16 +3693,8 @@ static int desktop_up(void)
     ob_show_init(&show, deskicons_none());
     /* the menus; Resize to Window only on a Native mode, greyed while the size is already the one asked for */
     resize_shown = native_monitor(NULL) > 0;
-    for (i = k = 0; i < (int)(sizeof newmenus / sizeof newmenus[0]); i++) {
-        if (i == RESIZE_INDEX && !resize_shown) continue;
-        nm[k] = newmenus[i];
-        if (i == RESIZE_INDEX && !native_differs()) nm[k].nm_Flags |= NM_ITEMDISABLED;
-        if (nm[k].nm_UserData == (APTR)M_NOICONS && ob_show_checked(&show)) nm[k].nm_Flags |= CHECKED;
-        k++;
-    }
     resize_greyed = resize_shown && !native_differs();
-    if ((vi = GetVisualInfo(look.scr, TAG_DONE)) && (menus = CreateMenus(nm, TAG_DONE)) &&
-        LayoutMenus(menus, vi, GTMN_NewLookMenus, TRUE, TAG_DONE))
+    if ((vi = GetVisualInfo(look.scr, TAG_DONE)) && (menus = menus_make()))
         SetMenuStrip(root, menus);
     read_tone();                                /* 0.1.34: the labels' colour from the picture's .tone */
     strip_open();
@@ -3906,6 +4092,56 @@ static void notify_end(void)
     }
 }
 
+/* ---- workbench.library's calls (0.1.50, gap item 4: ob_wb.h) ---- */
+
+static int is_drawer(const char *path)
+{
+    struct FileInfoBlock *fib;
+    BPTR l;
+    int r = 0;
+    if (!(l = Lock((CONST_STRPTR)path, ACCESS_READ))) return 0;
+    if ((fib = AllocDosObject(DOS_FIB, NULL))) {
+        if (Examine(l, fib)) r = fib->fib_DirEntryType > 0;
+        FreeDosObject(DOS_FIB, fib);
+    }
+    UnLock(l);
+    return r;
+}
+
+/* OpenWorkbenchObjectA: a drawer or disk in its window, anything else as its icon says */
+static int wbreq_open(const char *path)
+{
+    if (!root) return 0;
+    if (is_drawer(path)) return open_drawer(path);
+    return ob_open_object(path);
+}
+
+/* CloseWorkbenchObjectA: the drawer's window */
+static int wbreq_close(const char *path)
+{
+    int at;
+    if (!root || (at = drawer_open_at(path)) < 0) return 0;
+    close_index(at);
+    return 1;
+}
+
+static wb_drawer *wbreq_drawer(const char *path)
+{
+    int at;
+    if (!root || (at = drawer_open_at(path)) < 0) return NULL;
+    return drawers[at];
+}
+
+/* AppIcons or AppMenuItems came or went */
+static void wb_changed(ULONG notes)
+{
+    if (!root) return;                          /* the screen is being reset: read when the desktop is back */
+    if (notes & OWB_NOTE_APPICONS) volumes_again();
+    if (notes & OWB_NOTE_MENUS) menus_again();
+}
+
+static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_drawer, wb_changed };
+
 static int run(void)
 {
     struct MsgPort *pub = NULL, *tport = NULL;
@@ -3998,6 +4234,8 @@ static int run(void)
     if (wbc_sig < 0 || !wbc_port) no_signal("GFOpenLook's close notice");
     /* 0.1.26: before the dock and WBStartup add AppWindows */
     if (!ob_drop_start(&drop_env)) no_signal("drag and drop's ports");
+    /* 0.1.50: workbench.library's Workbench, before the dock and WBStartup add AppIcons and menu items */
+    if (!ob_wb_start(&wb_env) && WorkbenchBase && WorkbenchBase->lib_Version >= 44) no_signal("workbench.library's calls");
     start_dock();
     run_wbstartup();
 
@@ -4023,7 +4261,7 @@ static int run(void)
         ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
-                          ob_drop_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
+                          ob_drop_sigmask() | ob_wb_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
         struct IntuiMessage *im;
         struct Message *lm;
         unsigned todo;
@@ -4084,6 +4322,7 @@ static int run(void)
         }
         launches_reap();
         if (sigs & ob_drop_sigmask()) ob_drop_handle();   /* 0.1.26: copies done, AppMessages answered */
+        if (sigs & ob_wb_sigmask()) ob_wb_handle();       /* 0.1.50: programs' calls, AppIcons, menu items */
         while ((lm = GetMsg(pub))) {
             /* something to open, from the dock or another of the Team's programs (obmsg.h) */
             struct ob_msg *om = (struct ob_msg *)lm;
@@ -4199,6 +4438,7 @@ out:
     tata_inspect_end();
 #endif
     stop_dock();
+    ob_wb_stop();                               /* 0.1.50: no longer the Workbench; AppMessages answered */
     ob_drop_stop();                             /* 0.1.26: its copies run our code; AppMessages answered */
     if (timer) {
         AbortIO((struct IORequest *)tr);
