@@ -62,12 +62,21 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_order.c" -o "$OUT/test_ob_order"
 "$OUT/test_ob_order"
+# ob_startup: SYS:WBStartup by STARTPRI then name, one at a time unless DONOTWAIT (GFOpenBench 0.1.50)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_startup.c" -o "$OUT/test_ob_startup"
+"$OUT/test_ob_startup"
 
 # GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
 # shellcheck disable=SC2086
 cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/benchmark/dhry_1.c" "$HERE/benchmark/dhry_2.c" \
   "$HERE/benchmark/whet.c" "$HERE/benchmark/linpack.c" "$HERE/benchmark/sgl.c" "$HERE/tests/host/test_benchmark.c" -lm \
   -o "$OUT/test_benchmark"
+# ob_rexx: the ARexx ports' commands, finding them and GETATTR's names (GFOpenBench 0.1.53)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_rexx.c" \
+  "$HERE/tests/host/test_ob_rexx.c" -o "$OUT/test_ob_rexx"
+"$OUT/test_ob_rexx"
 "$OUT/test_benchmark"
 
 rm -rf "$OUT/icons"
