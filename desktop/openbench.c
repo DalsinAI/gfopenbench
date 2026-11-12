@@ -174,9 +174,11 @@
  *     OS 3.2.3's Workbench (0.1.47; Dale, 11 November 2026, the chrome drive icons): GFOpenIcon draws a folder drive,
  *     a USB stick, an IDE partition and the boot drive each its own way. With another icon.library the device's name
  *     is asked for only when ENV:Sys/def_<device>.info is there (default_name);
- *   - the screen's title gives free memory in MB and GB, and the extended memory beside it, "Chip 8 MB, Fast 1.7 GB,
- *     ExtMem 1.2 GB" (0.1.48; Dale, 12 November 2026: "it doesn't say ExtMem at all"), the ExtMem from
- *     gfopenextmem.library's own OEM_Info; with no such library (any Amiga but AmiCradle's 3 GB mode) it isn't shown;
+ *   - the screen's title gives free memory in MB and GB, "Chip 8 MB, Fast 2.9 GB" (0.1.48; Dale, 12 November 2026), and
+ *     the Fast figure takes in the extended memory free, from gfopenextmem.library's own OEM_Info, as one: "just show
+ *     3 GB Fast if that's what it is ... the Workbench on that machine doesn't mention ExtMem at all". The split stays
+ *     in the library's query, the SDK and the logs. With no such library (any Amiga but AmiCradle's 3 GB mode) Fast
+ *     is exec's alone;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -470,7 +472,7 @@ static void read_host(void)
     FreeVec(status);
 }
 
-/* 0.1.48: the extended memory free, from gfopenextmem.library's OEM_Info (libraries/gfopenextmem.h in
+/* 0.1.48: the extended memory free (counted into the title's Fast), from gfopenextmem.library's OEM_Info (libraries/gfopenextmem.h in
  * amicradle-guest libraries/openextmem; its numbers here, as the desktop builds without that checkout). The library
  * is opened once and kept; an Amiga without it is asked 3 times, at the start and on the next 2 ticks, then never
  * again (as read_host), so no tick goes to the disk for it. */
@@ -521,18 +523,14 @@ static void human_size(char *buf, size_t size, unsigned long long b)
 /* 1 when the title changed. */
 static int make_title(void)
 {
-    char chip[16], fast[16], ext[32], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
-    unsigned long long extfree;
+    char chip[16], fast[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
+    unsigned long long fastfree = AvailMem(MEMF_FAST), extfree;
     int k;
     count_boards();                           /* each time: the cores board may give its cores after we start */
     read_host();
+    if (extmem_free(&extfree)) fastfree += extfree;      /* 0.1.48: one Fast figure, the extended memory in it */
     human_size(chip, sizeof chip, AvailMem(MEMF_CHIP));
-    human_size(fast, sizeof fast, AvailMem(MEMF_FAST));
-    ext[0] = 0;
-    if (extmem_free(&extfree)) {
-        k = snprintf(ext, sizeof ext, ", ExtMem ");
-        human_size(ext + k, sizeof ext - k, extfree);
-    }
+    human_size(fast, sizeof fast, fastfree);
     barlogo_pad(look.scr, pad);               /* made again each time: GFOpenLook may make the bar taller after we start */
     /* "1 (68k)", the cores board's "+ 10 (m68k/x64)" when it is fitted, and the host's "+ 12 (x64)" */
     k = snprintf(cpu, sizeof cpu, "1 (68k)");
@@ -540,8 +538,8 @@ static int make_title(void)
         k += snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)cores, barlogo_isas(isas));
     if (host_cores)
         snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)host_cores, host_isa[0] ? host_isa : "host");
-    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s, Fast %s%s, GPU = %lu, CPU = %s",
-             pad, chip, fast, ext, (unsigned long)gpus, cpu);
+    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s, Fast %s, GPU = %lu, CPU = %s",
+             pad, chip, fast, (unsigned long)gpus, cpu);
     if (!strcmp(t, screen_title))
         return 0;
     strcpy(screen_title, t);
