@@ -164,7 +164,7 @@ static int same_volume(const char *a, const char *b)
 #define JOB_DIRS 8                              /* drawers to read again afterwards: where it went, where from */
 #define WIN_W 440
 
-enum { OP_COPY = 0, OP_MOVE, OP_TRASH, OP_DISK };
+enum { OP_COPY = 0, OP_MOVE, OP_TRASH, OP_DISK, OP_EMPTY };
 
 typedef struct job {
     struct Message msg;                         /* to done_port when it ends */
@@ -174,6 +174,7 @@ typedef struct job {
     char **src;
     char dst[OF_PATH_MAX];
     char volume[OF_PATH_MAX];                   /* a disk's contents: into a new drawer in dst named after it */
+    char trash[32];                             /* OP_EMPTY: the trashcan's name (the engine's c.trash) */
     int ndirs;
     char dirs[JOB_DIRS][OF_PATH_MAX];
     /* the job's own, in its process */
@@ -192,12 +193,12 @@ typedef struct job {
 
 static const char *op_doing(const job *j)
 {
-    return j->op == OP_MOVE ? "Moving" : j->op == OP_TRASH ? "Moving to the trash" : "Copying";
+    return j->op == OP_MOVE ? "Moving" : j->op == OP_TRASH ? "Moving to the trash" : j->op == OP_EMPTY ? "Emptying the trash" : "Copying";
 }
 
 static const char *op_done(const job *j)
 {
-    return j->op == OP_MOVE ? "moved" : j->op == OP_TRASH ? "put in the trash" : "copied";
+    return j->op == OP_MOVE ? "moved" : j->op == OP_TRASH ? "put in the trash" : j->op == OP_EMPTY ? "deleted" : "copied";
 }
 
 static void job_free(job *j)
@@ -648,6 +649,10 @@ static void job_entry(void)
     CurrentTime(&j->t0s, &j->t0m);
     if (j->op == OP_MOVE) move_leave_taken(j, &fs);
     if (j->op == OP_DISK) j->rc = copy_volume(&c, j);
+    else if (j->op == OP_EMPTY) {
+        of_strlcpy(c.trash, j->trash, sizeof c.trash);
+        j->rc = of_empty_trash(&c, j->dst);
+    }
     else if (j->op == OP_TRASH && is_engine_trash(&c, j->dst)) j->rc = of_delete(&c, (const char *const *)j->src, j->n);
     else if (j->op == OP_MOVE || j->op == OP_TRASH) j->rc = of_move(&c, (const char *const *)j->src, j->n, j->dst);
     else j->rc = of_copy(&c, (const char *const *)j->src, j->n, j->dst);
@@ -664,7 +669,7 @@ static void job_entry(void)
         es.es_GadgetFormat = (UBYTE *)"OK";
         if (j->failed == 1) {
             es.es_TextFormat = (UBYTE *)"Error while %s \"%s\"\n%s";
-            EasyRequest(NULL, &es, NULL, (ULONG)(j->op == OP_COPY || j->op == OP_DISK ? "copying" : "moving"),
+            EasyRequest(NULL, &es, NULL, (ULONG)(j->op == OP_COPY || j->op == OP_DISK ? "copying" : j->op == OP_EMPTY ? "deleting" : "moving"),
                         (ULONG)of_path_name(j->first_failed), (ULONG)err_text(j->first_err));
         } else if (j->failed) {
             es.es_TextFormat = (UBYTE *)"%ld could not be %s:\n%s:\n%s.";
@@ -998,6 +1003,38 @@ int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from)
     ok = k && job_for(src, k, dir, OP_COPY, NULL);
     for (i = 0; i < k; i++) FreeVec(src[i]);
     FreeVec(src);
+    return ok;
+}
+
+/* ---- Icons > Empty trash (WBGapTest M25, OS 3.2.3's Empty Trash) ---- */
+
+/* A drawer window's Icons > Empty trash (wb_look's empty_trash): each selected entry that is a trashcan (its icon a
+ * WBGARBAGE one) emptied for good by GFOpenFiles' engine (of_empty_trash, with the trashcan's own name), as a job,
+ * after one requester. Nothing selected is a trashcan: a beep. 1 when a job started. */
+int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *from)
+{
+    struct Window *w = from ? wb_drawer_window(from) : *env.root;
+    int i, ok = 0, any = 0;
+    for (i = 0; i < n; i++) {
+        char path[OF_PATH_MAX];
+        job *j;
+        if (strlen(names[i]) >= sizeof j->trash || !of_path_join(path, dir, names[i]) || !is_trash(path)) continue;
+        any = 1;
+        {
+            struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
+                                     (UBYTE *)"Empty \"%s\"?\nWhat is in it is deleted for good.",
+                                     (UBYTE *)"Empty|Cancel" };
+            if (!EasyRequest(w, &es, NULL, (ULONG)names[i])) continue;
+        }
+        if (!(j = AllocVec(sizeof *j, MEMF_PUBLIC | MEMF_CLEAR))) break;
+        j->op = OP_EMPTY;
+        of_strlcpy(j->dst, path, OF_PATH_MAX);
+        of_strlcpy(j->trash, names[i], sizeof j->trash);
+        job_dir(j, path);
+        if (job_run(j)) ok = 1;
+        else job_free(j);
+    }
+    if (!any && w) DisplayBeep(w->WScreen);
     return ok;
 }
 

@@ -56,6 +56,9 @@ int ob_new_drawer(const char *dir, wb_drawer *from);
 /* A drawer window's Icons > Copy (wb_look's copy): the selected entries copied beside themselves, as a job through
  * GFOpenFiles' engine. 1 when started. */
 int ob_copy(const char *dir, const char *const *names, int n, wb_drawer *from);
+/* A drawer window's Icons > Empty trash (wb_look's empty_trash): the selected trashcans emptied through GFOpenFiles'
+ * engine, each after a requester. 1 when a job started. */
+int ob_empty_trash(const char *dir, const char *const *names, int n, wb_drawer *from);
 /* The window whose layer is at (sx, sy) on the screen, or NULL (the screen's bar, say). */
 struct Window *ob_drop_window_at(WORD sx, WORD sy);
 /* The same, looking through skip (an icon's picture being dragged). */

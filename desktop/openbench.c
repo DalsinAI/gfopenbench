@@ -3979,6 +3979,7 @@ static int run(void)
     look.leave_out = drawer_leave_out;             /* 0.1.41: Icons > Leave Out in the drawers (.backdrop) */
     look.new_drawer = ob_new_drawer;               /* Window > New drawer... (WBGapTest M8) */
     look.copy = ob_copy;                           /* Icons > Copy (WBGapTest M18) */
+    look.empty_trash = ob_empty_trash;             /* Icons > Empty trash (WBGapTest M25) */
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
     aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */
