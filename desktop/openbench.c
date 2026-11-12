@@ -2244,7 +2244,7 @@ static void title_release(void)
 
 enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, M_ICON_INFO, M_DISK_INSERT, M_DISK_EJECT,
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
-       M_RESETWB };
+       M_RESETWB, M_EXECUTE };
 
 /* 0.1.22: Resize to Window is the fourth item (newmenus[4]), there only while the Workbench screen is on a Native
  * mode (desktop_up leaves it out otherwise), greyed while the screen already has the size the host asks for. */
@@ -2258,6 +2258,8 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", NULL, 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
+    /* OS 3.2.3's Execute Command..., with its Amiga-E (WBGapTest M2): a command line run in a console of its own */
+    { NM_ITEM, (STRPTR)"Execute Command...", (STRPTR)"E", 0, 0, (APTR)M_EXECUTE },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"About...", (STRPTR)"?", 0, 0, (APTR)M_ABOUT },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
@@ -2315,6 +2317,27 @@ static void new_shell(void)
         Close(in);
         Close(out);
         DisplayBeep(look.scr);
+    }
+}
+
+/* Execute Command... (WBGapTest M2, as OS 3.2.3's): the command line asked for with GFOpenFiles' requester (the one
+ * New drawer uses), then run on its own in an output console that waits for its close gadget once the command ends
+ * (SYS_Output NULL: a new handle on the same console). The last line is offered again next time. */
+static void execute_command(void)
+{
+    static char line[256];
+    BPTR in;
+    if (!root || !ob_req_string(root, "Execute Command", "Enter Command and its Arguments:", "OK", line, sizeof line)
+        || !line[0])
+        return;
+    if (!(in = Open((CONST_STRPTR)"CON:0/50//130/Output Window/AUTO/CLOSE/WAIT", MODE_OLDFILE))) {
+        DisplayBeep(look.scr);
+        return;
+    }
+    if (SystemTags((CONST_STRPTR)line, SYS_Input, (ULONG)in, SYS_Output, 0, SYS_Asynch, TRUE, SYS_UserShell, TRUE,
+                   NP_StackSize, 16384, TAG_DONE) == -1) {
+        Close(in);
+        ask("Execute Command", "The command couldn't be started.", "OK");
     }
 }
 
@@ -3261,6 +3284,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             ULONG id = it ? (ULONG)GTMENUITEM_USERDATA(it) : 0;
             switch (id) {
             case M_SHELL: new_shell(); break;
+            case M_EXECUTE: execute_command(); break;
             case M_DISK_INSERT:
                 run_detached("C:InsertDisk", "Insert Disk couldn't start.\nIt needs C:InsertDisk from AmiCradle.");
                 break;
