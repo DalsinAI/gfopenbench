@@ -163,7 +163,7 @@ static int same_volume(const char *a, const char *b)
 #define JOB_DIRS 8                              /* drawers to read again afterwards: where it went, where from */
 #define WIN_W 440
 
-enum { OP_COPY = 0, OP_MOVE, OP_TRASH, OP_DISK };
+enum { OP_COPY = 0, OP_MOVE, OP_TRASH, OP_DISK, OP_FOREVER };   /* OP_FOREVER: Icons > Delete... in the trash */
 
 typedef struct job {
     struct Message msg;                         /* to done_port when it ends */
@@ -191,12 +191,14 @@ typedef struct job {
 
 static const char *op_doing(const job *j)
 {
-    return j->op == OP_MOVE ? "Moving" : j->op == OP_TRASH ? "Moving to the trash" : "Copying";
+    return j->op == OP_MOVE ? "Moving" : j->op == OP_TRASH ? "Moving to the trash" : j->op == OP_FOREVER ? "Deleting"
+         : "Copying";
 }
 
 static const char *op_done(const job *j)
 {
-    return j->op == OP_MOVE ? "moved" : j->op == OP_TRASH ? "put in the trash" : "copied";
+    return j->op == OP_MOVE ? "moved" : j->op == OP_TRASH ? "put in the trash" : j->op == OP_FOREVER ? "deleted"
+         : "copied";
 }
 
 static void job_free(job *j)
@@ -628,6 +630,31 @@ static void stopped_icons(job *j)
     }
 }
 
+/* Icons > Delete... on what is in the trash already: gone for good (the engine's of_delete_forever), each with its
+ * .info, as OS 3.2.3's Delete does everything */
+static int delete_forever(of_ctx *c, job *j)
+{
+    int i, rc;
+    for (i = 0; i < j->n && !j->stopped && !stopping; i++) {
+        char ci[OF_PATH_MAX + 6];
+        size_t k = strlen(j->src[i]);
+        if ((rc = of_delete_forever(c, j->src[i])) != OF_OK) {
+            job_report(j, j->src[i], rc);
+            continue;
+        }
+        if (k + 6 <= sizeof ci && !of_path_is_info(j->src[i])) {
+            BPTR l;
+            memcpy(ci, j->src[i], k);
+            memcpy(ci + k, ".info", 6);
+            if ((l = Lock((CONST_STRPTR)ci, ACCESS_READ))) {
+                UnLock(l);
+                if ((rc = of_delete_forever(c, ci)) != OF_OK) job_report(j, ci, rc);
+            }
+        }
+    }
+    return OF_OK;
+}
+
 /* The job's process */
 static void job_entry(void)
 {
@@ -648,6 +675,7 @@ static void job_entry(void)
     if (j->op == OP_MOVE) move_leave_taken(j, &fs);
     if (j->op == OP_DISK) j->rc = copy_volume(&c, j);
     else if (j->op == OP_TRASH && is_engine_trash(&c, j->dst)) j->rc = of_delete(&c, (const char *const *)j->src, j->n);
+    else if (j->op == OP_FOREVER) j->rc = delete_forever(&c, j);
     else if (j->op == OP_MOVE || j->op == OP_TRASH) j->rc = of_move(&c, (const char *const *)j->src, j->n, j->dst);
     else j->rc = of_copy(&c, (const char *const *)j->src, j->n, j->dst);
     if (j->rc == OF_ERR_IO && j->failed) j->rc = OF_OK;     /* of_delete's word for "some failed": said below */
@@ -663,7 +691,8 @@ static void job_entry(void)
         es.es_GadgetFormat = (UBYTE *)"OK";
         if (j->failed == 1) {
             es.es_TextFormat = (UBYTE *)"Error while %s \"%s\"\n%s";
-            EasyRequest(NULL, &es, NULL, (ULONG)(j->op == OP_COPY || j->op == OP_DISK ? "copying" : "moving"),
+            EasyRequest(NULL, &es, NULL, (ULONG)(j->op == OP_COPY || j->op == OP_DISK ? "copying"
+                                                 : j->op == OP_FOREVER ? "deleting" : "moving"),
                         (ULONG)of_path_name(j->first_failed), (ULONG)err_text(j->first_err));
         } else if (j->failed) {
             es.es_TextFormat = (UBYTE *)"%ld could not be %s:\n%s:\n%s.";
@@ -866,7 +895,7 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
     }
     if (w == *env.root) {
         int k = env.icon_at ? env.icon_at(sx, sy, dst, sizeof dst) : OB_DESK_NONE;
-        if (env.appicon_drop && env.appicon_drop(paths, n, sx, sy)) return 1;   /* 0.1.51: onto a program's AppIcon */
+        if (env.appicon_drop && env.appicon_drop(paths, n, sx, sy)) return 1;   /* 0.1.52: onto a program's AppIcon */
         if (k == OB_DESK_DISK || k == OB_DESK_DRAWER) return transfer(paths, n, dst);
         if (k == OB_DESK_TRASH) return to_trash(paths, n, dst);
         /* the desktop's own space (or a tool left out there): left out, for this run, as on 3.2.3 */
@@ -883,7 +912,7 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
     (void)qual;
     if (!w || stopping) return 0;
     if (w == *env.root) {
-        if (env.appicon_drop && env.appicon_drop(&volume, 1, sx, sy)) return 1;   /* 0.1.51: onto an AppIcon */
+        if (env.appicon_drop && env.appicon_drop(&volume, 1, sx, sy)) return 1;   /* 0.1.52: onto an AppIcon */
         /* onto a drawer left out on the desktop (a disk's icon onto another disk's only moves it there) */
         if (env.icon_at && env.icon_at(sx, sy, dst, sizeof dst) == OB_DESK_DRAWER && !of_path_inside(dst, volume))
             return job_for(NULL, 0, dst, OP_DISK, volume);
@@ -897,6 +926,96 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
         return job_for(NULL, 0, dst, OP_DISK, volume);
     }
     return appwindow_drop(w, &volume, 1, sx, sy);
+}
+
+/* ---- Icons > Rename... and Delete... (CM4 item 12, rows M19 and M23) ---- */
+
+int ob_drop_rename(const char *path, const char *newname)
+{
+    of_fs fs;
+    of_ctx c;
+    char parent[OF_PATH_MAX];
+    int rc;
+    if (stopping) return OF_ERR_CANCEL;
+    of_fs_amiga_init(&fs);
+    of_ctx_init(&c, &fs);
+    rc = of_rename(&c, path, newname);
+    if (rc == OF_OK && of_path_parent(parent, path)) reread(parent);
+    if (rc == OF_OK && env.changed) env.changed();  /* an icon left out that was renamed has gone from where it was */
+    return rc;
+}
+
+const char *ob_drop_error(int err)
+{
+    return err_text(err);
+}
+
+/* The engine's trash on path's volume ("Work:Trashcan"), in out; 0 when path names no volume */
+static int trash_of(const char *path, char *out)
+{
+    char vol[OF_PATH_MAX];
+    of_fs fs;
+    of_ctx c;
+    of_fs_amiga_init(&fs);
+    of_ctx_init(&c, &fs);
+    return of_path_volume(vol, path) && of_path_join(out, vol, c.trash);
+}
+
+int ob_drop_delete(const char *const *paths, int n, struct Window *win)
+{
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench", NULL, (UBYTE *)"OK|Cancel" };
+    char **list, trash[OF_PATH_MAX];
+    LONG files = 0, drawers = 0, forever = 0;
+    int m = 0, i, k, ok = 0;
+    if (n <= 0 || stopping || !(list = AllocVec((ULONG)n * sizeof *list, MEMF_ANY | MEMF_CLEAR))) return 0;
+    for (i = 0; i < n; i++) {
+        const char *s = paths[i];
+        /* a disk, a trashcan (its own icon, or the engine's drawer) and a file's own .info aren't deleted here */
+        if (!*of_path_name(s) || is_trash(s) || (trash_of(s, trash) && of_path_equal(s, trash))) continue;
+        list[m++] = (char *)s;
+        if (is_dir(s)) drawers++;
+        else files++;
+        if (trash_of(s, trash) && of_path_inside(s, trash)) forever++;
+    }
+    if (!m) {
+        FreeVec(list);
+        return 0;
+    }
+    /* OS 3.2.3's question. What goes to the trash comes back from it until Empty Trash, so its warning ("you cannot get
+     * back what you delete") is only given for what is in the trash already, which goes for good */
+    es.es_TextFormat = (UBYTE *)(forever == m
+        ? "Warning: you cannot get back\nwhat you delete! OK to delete:\n%ld file(s) and %ld drawer(s)\n(and their contents)?"
+        : forever ? "OK to delete:\n%ld file(s) and %ld drawer(s)\n(and their contents)?\nThose in the Trashcan go for good;\nthe rest go to the Trashcan."
+        : "OK to delete:\n%ld file(s) and %ld drawer(s)\n(and their contents)?\nThey go to the Trashcan, and can be\nput back until it is emptied.");
+    {
+        ULONG args[2];
+        args[0] = (ULONG)files;
+        args[1] = (ULONG)drawers;
+        if (EasyRequestArgs(win, &es, NULL, args) != 1) {
+            FreeVec(list);
+            return 0;
+        }
+    }
+    /* one job for each volume's trash, one for what is in a trash already */
+    for (i = 0; i < m; i++) {
+        char **group;
+        int g = 0, inside;
+        if (!list[i] || !trash_of(list[i], trash)) continue;
+        inside = of_path_inside(list[i], trash);
+        if (!(group = AllocVec((ULONG)m * sizeof *group, MEMF_ANY))) break;
+        for (k = i; k < m; k++) {
+            char t2[OF_PATH_MAX];
+            if (!list[k] || !trash_of(list[k], t2) || !of_path_equal(t2, trash) || of_path_inside(list[k], trash) != inside)
+                continue;
+            group[g++] = list[k];
+            list[k] = NULL;
+        }
+        if (inside) ok |= job_for(group, g, trash, OP_FOREVER, NULL);
+        else ok |= job_for(group, g, trash, OP_TRASH, NULL);
+        FreeVec(group);
+    }
+    FreeVec(list);
+    return ok;
 }
 
 /* ---- start, signals, stop ---- */

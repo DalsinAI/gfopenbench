@@ -33,7 +33,7 @@ typedef struct ob_drop_env {
     /* 0.1.44: words for the screen's title, kept there until the next click, as OS 3.2.3 says an error that asks
      * nothing (a move within a volume onto a name that is taken). NULL: not said. */
     void (*say)(const char *text);
-    /* 0.1.51: icons let go at (sx, sy) on the desktop, on a program's AppIcon (ob_wb.h): its AppMessage sent with
+    /* 0.1.52: icons let go at (sx, sy) on the desktop, on a program's AppIcon (ob_wb.h): its AppMessage sent with
      * them. 1 when an AppIcon was there; 0 and the drop goes on as before. NULL: no AppIcons. */
     int (*appicon_drop)(const char *const *paths, int n, WORD sx, WORD sy);
 } ob_drop_env;
@@ -53,6 +53,16 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
 /* A disk's icon from the desktop let go at (sx, sy), over a window that isn't the desktop's: its contents
  * into a drawer (a new drawer named after the disk), or to a program's AppWindow. 1 when taken. */
 int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual);
+/* Icons > Rename... (CM4 item 12, row M19): path renamed newname in its drawer, its .info with it, by GFOpenFiles'
+ * engine (of_rename), and the drawers showing it read again. OF_OK, or the engine's OF_ERR_* (ob_drop_error says it). */
+int ob_drop_rename(const char *path, const char *newname);
+/* An OF_ERR_* in words, as the drops' requesters say it ("object already exists"). */
+const char *ob_drop_error(int err);
+/* Icons > Delete... (row M23): OS 3.2.3's question ("OK to delete: n file(s) and m drawer(s) (and their contents)?",
+ * OK or Cancel) on window win (NULL: the screen's front), then the engine's delete in a job of its own: to the volume's
+ * trash (of_delete; Empty Trash takes them for good), and for good what is in the trash already. Disks and trashcans
+ * are left. 1 when something was started. */
+int ob_drop_delete(const char *const *paths, int n, struct Window *win);
 /* The window whose layer is at (sx, sy) on the screen, or NULL (the screen's bar, say). */
 struct Window *ob_drop_window_at(WORD sx, WORD sy);
 /* The same, looking through skip (an icon's picture being dragged). */

@@ -98,6 +98,9 @@ BUILTIN_DEFS="$BUILTIN_DEFS -DOB_HAVE_OPENUP_SETUP"
 # shellcheck disable=SC2086
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_info.o" "$HERE/ob_info.c"
+# Icons > Rename...'s name requester (0.1.51; CM4 item 12, row M19)
+# shellcheck disable=SC2086
+"$CC" $FLAGS -c -o "$TMP/ob_name.o" "$HERE/ob_name.c"
 # No icons on the desktop (0.1.37): what GFOpenBench does when ENV:Sys/DesktopIcons changes, plain C (tests/host)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_show.o" "$HERE/ob_show.c"
@@ -159,7 +162,7 @@ else
     echo "GFOpenBench: no amicradle-guest at $GUEST (set GUEST): drawers built without the search of every drive"
 fi
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" \
+"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" \
     $BUILTIN_OBJS $DROP_OBJS \
     "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" $FIND_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga
