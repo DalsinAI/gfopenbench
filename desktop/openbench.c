@@ -184,6 +184,8 @@
  *     databases, and opens one in its drawer, in GFOpenEdit at its line, or in GFOpenBase at its table and row
  *     (gfopengadtools workbench/wb_find.c, ACFind's code from amicradle-guest). Its process is stopped before
  *     GFOpenBench ends;
+ *   - SYS:WBStartup starts as OS 3.2.3's does (0.1.50, ob_startup.h; CM4 item 12, WBGapTest rows S2 and S3): by STARTPRI
+ *     then name, one program at a time, the next when this one has ended unless DONOTWAIT, after at most WAIT=n seconds;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -247,6 +249,7 @@
 #include "ob_notify.h"
 #include "ob_vols.h"
 #include "ob_order.h"
+#include "ob_startup.h"
 #include "ob_backdrop.h"
 #include "ob_strip.h"
 #include "ob_host.h"
@@ -262,7 +265,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.49"
+#define OPENBENCH_VERSION "0.1.50"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -2122,26 +2125,61 @@ static int ob_open_object(const char *path)
     return ok;
 }
 
-/* Everything in SYS:WBStartup, started as Workbench starts it. */
+/* Everything in SYS:WBStartup, started as Workbench starts it (0.1.50, ob_startup.h): by STARTPRI, highest first,
+ * then by name; one at a time, the next when this one has ended, unless its icon says DONOTWAIT, and after at most
+ * WAIT=n seconds (OB_START_WAIT_MAX without one). */
+#define OB_START_MAX 64
+
+static int launch_running(launch *L)
+{
+    launch *x;
+    for (x = launches; x; x = x->next) if (x == L) return 1;
+    return 0;
+}
+
 static void run_wbstartup(void)
 {
     BPTR l = Lock((CONST_STRPTR)"SYS:WBStartup", ACCESS_READ);
     struct FileInfoBlock *fib;
+    ob_start *e;
+    int n = 0, i;
     if (!l) return;
-    starting_up = 1;
+    if (!(e = AllocVec(OB_START_MAX * sizeof *e, MEMF_ANY))) { UnLock(l); return; }
     if ((fib = AllocDosObject(DOS_FIB, NULL))) {
         if (Examine(l, fib))
-            while (ExNext(l, fib)) {
+            while (n < OB_START_MAX && ExNext(l, fib)) {
                 char path[160];
-                int n = (int)strlen((const char *)fib->fib_FileName);
-                if (n <= 5 || ci_cmp((const char *)fib->fib_FileName + n - 5, ".info")) continue;
-                snprintf(path, sizeof path, "SYS:WBStartup/%.*s", n - 5, (const char *)fib->fib_FileName);
-                ob_open_object(path);
+                struct DiskObject *o;
+                int len = (int)strlen((const char *)fib->fib_FileName);
+                if (len <= 5 || len - 5 >= (int)sizeof e[0].name || ci_cmp((const char *)fib->fib_FileName + len - 5, ".info")) continue;
+                snprintf(e[n].name, sizeof e[0].name, "%.*s", len - 5, (const char *)fib->fib_FileName);
+                snprintf(path, sizeof path, "SYS:WBStartup/%s", e[n].name);
+                o = GetDiskObject((CONST_STRPTR)path);
+                ob_start_read(&e[n], o ? (const char *const *)o->do_ToolTypes : NULL);
+                if (o) FreeDiskObject(o);
+                n++;
             }
         FreeDosObject(DOS_FIB, fib);
     }
-    starting_up = 0;
     UnLock(l);
+    qsort(e, n, sizeof e[0], ob_start_cmp);
+    starting_up = 1;
+    for (i = 0; i < n; i++) {
+        char path[160];
+        launch *before = launches, *mine;
+        int ticks;
+        snprintf(path, sizeof path, "SYS:WBStartup/%s", e[i].name);
+        ob_open_object(path);
+        if (launches == before || !e[i].wait) continue;     /* no program started (a drawer, a project refused), or DONOTWAIT */
+        mine = launches;                                    /* start_tool puts its launch first */
+        for (ticks = 0; ticks < e[i].wait * 10; ticks++) {  /* until it has ended (its WBStartup back), in tenths of a second */
+            launches_reap();
+            if (!launch_running(mine)) break;
+            Delay(5);
+        }
+    }
+    starting_up = 0;
+    FreeVec(e);
 }
 
 /* ---- drawer windows -------------------------------------------------------------------------- */

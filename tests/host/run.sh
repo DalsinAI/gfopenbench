@@ -62,6 +62,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_order.c" -o "$OUT/test_ob_order"
 "$OUT/test_ob_order"
+# ob_startup: SYS:WBStartup by STARTPRI then name, one at a time unless DONOTWAIT (GFOpenBench 0.1.50)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_startup.c" -o "$OUT/test_ob_startup"
+"$OUT/test_ob_startup"
 
 # GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
 # shellcheck disable=SC2086
