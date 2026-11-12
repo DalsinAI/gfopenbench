@@ -135,6 +135,12 @@ done
 # shellcheck disable=SC2086
 "$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$W" -I"$L" -c -o "$TMP/ob_drop.o" "$HERE/ob_drop.c"
 DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
+# The ARexx ports WORKBENCH and OPENBENCH (0.1.50): ob_rexx.c (the commands, plain C) and ob_arexx.c (the ports and
+# what each command does; NEWDRAWER, RENAME and DELETE through the same GFOpenFiles engine)
+"$CC" $FLAGS -c -o "$TMP/ob_rexx.o" "$HERE/ob_rexx.c"
+# shellcheck disable=SC2086
+"$CC" $FLAGS -DOF_AMIGA -I"$E" -c -o "$TMP/ob_arexx.o" "$HERE/ob_arexx.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_rexx.o $TMP/ob_arexx.o"
 # wb_dir, as it is (0.1.23 to 0.1.31 renamed its wb_dir_read and wb_entry_icon for ROM:Prefs's editors; the ROM has
 # no ROM: since the no-ROM-volume design, 24 October 2026)
 # shellcheck disable=SC2086

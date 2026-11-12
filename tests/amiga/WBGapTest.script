@@ -16,10 +16,13 @@ WBGapTest NOTIFY >>RAM:wbgap-results
 If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP R1 no rx" >>RAM:wbgap-results
   Echo "SKIP R2 no rx" >>RAM:wbgap-results
+  Echo "SKIP R1b no rx" >>RAM:wbgap-results
+  Echo "SKIP R2b no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
   Wait 1
   SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx >>RAM:wbgap-results
+  SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx OPENBENCH >>RAM:wbgap-results
 EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
