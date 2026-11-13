@@ -270,7 +270,7 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
     {"M26", "*:resetwb|refresh openbench"},
-    {"M29", "workbench|gfopenbench:open volume"},
+    {"M29", "*:open volume"},   /* row 5 (#105) moves it to the Window menu */
     {"M30", "window:clear selection"},
     {"M31", "window:resize to fit"},
     {"M32", "window:sort order/reverse"},
@@ -923,6 +923,7 @@ static int do_desk(const char *what)
         put_icon("RAM:WBGapI/p2", WBPROJECT, NULL);
         DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-bad");
         n = read_all("RAM:.backdrop", was, sizeof was);
         if (n >= (long)sizeof was - 1) {   /* more than was holds: written back cut, it would lose lines */
             printf("INFO I11 RAM:.backdrop is over %ld bytes: left as it is\n", (long)sizeof was - 2);
@@ -943,6 +944,10 @@ static int do_desk(const char *what)
         char buf[400];
         int t;
         for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
+        if (read_all("RAM:wbgap-desk-bad", buf, sizeof buf) >= 0) {   /* a click failed: whatever started, no result */
+            skip("I11", "a click failed (WBGapDesk.rexx)");
+            return 0;
+        }
         if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0 && read_all("RAM:wbgap-desk-clicked", buf, sizeof buf) < 0) {
             skip("I11", "not clicked: WBGapDesk.rexx found no icons to click");
             return 0;
@@ -966,7 +971,7 @@ static int do_desk(const char *what)
         {   /* RAM:WBGapI and its icons gone */
             static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
                                                "RAM:WBGapI/p1", "RAM:WBGapI/p2.info", "RAM:WBGapI/p2", "RAM:WBGapI",
-                                               "RAM:wbgap-desk-clicked"};
+                                               "RAM:wbgap-desk-clicked", "RAM:wbgap-desk-bad"};
             int k;
             for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
         }
