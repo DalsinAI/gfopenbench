@@ -156,4 +156,41 @@ typedef struct ob_held {
 unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
 int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
 
+/* ---- a drawer task's answers about its own drawer (ob_dtask.h) ----
+ * wb_look's hidden and snapped are asked once for every entry a drawer reads. A drawer task asks the desktop once
+ * for everything about its drawer: the entries left out on the desktop (hidden) and those snapshotted in it, and
+ * answers the rest itself, until its drawer or the desktop's generation (left outs and snapshots changed) differ. */
+#define OB_DP_NAME 108
+typedef struct ob_dpent {
+    char name[OB_DP_NAME];
+    char hidden;                        /* left out on the desktop */
+    char snap;                          /* there is a snapshot for it; where says which */
+    char where;                         /* OB_SNAP_DESK 'D' or OB_SNAP_DRAWER 'W' */
+    int gx, gy;
+    long x, y;
+} ob_dpent;
+
+typedef struct ob_dpack {
+    char dir[256];                      /* the drawer, as the drawer names it */
+    unsigned long gen;
+    int filled;                         /* 0: nothing asked yet */
+    ob_dpent *e;
+    int n, cap;
+} ob_dpack;
+
+void ob_dpack_init(ob_dpack *p);
+void ob_dpack_free(ob_dpack *p);
+void ob_dpack_reset(ob_dpack *p, const char *dir, unsigned long gen);   /* empty, for dir at gen */
+int ob_dpack_fresh(const ob_dpack *p, const char *dir, unsigned long gen);
+int ob_dpack_hide(ob_dpack *p, const char *name);                       /* 0: no memory or name too long */
+/* The first snapshot found for a name is the one kept (as ob_snap_find's first match) */
+int ob_dpack_snap(ob_dpack *p, const char *name, int where, long x, long y, int gx, int gy);
+int ob_dpack_hidden(const ob_dpack *p, const char *name);
+int ob_dpack_snapped(const ob_dpack *p, const char *name, int *gx, int *gy, long *x, long *y);  /* 'W' only */
+/* The name of an entry directly in dir ("Work:Tools/x" in "Work:Tools", "Work:x" in "Work:", "a/x" in "a", "x" in
+ * ""), any case; NULL when path isn't one */
+const char *ob_name_in(const char *path, const char *dir);
+/* Two names the same in any case (Latin-1's letters too, as ob_snap.c compares) */
+int ob_same_name(const char *a, const char *b);
+
 #endif

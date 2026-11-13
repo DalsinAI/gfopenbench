@@ -380,3 +380,125 @@ int ob_guard_read(const unsigned char *rec, ob_held *h)
     }
     return 1;
 }
+
+/* ---- a drawer task's answers about its own drawer ---- */
+#include <stdlib.h>
+#include <string.h>
+
+static int fold(int c)                  /* as ob_snap.c: Latin-1's letters, any case */
+{
+    c &= 0xFF;
+    if ((c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFE && c != 0xF7)) return c - 32;
+    return c;
+}
+
+int ob_same_name(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++)
+        if (fold((unsigned char)*a) != fold((unsigned char)*b)) return 0;
+    return !*a && !*b;
+}
+
+void ob_dpack_init(ob_dpack *p)
+{
+    zero(p, sizeof *p);
+}
+
+void ob_dpack_free(ob_dpack *p)
+{
+    free(p->e);
+    ob_dpack_init(p);
+}
+
+void ob_dpack_reset(ob_dpack *p, const char *dir, unsigned long gen)
+{
+    size_t n = strlen(dir);
+    if (n >= sizeof p->dir) n = sizeof p->dir - 1;
+    memcpy(p->dir, dir, n);
+    p->dir[n] = 0;
+    p->gen = gen;
+    p->n = 0;
+    p->filled = 1;
+}
+
+int ob_dpack_fresh(const ob_dpack *p, const char *dir, unsigned long gen)
+{
+    return p->filled && p->gen == gen && !strcmp(p->dir, dir);
+}
+
+static ob_dpent *find(const ob_dpack *p, const char *name)
+{
+    int i;
+    for (i = 0; i < p->n; i++)
+        if (ob_same_name(p->e[i].name, name)) return &p->e[i];
+    return NULL;
+}
+
+static ob_dpent *entry(ob_dpack *p, const char *name)
+{
+    ob_dpent *e = find(p, name);
+    size_t n = strlen(name);
+    if (e) return e;
+    if (n >= OB_DP_NAME) return NULL;
+    if (p->n == p->cap) {
+        int cap = p->cap ? p->cap * 2 : 16;
+        ob_dpent *ne = malloc((size_t)cap * sizeof *ne);
+        if (!ne) return NULL;
+        if (p->n) memcpy(ne, p->e, (size_t)p->n * sizeof *ne);
+        free(p->e);
+        p->e = ne;
+        p->cap = cap;
+    }
+    e = &p->e[p->n++];
+    zero(e, sizeof *e);
+    memcpy(e->name, name, n + 1);
+    return e;
+}
+
+int ob_dpack_hide(ob_dpack *p, const char *name)
+{
+    ob_dpent *e = entry(p, name);
+    if (!e) return 0;
+    e->hidden = 1;
+    return 1;
+}
+
+int ob_dpack_snap(ob_dpack *p, const char *name, int where, long x, long y, int gx, int gy)
+{
+    ob_dpent *e = entry(p, name);
+    if (!e) return 0;
+    if (e->snap) return 1;              /* the first one found stands */
+    e->snap = 1;
+    e->where = (char)where;
+    e->x = x; e->y = y; e->gx = gx; e->gy = gy;
+    return 1;
+}
+
+int ob_dpack_hidden(const ob_dpack *p, const char *name)
+{
+    const ob_dpent *e = find(p, name);
+    return e && e->hidden;
+}
+
+int ob_dpack_snapped(const ob_dpack *p, const char *name, int *gx, int *gy, long *x, long *y)
+{
+    const ob_dpent *e = find(p, name);
+    if (!e || !e->snap || e->where != 'W') return 0;
+    *gx = e->gx; *gy = e->gy; *x = e->x; *y = e->y;
+    return 1;
+}
+
+const char *ob_name_in(const char *path, const char *dir)
+{
+    size_t k, dl = strlen(dir);
+    const char *rest;
+    for (k = 0; k < dl; k++)
+        if (!path[k] || fold((unsigned char)path[k]) != fold((unsigned char)dir[k])) return NULL;
+    rest = path + dl;
+    if (dl && dir[dl - 1] != ':') {     /* "Work:Tools" + "/x" */
+        if (*rest != '/') return NULL;
+        rest++;
+    }
+    if (!*rest || strchr(rest, '/') || strchr(rest, ':')) return NULL;
+    return rest;
+}

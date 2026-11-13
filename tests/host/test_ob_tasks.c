@@ -289,8 +289,54 @@ static void test_guard(void)
     CHECK("null", ob_guard_read(0, &h) == 0);
 }
 
+static void test_dpack(void)
+{
+    ob_dpack p;
+    int gx = 0, gy = 0, i, ok;
+    long x = 0, y = 0;
+    char nm[16];
+    ob_dpack_init(&p);
+    CHECK("dpack empty not fresh", !ob_dpack_fresh(&p, "Work:", 0));
+    ob_dpack_reset(&p, "Work:Tools", 7);
+    CHECK("dpack fresh", ob_dpack_fresh(&p, "Work:Tools", 7));
+    CHECK("dpack stale gen", !ob_dpack_fresh(&p, "Work:Tools", 8));
+    CHECK("dpack other dir", !ob_dpack_fresh(&p, "Work:", 7));
+    CHECK("dpack hide", ob_dpack_hide(&p, "Clock"));
+    CHECK("dpack hidden any case", ob_dpack_hidden(&p, "cLOCK"));
+    CHECK("dpack not hidden", !ob_dpack_hidden(&p, "Calc"));
+    CHECK("dpack snap W", ob_dpack_snap(&p, "Calc", 'W', 10, 20, 1, 2));
+    CHECK("dpack snapped", ob_dpack_snapped(&p, "calc", &gx, &gy, &x, &y) && gx == 1 && gy == 2 && x == 10 && y == 20);
+    CHECK("dpack first snap stands", ob_dpack_snap(&p, "Calc", 'W', 99, 99, 9, 9) &&
+          ob_dpack_snapped(&p, "Calc", &gx, &gy, &x, &y) && x == 10);
+    CHECK("dpack snap D", ob_dpack_snap(&p, "Disk", 'D', 1, 1, 0, 0) && !ob_dpack_snapped(&p, "Disk", &gx, &gy, &x, &y));
+    CHECK("dpack hidden and snapped", ob_dpack_snap(&p, "Clock", 'W', 3, 4, 5, 6) && ob_dpack_hidden(&p, "Clock") &&
+          ob_dpack_snapped(&p, "Clock", &gx, &gy, &x, &y) && gx == 5);
+    for (ok = 1, i = 0; i < 100; i++) {           /* grows */
+        sprintf(nm, "n%d", i);
+        if (!ob_dpack_hide(&p, nm)) ok = 0;
+    }
+    CHECK("dpack grows", ok && ob_dpack_hidden(&p, "N57") && ob_dpack_hidden(&p, "Clock") && p.n == 103);
+    ob_dpack_reset(&p, "Work:", 8);
+    CHECK("dpack reset empties", p.n == 0 && !ob_dpack_hidden(&p, "Clock") && ob_dpack_fresh(&p, "Work:", 8));
+    CHECK("dpack long name", !ob_dpack_hide(&p, "0123456789012345678901234567890123456789012345678901234567890123456789"
+                                                "012345678901234567890123456789012345678901234567890"));
+    ob_dpack_free(&p);
+    CHECK("dpack freed", !p.e && !p.n && !p.filled);
+
+    CHECK("name in drawer", ob_name_in("Work:Tools/Clock", "Work:Tools") &&
+          !strcmp(ob_name_in("Work:Tools/Clock", "Work:Tools"), "Clock"));
+    CHECK("name in any case", ob_name_in("WORK:tools/Clock", "Work:Tools") != NULL);
+    CHECK("name in disk", ob_name_in("Work:Clock", "Work:") && !strcmp(ob_name_in("Work:Clock", "Work:"), "Clock"));
+    CHECK("name deeper", !ob_name_in("Work:Tools/a/Clock", "Work:Tools"));
+    CHECK("name other drawer", !ob_name_in("Work:Toolsx/Clock", "Work:Tools"));
+    CHECK("name drawer itself", !ob_name_in("Work:Tools", "Work:Tools") && !ob_name_in("Work:Tools/", "Work:Tools"));
+    CHECK("name on volume path", ob_name_in("Tools/x", "Tools") && !strcmp(ob_name_in("Tools/x", "Tools"), "x"));
+    CHECK("name at volume root", ob_name_in("x", "") && !ob_name_in("a/x", ""));
+}
+
 int main(void)
 {
+    test_dpack();
     test_super();
     test_jobq();
     test_reserve();

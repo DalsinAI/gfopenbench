@@ -127,20 +127,10 @@ struct Window *ob_drop_window_at(WORD sx, WORD sy)
     return ob_drop_window_under(sx, sy, NULL);
 }
 
-static wb_drawer *drawer_of(struct Window *w)
-{
-    int i;
-    for (i = 0; i < *env.ndrawers; i++)
-        if (wb_drawer_window(env.drawers[i]) == w) return env.drawers[i];
-    return NULL;
-}
-
 /* Every open drawer showing path, read again */
 static void reread(const char *path)
 {
-    int i;
-    for (i = 0; i < *env.ndrawers; i++)
-        if (of_path_equal(wb_drawer_path(env.drawers[i]), path)) wb_drawer_reread(env.drawers[i]);
+    if (env.reread) env.reread(path, NULL);
 }
 
 static int is_dir(const char *path)
@@ -1011,14 +1001,14 @@ static int appwindow_drop(struct Window *w, const char *const *paths, int n, WOR
 int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_drawer *from)
 {
     struct Window *w = ob_drop_window_at(sx, sy);
-    wb_drawer *d;
-    char dst[OF_PATH_MAX];
+    wb_drawer *d = NULL;
+    char dst[OF_PATH_MAX], dir[OF_PATH_MAX];
+    int at;
     (void)qual;                                 /* no qualifier changes a drop on OS 3.2.3 (measured) */
     if (!w || n <= 0 || stopping) return 0;
-    if ((d = drawer_of(w))) {
-        int at = wb_drawer_at(d, sx, sy, dst, sizeof dst);
+    if ((at = env.drawer_at(w, sx, sy, dst, sizeof dst, dir, sizeof dir, &d)) >= 0) {
         if (at == WB_AT_NONE || (d == from && at != WB_AT_DRAWER)) return 0;
-        if (at == WB_AT_FILE) of_strlcpy(dst, wb_drawer_path(d), sizeof dst);   /* onto a tool: into its drawer */
+        if (at == WB_AT_FILE) of_strlcpy(dst, dir, sizeof dst);   /* onto a tool: into its drawer */
         if (at == WB_AT_DRAWER && is_trash(dst)) return to_trash(paths, n, dst);
         return transfer(paths, n, dst);
     }
@@ -1035,8 +1025,9 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
 int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
 {
     struct Window *w = ob_drop_window_at(sx, sy);
-    wb_drawer *d;
-    char dst[OF_PATH_MAX];
+    wb_drawer *d = NULL;
+    char dst[OF_PATH_MAX], dir[OF_PATH_MAX];
+    int at;
     (void)qual;
     if (!w || stopping) return 0;
     if (w == *env.root) {
@@ -1045,10 +1036,9 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
             return job_for(NULL, 0, dst, OP_DISK, volume);
         return 0;
     }
-    if ((d = drawer_of(w))) {
-        int at = wb_drawer_at(d, sx, sy, dst, sizeof dst);
+    if ((at = env.drawer_at(w, sx, sy, dst, sizeof dst, dir, sizeof dir, &d)) >= 0) {
         if (at == WB_AT_NONE) return 0;
-        if (at == WB_AT_FILE) of_strlcpy(dst, wb_drawer_path(d), sizeof dst);
+        if (at == WB_AT_FILE) of_strlcpy(dst, dir, sizeof dst);
         if (of_path_inside(dst, volume) || (at == WB_AT_DRAWER && is_trash(dst))) return 0;  /* a disk into itself */
         return job_for(NULL, 0, dst, OP_DISK, volume);
     }
@@ -1348,8 +1338,6 @@ int ob_new_drawer(const char *dir, wb_drawer *from)
         PutDiskObject((CONST_STRPTR)path, o);
         FreeDiskObject(o);
     }
-    for (i = 0; i < *env.ndrawers; i++)
-        if (env.drawers[i] != from && of_path_equal(wb_drawer_path(env.drawers[i]), dir))
-            wb_drawer_reread(env.drawers[i]);
+    if (env.reread) env.reread(dir, from);    /* from reads its own again */
     return 1;
 }
