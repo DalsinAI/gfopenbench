@@ -818,6 +818,24 @@ static int do_menudrive(void)
     pick(w, "*:view by/icon|as icons");
     Delay(25);
 
+    /* M6 About: a window comes; its button closes it */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick_any(w, "workbench|gfopenbench:about")) <= 0) not_picked("M6", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M6");
+        click_button(nw, 0);
+        if (still_there(s, nw)) key(0x45);
+    } else fail("M6", "About: no window came");
+
+    /* M2 Execute Command: its requester comes; Cancel */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick_any(w, "workbench|gfopenbench:execute command")) <= 0) not_picked("M2", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M2");
+        click_button(nw, 1);
+        if (still_there(s, nw)) key(0x45);
+    } else fail("M2", "Execute Command: no requester came");
+
     /* M8 New Drawer: its requester, Return takes the name it offers, a drawer is made */
     n0 = dirs_in("RAM:WBGap", d0, 32);
     nwas = windows_now(s, was, MAXWINS);
@@ -850,31 +868,16 @@ static int do_menudrive(void)
         if (nw && still_there(s, nw)) click_button(nw, 1);   /* Cancel */
     }
 
-    /* M6 About: a window comes; its button closes it */
-    nwas = windows_now(s, was, MAXWINS);
-    if ((r = pick_any(w, "workbench|gfopenbench:about")) <= 0) not_picked("M6", r);
-    else if ((nw = new_window(s, was, nwas, 3))) {
-        pass("M6");
-        click_button(nw, 0);
-        if (still_there(s, nw)) key(0x45);
-    } else fail("M6", "About: no window came");
-
-    /* M2 Execute Command: its requester comes; Cancel */
-    nwas = windows_now(s, was, MAXWINS);
-    if ((r = pick_any(w, "workbench|gfopenbench:execute command")) <= 0) not_picked("M2", r);
-    else if ((nw = new_window(s, was, nwas, 3))) {
-        pass("M2");
-        click_button(nw, 1);
-        if (still_there(s, nw)) key(0x45);
-    } else fail("M2", "Execute Command: no requester came");
-
     /* M9 Open Parent: RAM:'s window comes */
     nwas = windows_now(s, was, MAXWINS);
     if ((r = pick(w, "window:open parent")) <= 0) not_picked("M9", r);
     else if ((nw = new_window(s, was, nwas, 3))) {
         pass("M9");
         printf("INFO M9 \"%s\" came\n", nw->Title ? (const char *)nw->Title : "(no title)");
-    } else fail("M9", "Open Parent: no window came (RAM:'s was not open before)");
+    } else if (still_there(s, w) && w->Title && !strstr((const char *)w->Title, "WBGap")) {
+        pass("M9");   /* GFOpenBench's windows go back and forward: the parent in the same window */
+        printf("INFO M9 the same window now shows \"%s\"\n", (const char *)w->Title);
+    } else fail("M9", "Open Parent: no window came, and the window still shows RAM:WBGap");
 
     /* M10 Close, last: the drawer's window goes; opened again for what comes after */
     if ((r = pick(w, "window:close")) <= 0) not_picked("M10", r);
