@@ -6,8 +6,9 @@
  *
  * Everything between the desktop and a drawer goes by messages; there is no lock between them:
  *   - the desktop to a drawer: notes (read again, draw again, thumbnails ready, search hits, find, close), bits that
- *     the drawer takes in its own loop, and one question (wb_drawer_at: what is at a place, for a drop), answered
- *     at once, even while the drawer itself is waiting on the desktop;
+ *     the drawer takes in its own loop, and questions (wb_drawer_at: what is at a place, for a drop; and
+ *     workbench.library's show-a-name and each-entry calls), answered at once, even while the drawer itself is
+ *     waiting on the desktop;
  *   - a drawer to the desktop: the look's calls (open a program, Information, a drop, Snapshot, Leave Out, Rename,
  *     Delete, Copy, New drawer, Empty trash), which run in the desktop while the drawer waits, and events (opened,
  *     could not open, closed, made active, clicked, search hits taken in), which it doesn't wait for.
@@ -82,6 +83,11 @@ void ob_dt_note(ob_dt *t, ULONG notes);
 void ob_dt_find(ob_dt *t, const char *words);
 /* wb_drawer_at, answered by the drawer's task (WB_AT_NONE when it is gone) */
 int ob_dt_at(ob_dt *t, WORD sx, WORD sy, char *out, int n);
+/* wb_drawer_show_name and wb_drawer_each (workbench.library's MakeWorkbenchObjectVisibleA and
+ * ChangeWorkbenchSelectionA, ob_wb.h), done by the drawer's task while the desktop waits: fn runs in that task.
+ * 0 and -1 when it is gone. */
+int ob_dt_show_name(ob_dt *t, const char *name);
+int ob_dt_each(ob_dt *t, int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y), void *ctx);
 
 struct Window *ob_dt_window(const ob_dt *t);    /* NULL until it is open */
 const char *ob_dt_path(const ob_dt *t);

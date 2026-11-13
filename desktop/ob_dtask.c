@@ -58,11 +58,15 @@ typedef struct dt_event {               /* a drawer's event: AllocVec'd and free
     int own;                            /* the handle's: not to be freed */
 } dt_event;
 
+enum { DQ_AT, DQ_SHOW, DQ_EACH };
 typedef struct dt_query {               /* the desktop's question: AllocVec'd (left when a drawer crashes on it) */
     dt_msg h;
-    WORD sx, sy;
-    int at;
+    int op;
+    WORD sx, sy;                        /* DQ_AT: the place; DQ_SHOW: out holds the name */
+    int at;                             /* the answer */
     char out[256];
+    int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y);   /* DQ_EACH */
+    void *ctx;
 } dt_query;
 
 struct ob_dt {
@@ -105,8 +109,12 @@ static void answer_queries(ob_dt *t)
 {
     dt_query *q;
     while ((q = (dt_query *)GetMsg(t->qport))) {
-        q->out[0] = 0;
-        q->at = t->d ? wb_drawer_at(t->d, q->sx, q->sy, q->out, sizeof q->out) : WB_AT_NONE;
+        if (q->op == DQ_SHOW) q->at = t->d ? wb_drawer_show_name(t->d, q->out) : 0;
+        else if (q->op == DQ_EACH) q->at = t->d ? wb_drawer_each(t->d, q->fn, q->ctx) : -1;
+        else {
+            q->out[0] = 0;
+            q->at = t->d ? wb_drawer_at(t->d, q->sx, q->sy, q->out, sizeof q->out) : WB_AT_NONE;
+        }
         ReplyMsg(&q->h.m);
     }
 }
@@ -607,23 +615,18 @@ static int held(const ob_dt *t)
     return h;
 }
 
-int ob_dt_at(ob_dt *t, WORD sx, WORD sy, char *out, int n)
+/* qbuf, filled in by the caller but for its header, asked of t's task and waited for: 1 when answered */
+static int ask(ob_dt *t, dt_query *q)
 {
-    dt_query *q = qbuf;
-    if (n > 0) out[0] = 0;
-    if (!t || !q) return WB_AT_NONE;
     q->h.m.mn_Node.ln_Type = NT_MESSAGE;
     q->h.m.mn_Length = sizeof *q;
     q->h.m.mn_ReplyPort = qreply;
     q->h.kind = MK_QUERY;
     q->h.t = t;
-    q->sx = sx;
-    q->sy = sy;
-    q->at = WB_AT_NONE;
     Forbid();
     if (t->gone || !t->qport || !t->d) {
         Permit();
-        return WB_AT_NONE;
+        return 0;
     }
     PutMsg(t->qport, &q->h.m);
     Permit();
@@ -631,11 +634,42 @@ int ob_dt_at(ob_dt *t, WORD sx, WORD sy, char *out, int n)
         if (wait_half()) continue;
         if (held(t)) {                  /* crashed with the question on its port: the question stays with it */
             qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
-            return WB_AT_NONE;
+            return 0;
         }
     }
+    return 1;
+}
+
+int ob_dt_at(ob_dt *t, WORD sx, WORD sy, char *out, int n)
+{
+    dt_query *q = qbuf;
+    if (n > 0) out[0] = 0;
+    if (!t || !q) return WB_AT_NONE;
+    q->op = DQ_AT;
+    q->sx = sx;
+    q->sy = sy;
+    if (!ask(t, q)) return WB_AT_NONE;
     if (n > 0) snprintf(out, (size_t)n, "%s", q->out);
     return q->at;
+}
+
+int ob_dt_show_name(ob_dt *t, const char *name)
+{
+    dt_query *q = qbuf;
+    if (!t || !q || !name || strlen(name) >= sizeof q->out) return 0;
+    q->op = DQ_SHOW;
+    strcpy(q->out, name);
+    return ask(t, q) ? q->at : 0;
+}
+
+int ob_dt_each(ob_dt *t, int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y), void *ctx)
+{
+    dt_query *q = qbuf;
+    if (!t || !q || !fn) return -1;
+    q->op = DQ_EACH;
+    q->fn = fn;
+    q->ctx = ctx;
+    return ask(t, q) ? q->at : -1;
 }
 
 void ob_dt_close_all(void)
