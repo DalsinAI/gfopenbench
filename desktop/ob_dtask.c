@@ -656,14 +656,38 @@ void ob_dt_close_all(void)
     closing_all = 0;
 }
 
+/* While the desktop waits for a window: the drawer's questions about its own drawer (hidden, snapped) answered,
+ * which it asks while it opens; every other call stays on the port, in its order, for the desktop's loop */
+static void take_packs(void)
+{
+    struct List keep;
+    struct Message *m;
+    NewList(&keep);
+    while ((m = GetMsg(callport))) {
+        dt_call *c = (dt_call *)m;
+        if (c->fn == CB_PACK) {
+            c->result = run_call(c);
+            if (env.gen) share_gen = env.gen();
+            ReplyMsg(m);
+        } else
+            AddTail(&keep, &m->mn_Node);
+    }
+    Forbid();
+    while ((m = (struct Message *)RemTail(&keep))) AddHead(&callport->mp_MsgList, &m->mn_Node);
+    Permit();
+}
+
 int ob_dt_wait_open(ob_dt *t, int secs)
 {
     int halves = secs * 2;
     while (live_at(t) >= 0 && !t->win) {
+        take_packs();
         take_events();
         if (live_at(t) < 0 || t->win) break;
         if (!wait_half() && (--halves <= 0 || held(t))) break;
     }
+    if (!IsListEmpty(&callport->mp_MsgList) || !IsListEmpty(&evport->mp_MsgList))
+        SetSignal(1UL << dsig, 1UL << dsig);    /* what was left, for the desktop's loop */
     return live_at(t) >= 0 && t->win != NULL;
 }
 

@@ -4730,6 +4730,15 @@ static int rx_open_drawer(const char *path)
     return ob_dt_wait_open(drawers[i], 10);
 }
 
+/* ARexx's OPEN: a drawer's answer, too, comes once its window is there */
+static int rx_open_object(const char *path)
+{
+    int i;
+    if (!ob_open_object(path)) return 0;
+    if ((i = drawer_open_at(path)) >= 0 && !ob_dt_window(drawers[i])) return ob_dt_wait_open(drawers[i], 10);
+    return 1;
+}
+
 static int rx_close_window(struct Window *w)
 {
     int i;
@@ -4842,7 +4851,7 @@ static void rx_changed(const char *dir)
 
 static const ob_rexx_env rexx_env = {
     "GFOpenBench " OPENBENCH_VERSION, rx_screen, rx_icon_font, rx_window_at, rx_open_drawer, rx_close_window,
-    ob_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
+    rx_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
 };
 
 /* LoadWB's switches (WBGapTest A10, ol_core.h): GFOpenBench takes LoadWB's template, from the Startup-Sequence's
