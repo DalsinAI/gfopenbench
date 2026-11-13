@@ -78,7 +78,10 @@ IF RC ~= 0 THEN bad = bad 'p2('RC')'
 '"' || drag || '" CLICK' cx.3 cy.3 'DOUBLE QUAL LSHIFT'
 IF RC ~= 0 THEN bad = bad 'LaunchT('RC')'
 'Wait 3'
-IF bad ~= '' THEN SAY 'SKIP I11 DragTest failed clicking:' STRIP(bad)
+IF bad ~= '' THEN DO   /* marked, so CHECK skips too even if LaunchT started */
+  SAY 'SKIP I11 DragTest failed clicking:' STRIP(bad)
+  'Echo >RAM:wbgap-desk-bad "' || STRIP(bad) || '"'
+END
 ELSE DO
   SAY 'INFO I11 clicked p1, Shift-clicked p2, Shift-double-clicked LaunchT'
   'Echo >RAM:wbgap-desk-clicked "clicked"'
