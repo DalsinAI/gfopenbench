@@ -6,8 +6,9 @@
  *   DragTest LIST                         the screens, and the windows on the front one, with their boxes
  *   DragTest MOVE x y                     the pointer to x, y
  *   DragTest CLICK x y [DOUBLE] [QUAL q]  a left click (or two) at x, y
- *   DragTest DRAG x y x2 y2 [QUAL q] [LATE] [STEPS n] [HOLD ticks] [RIGHT]
- *                                         pressed at x, y, moved to x2, y2 in n steps (12), let go there
+ *   DragTest DRAG x y x2 y2 [x3 y3 ...] [QUAL q] [LATE] [STEPS n] [HOLD ticks] [RIGHT]
+ *                                         pressed at x, y, moved to x2, y2 in n steps (12), on through any more
+ *                                         points (each leg n steps, a pause at each point), let go at the last
  *                                         after a pause (HOLD, 25 ticks); RIGHT: the menu button; LATE: the
  *                                         QUAL keys go down half way, once the drag is under way
  *   DragTest KEY code [QUAL q]            a raw key pressed and let go (hex or decimal)
@@ -201,7 +202,7 @@ int main(void)
     LONG a[A_N];
     struct RDArgs *rd;
     const char *act;
-    LONG **xy, v[4] = { 0, 0, 0, 0 };
+    LONG **xy, v[12] = { 0 };                       /* up to six points (DRAG) */
     int nv = 0, rc = 0, nk = 0;
     UWORD qual = 0;
     UBYTE keys[8];
@@ -211,7 +212,7 @@ int main(void)
         return 20;
     }
     act = (const char *)a[A_ACTION];
-    for (xy = (LONG **)a[A_XY]; xy && *xy && nv < 4; xy++) v[nv++] = strtol((const char *)*xy, NULL, 0);
+    for (xy = (LONG **)a[A_XY]; xy && *xy && nv < 12; xy++) v[nv++] = strtol((const char *)*xy, NULL, 0);
     if (a[A_QUAL] && (nk = parse_quals((const char *)a[A_QUAL], &qual, keys)) < 0) {
         FreeArgs(rd);
         return 20;
@@ -255,19 +256,24 @@ int main(void)
         UWORD down = a[A_RIGHT] ? IECODE_RBUTTON : IECODE_LBUTTON;
         UWORD held = a[A_RIGHT] ? IEQUALIFIER_RBUTTON : IEQUALIFIER_LEFTBUTTON;
         UWORD q0 = a[A_LATE] ? 0 : qual;            /* LATE: the keys go down once the drag is under way */
+        int leg, legs = nv / 2 - 1;                 /* x y x2 y2 [x3 y3 ...]: through each point in turn */
         if (steps < 1) steps = 1;
         place(v[0], v[1], 0);
         Delay(10);
         if (!a[A_LATE]) keys_down(keys, nk, qual);
         inject(IECLASS_RAWMOUSE, 0, down, (UWORD)(q0 | held | IEQUALIFIER_RELATIVEMOUSE), NULL);
         Delay(5);
-        for (i = 1; i <= steps; i++) {
-            if (a[A_LATE] && i == steps / 2 + 1) {
-                keys_down(keys, nk, qual);
-                q0 = qual;
+        for (leg = 0; leg < legs; leg++) {
+            LONG *p = v + 2 * leg;
+            for (i = 1; i <= steps; i++) {
+                if (a[A_LATE] && leg == 0 && i == steps / 2 + 1) {
+                    keys_down(keys, nk, qual);
+                    q0 = qual;
+                }
+                place(p[0] + (p[2] - p[0]) * i / steps, p[1] + (p[3] - p[1]) * i / steps, (UWORD)(q0 | held));
+                Delay(2);
             }
-            place(v[0] + (v[2] - v[0]) * i / steps, v[1] + (v[3] - v[1]) * i / steps, (UWORD)(q0 | held));
-            Delay(2);
+            if (leg + 1 < legs) Delay(15);          /* a point on the way: a sub-menu opens */
         }
         Delay(hold);
         inject(IECLASS_RAWMOUSE, 0, (UWORD)(down | IECODE_UP_PREFIX), (UWORD)(qual | IEQUALIFIER_RELATIVEMOUSE), NULL);
@@ -294,7 +300,7 @@ int main(void)
             inject(on ? IECLASS_DISKREMOVED : IECLASS_DISKINSERTED, 0, 0, 0, NULL);
         }
     } else {
-        PutStr((CONST_STRPTR)"DragTest LIST | MOVE x y | CLICK x y [DOUBLE] | DRAG x y x2 y2 [STEPS n] [HOLD t] [RIGHT] | "
+        PutStr((CONST_STRPTR)"DragTest LIST | MOVE x y | CLICK x y [DOUBLE] | DRAG x y x2 y2 [x3 y3 ...] [STEPS n] [HOLD t] [RIGHT] | "
                              "KEY code | DISKIN | DISKOUT | INHIBIT drive ON|OFF; QUAL a+b\n");
         rc = 10;
     }
