@@ -129,7 +129,7 @@ static void test_reserve(void)
     /* out of memory: the reserve is given back so the requester can open, the user asked; Cancel gives NULL */
     budget = 10;
     answer_retry = 0;
-    p = ob_reserve_alloc(&r, &m, 5000);
+    p = ob_reserve_alloc(&r, &m, 50000);         /* more than the reserve gives back */
     CHECK("low: asked once", asked == 1);
     CHECK("low: reserve released for the requester", r.block == 0 && r.low == 1);
     CHECK("low: cancel gives NULL", p == 0);
@@ -143,17 +143,31 @@ static void test_reserve(void)
     asked = 0;
     answer_retry = 1;
     free_on_ask = 60000;
-    p = ob_reserve_alloc(&r, &m, 5000);
+    p = ob_reserve_alloc(&r, &m, 50000);
     CHECK("retry after the user freed memory", p != 0 && asked == 1);
-    fake_free(0, p, 5000);
+    fake_free(0, p, 50000);
     /* Retry with nothing freed asks again, Cancel then ends it */
     budget = 10;
     asked = 0;
     answer_retry = 2;
-    p = ob_reserve_alloc(&r, &m, 5000);
+    p = ob_reserve_alloc(&r, &m, 50000);
     CHECK("retries ask again until cancel", p == 0 && asked == 3);
     ob_reserve_end(&r, &m);
     CHECK("all freed", live == 0 && r.block == 0);
+    /* low, with 33,000 bytes free: the 32 KiB reserve is taken back first and a 1,000-byte request then doesn't fit;
+       given back, it fits, and no requester is shown (Koenig's case, #102 review) */
+    budget = 100000;
+    ob_reserve_init(&r, &m, 32768);
+    r.low = 1;
+    fake_free(0, r.block, 32768);
+    r.block = 0;
+    budget = 33000;
+    asked = 0;
+    answer_retry = 0;
+    p = ob_reserve_alloc(&r, &m, 1000);
+    CHECK("fits once the reserve is back: no requester", p != 0 && asked == 0);
+    fake_free(0, p, 1000);
+    ob_reserve_end(&r, &m);
     /* a reserve that can't be taken at the start: low from the beginning, still asks rather than crashes */
     budget = 100;
     CHECK("no reserve at start", ob_reserve_init(&r, &m, 32768) == 0 && r.low == 1);
