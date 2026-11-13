@@ -152,6 +152,11 @@ static const struct wbgap_row rows[] = {
     {"X2b", "X2", A, NULL, "compat mode: the compat name ACFS offers"},
     {"X3", NULL, H, NULL, "low memory: a requester from the reserve pool (13 Nov)"},
     {"X4", NULL, H, NULL, "a crashed drawer task or AppWindow owner: the desktop stays up (13 Nov)"},
+    /* 13. Layout (Dale, 13 Nov 06:43): on 3.2.3, reference only */
+    {"L1", NULL, A, NULL, "a drawer with no snapshot: tools, projects, drawers, each by name; none clipped; the window fits"},
+    {"L1a", "L1", A, "WBGapLayout.rexx", "grouped tools, then projects, then drawers, by name in each"},
+    {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
+    {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))

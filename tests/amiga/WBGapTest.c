@@ -21,6 +21,8 @@
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
  *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK=40000 and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
+ *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
+ *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
  *   WBGapTest REPORT <file>     the lines of the modes above, in <file>, as exactly one PASS, FAIL or SKIP line per
  *                               gap id (wbgap_rows.c, the gaps document plus the 13 Nov decisions), and a count
  *
@@ -392,6 +394,11 @@ static int do_notify(void)
     do_setup();
     if (!(w = open_drawer("RAM:WBGap", "WBGap", 10, &how))) { fail("F1", "RAM:WBGap's window didn't open"); skip("F2", "no window"); return 10; }
     printf("INFO RAM:WBGap opened by %s\n", how ? "DragTest OPEN" : "OpenWorkbenchObjectA");
+    if (w->Width < 480 || w->Height < 240) {   /* a new drawer may open too small to show its icons (L1 checks that) */
+        ChangeWindowBox(w, w->LeftEdge, w->TopEdge, w->Width < 480 ? 480 : w->Width, w->Height < 240 ? 240 : w->Height);
+        Delay(50);
+        printf("INFO RAM:WBGap's window sized to %dx%d for F1 and F2\n", w->Width, w->Height);
+    }
     Delay(100);   /* its icons drawn */
     before = inside_sum(w);
     write_file("RAM:WBGap/new1", "new\n");
@@ -729,6 +736,30 @@ static int do_launch(void)
     return fails ? 5 : 0;
 }
 
+/* ---- L1, the default layout: the drawer; WBGapLayout.rexx opens it and reads the icons' places ---- */
+static int do_layout(void)
+{
+    static const struct { const char *name; LONG type; } in[] = {
+        {"ztool", WBTOOL}, {"mproj", WBPROJECT}, {"ydrawer", WBDRAWER}, {"atool", WBTOOL}, {"cdrawer", WBDRAWER},
+        {"bproj", WBPROJECT},
+    };
+    char path[64];
+    BPTR l;
+    int i, ok = 1;
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapL", NULL);
+    l = CreateDir((CONST_STRPTR)"RAM:WBGapL");
+    if (l) UnLock(l);
+    ok = put_icon("RAM:WBGapL", WBDRAWER, NULL);
+    for (i = 0; i < (int)(sizeof in / sizeof in[0]); i++) {
+        snprintf(path, sizeof path, "RAM:WBGapL/%s", in[i].name);
+        if (in[i].type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+        else write_file(path, "WBGapTest L1\n");
+        ok = put_icon(path, in[i].type, NULL) && ok;   /* NO_ICON_POSITION: the desktop lays them out */
+    }
+    printf("INFO RAM:WBGapL %s\n", ok ? "made" : "NOT made");
+    return ok ? 0 : 20;
+}
+
 /* ---- the report ---- */
 static void out_line(void *ctx, const char *line) { (void)ctx; printf("%s\n", line); }
 
@@ -753,7 +784,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LAUNCH | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LAUNCH | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -764,6 +795,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
+    else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else printf("unknown: %s\n", argv[1]);
 out:
