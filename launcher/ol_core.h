@@ -17,7 +17,7 @@
 #define OL_CORE_H
 
 #define OL_WAIT_MAX 60                /* seconds a program with neither DONOTWAIT nor WAIT=n holds up the next */
-#define OL_STACK_MAX (1024L * 1024L)  /* the most stack a STACK tool type gives */
+#define OL_STACK_MAX (16L * 1024L * 1024L)  /* the most stack a STACK tool type gives (I12c asks 2 MB by STACK= alone) */
 #define OL_ICON_STACK_BAD (64L * 1024L * 1024L)  /* an icon's own stack above this is corrupt, and ignored */
 #define OL_NAME_LEN 108
 
