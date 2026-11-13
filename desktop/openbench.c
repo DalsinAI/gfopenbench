@@ -2501,10 +2501,11 @@ static void format_selected(void)
             ask("GFOpenBench", "SYS:System/Format isn't here, so the disk can't be formatted.", "OK");
             return;
         }
-        if (!start_tool("SYS:System/Format", icons[i].path, 0)) {
-            snprintf(text, sizeof text, "Format couldn't start for %.63s.", icons[i].name);
-            ask("GFOpenBench", text, "OK");
-        }
+        /* 0.1.57: told by the launcher's answer when it couldn't start (launch_answers) */
+        snprintf(text, sizeof text, "Format couldn't start for %.63s.", icons[i].name);
+        open_ctx.fail = text;
+        if (!start_tool("SYS:System/Format", icons[i].path, 0)) ask("GFOpenBench", text, "OK");
+        memset(&open_ctx, 0, sizeof open_ctx);
         return;
     }
     ask("GFOpenBench", "Format Disk is for a disk: select its icon first.", "OK");
