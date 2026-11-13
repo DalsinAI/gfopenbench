@@ -922,6 +922,7 @@ static int do_desk(const char *what)
         write_file("RAM:WBGapI/p2", "p2\n");
         put_icon("RAM:WBGapI/p2", WBPROJECT, NULL);
         DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
         n = read_all("RAM:.backdrop", was, sizeof was);
         if (n < 0) { n = 0; was[0] = 0; DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was"); }
         else if (!strstr(was, desk_lines)) write_file("RAM:wbgap-backdrop-was", was);
@@ -937,6 +938,10 @@ static int do_desk(const char *what)
         char buf[400];
         int t;
         for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
+        if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0 && read_all("RAM:wbgap-desk-clicked", buf, sizeof buf) < 0) {
+            skip("I11", "not clicked: WBGapDesk.rexx found no icons to click");
+            return 0;
+        }
         if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0) {
             fail("I11", "Shift-double-clicking LaunchT with p1 and p2 selected started nothing");
             return 5;

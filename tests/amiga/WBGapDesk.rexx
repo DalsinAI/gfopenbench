@@ -18,6 +18,8 @@ GETATTR 'window.left' NAME 'root'; wl = RESULT
 GETATTR 'window.top' NAME 'root'; wt = RESULT
 IF wl = '' | wl = 'RESULT' THEN wl = 0
 IF wt = '' | wt = 'RESULT' THEN wt = 0
+triedmenu = 0
+again:
 /* the desktop reads RAM:.backdrop again after the disk event: up to 10 s for the icons to come.
    Each icon by its place in want (1 p1, 2 p2, 3 LaunchT), so a compound's tail is a number, not a name's case. */
 DO try = 1 TO 10
@@ -37,6 +39,18 @@ DO try = 1 TO 10
   IF seen.1 & seen.2 & seen.3 THEN LEAVE
   ADDRESS COMMAND 'Wait 1'
   ADDRESS WORKBENCH
+END
+/* 3.2.3's Workbench reads a .backdrop only when it starts: there, Icons > Leave Out through its own ARexx
+   (GFOpenBench has no MENU INVOKE yet, and reads RAM:.backdrop again) */
+IF ~(seen.1 & seen.2 & seen.3) & ~triedmenu THEN DO
+  triedmenu = 1
+  WINDOW 'RAM:WBGapI' OPEN
+  ICON WINDOW 'RAM:WBGapI' NAMES 'LaunchT' 'p1' 'p2' SELECT
+  MENU WINDOW 'RAM:WBGapI' INVOKE 'ICONS.LEAVEOUT'
+  menurc = RC
+  WINDOW 'RAM:WBGapI' CLOSE
+  SAY 'INFO I11 not on the desktop from RAM:.backdrop; Icons > Leave Out through ARexx: RC' menurc
+  IF menurc = 0 THEN SIGNAL again
 END
 missing = ''
 DO j = 1 TO 3
@@ -60,4 +74,10 @@ ADDRESS COMMAND
 '"' || drag || '" CLICK' cx.3 cy.3 'DOUBLE QUAL LSHIFT'
 'Wait 3'
 SAY 'INFO I11 clicked p1, Shift-clicked p2, Shift-double-clicked LaunchT'
+'Echo >RAM:wbgap-desk-clicked "clicked"'
+IF triedmenu THEN DO   /* what Leave Out left out, put away again */
+  ADDRESS WORKBENCH
+  ICON WINDOW 'root' NAMES 'LaunchT' 'p1' 'p2' SELECT
+  MENU WINDOW 'root' INVOKE 'ICONS.PUTAWAY'
+END
 EXIT 0
