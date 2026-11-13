@@ -308,3 +308,16 @@ int wbgap_launch_args(const char *rec, const char *want)
     while (*p == ' ' || *p == '\n' || *p == '\r') p++;
     return !*p && args == words;
 }
+
+int wbgap_backdrop_setup(long n, long cap, int has_lines)
+{
+    if (n >= cap - 1) return WBGAP_BD_TOOLONG;   /* more than the buffer holds: written back cut, it would lose lines */
+    if (n < 0) return WBGAP_BD_MADE;
+    return has_lines ? WBGAP_BD_HAD : WBGAP_BD_SAVED;
+}
+
+int wbgap_backdrop_done(int have_was, int have_made)
+{
+    if (have_was) return WBGAP_BD_RESTORE;
+    return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
+}

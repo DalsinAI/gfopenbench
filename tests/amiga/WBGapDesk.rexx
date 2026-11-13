@@ -66,18 +66,27 @@ DO j = 1 TO 3
   cy.j = wt + y.j + MAX(h.j % 3, 2)
   SAY 'INFO I11' WORD(want, j) 'at' x.j','y.j 'size' w.j'x'h.j', clicked at' cx.j','cy.j
 END
+/* each click's RC read: a click DragTest couldn't give is SKIP, not the launcher's FAIL */
 ADDRESS COMMAND
+bad = ''
 '"' || drag || '" CLICK' cx.1 cy.1
+IF RC ~= 0 THEN bad = bad 'p1('RC')'
 'Wait 1'
 '"' || drag || '" CLICK' cx.2 cy.2 'QUAL LSHIFT'
+IF RC ~= 0 THEN bad = bad 'p2('RC')'
 'Wait 1'
 '"' || drag || '" CLICK' cx.3 cy.3 'DOUBLE QUAL LSHIFT'
+IF RC ~= 0 THEN bad = bad 'LaunchT('RC')'
 'Wait 3'
-SAY 'INFO I11 clicked p1, Shift-clicked p2, Shift-double-clicked LaunchT'
-'Echo >RAM:wbgap-desk-clicked "clicked"'
+IF bad ~= '' THEN SAY 'SKIP I11 DragTest failed clicking:' STRIP(bad)
+ELSE DO
+  SAY 'INFO I11 clicked p1, Shift-clicked p2, Shift-double-clicked LaunchT'
+  'Echo >RAM:wbgap-desk-clicked "clicked"'
+END
 IF triedmenu THEN DO   /* what Leave Out left out, put away again */
   ADDRESS WORKBENCH
   ICON WINDOW 'root' NAMES 'LaunchT' 'p1' 'p2' SELECT
   MENU WINDOW 'root' INVOKE 'ICONS.PUTAWAY'
 END
+IF bad ~= '' THEN EXIT 5
 EXIT 0
