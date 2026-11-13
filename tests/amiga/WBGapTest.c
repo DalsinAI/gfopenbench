@@ -24,6 +24,10 @@
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
  *                               OpenWorkbenchObjectA with two projects as arguments, its icon's stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
+ *   WBGapTest LAUNCHDESK SETUP|CHECK|DONE
+ *                               row I11 as a hand does it: LaunchT, p1 and p2 left out on the desktop (RAM:.backdrop),
+ *                               WBGapDesk.rexx clicks p1, Shift-clicks p2, Shift-double-clicks LaunchT; CHECK reads
+ *                               what LaunchT got (RAM:wbgap-launchdesk); DONE puts RAM:.backdrop back
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
  *   WBGapTest REPORT <file>     the lines of the modes above, in <file>, as exactly one PASS, FAIL or SKIP line per
@@ -1256,7 +1260,7 @@ static int check_launchrec(const char *file, int args_too, unsigned long want_st
     printf("INFO %s: %s", file, buf);
     sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
     printf("INFO I12a stack seen %ld, wanted %lu\n", stack, want_stack);
-    if (args_too) { if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
+    if (args_too) { if (wbgap_launch_args(buf, "LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
     if (!want_stack) skip("I12a", "no stack asked for (the icon's STACK= unread)");
     else if ((unsigned long)stack >= want_stack) pass("I12a");
     else { char why[64]; snprintf(why, sizeof why, "STACK=%lu not given (%ld)", want_stack, stack); fail("I12a", why); }
@@ -1296,7 +1300,8 @@ static int do_launch(void)
     for (t = 0; ok && t < 100 && !(fh = Open((CONST_STRPTR)"RAM:wbgap-launch", MODE_OLDFILE)); t++) Delay(5);
     if (dir) UnLock(dir);
     if (!ok) {   /* I12 is checked at WBStartup too (STARTUP CHECK), which needs no registered Workbench */
-        printf("FAIL I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld): needs A6\n", (long)IoErr()), fails++;
+        /* not I11's FAIL: I11 is Shift-double-click on the desktop (LAUNCHDESK), which needs no registered Workbench */
+        printf("INFO I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld): A6's, see LAUNCHDESK\n", (long)IoErr());
         skip("I12a", "not launched here (A6); see STARTUP CHECK");
         skip("I12b", "not launched here (A6); see STARTUP CHECK");
         return 10;
@@ -1305,6 +1310,96 @@ static int do_launch(void)
     Delay(10);   /* the line written whole */
     check_launchrec("RAM:wbgap-launch", 1, want);
     return fails ? 5 : 0;
+}
+
+/* ---- I11 on the desktop: Shift-double-click, as a hand does it (WBGapDesk.rexx clicks) ----
+ * SETUP: RAM:WBGapI holds LaunchT (a copy of this program, LAUNCHREC=RAM:wbgap-launchdesk) and projects p1 and p2,
+ * left out on the desktop by RAM:.backdrop's lines (what was there before is kept in RAM:wbgap-backdrop-was), and
+ * "a disk was inserted" so the desktop reads it again. WBGapDesk.rexx then clicks p1, Shift-clicks p2 and
+ * Shift-double-clicks LaunchT. CHECK: I11 from what LaunchT got (LaunchT, p1, p2 in that order). DONE: RAM:.backdrop
+ * as it was, and the desktop told again. */
+static const char desk_lines[] = ":WBGapI/LaunchT\n:WBGapI/p1\n:WBGapI/p2\n";
+
+static long read_all(const char *path, char *buf, long n)
+{
+    BPTR fh = Open((CONST_STRPTR)path, MODE_OLDFILE);
+    long got;
+    if (!fh) return -1;
+    got = Read(fh, buf, n - 1);
+    Close(fh);
+    if (got < 0) got = 0;
+    buf[got] = 0;
+    return got;
+}
+
+static void desk_told(void)
+{
+    char cmd[300];
+    snprintf(cmd, sizeof cmd, "\"%s\" DISKIN", dragtest);
+    run(cmd);
+    Delay(100);   /* the desktop reads its disks again */
+}
+
+static int do_desk(const char *what)
+{
+    static char was[2048], text[2048 + sizeof desk_lines];
+    static STRPTR tt[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchdesk", NULL};
+    long n;
+    if (!stricmp(what, "SETUP")) {
+        char cmd[320], self[256] = "WBGapTest";
+        BPTR pd = GetProgramDir(), l;
+        if (pd && NameFromLock(pd, (STRPTR)self, sizeof self - 12)) AddPart((STRPTR)self, (CONST_STRPTR)"WBGapTest", sizeof self);
+        if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapI"))) UnLock(l);
+        snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGapI/LaunchT QUIET", self);
+        if (run(cmd) != 0 || !put_icon("RAM:WBGapI/LaunchT", WBTOOL, tt)) {
+            fail("I11", "RAM:WBGapI/LaunchT not made");
+            return 20;
+        }
+        write_file("RAM:WBGapI/p1", "p1\n");
+        put_icon("RAM:WBGapI/p1", WBPROJECT, NULL);
+        write_file("RAM:WBGapI/p2", "p2\n");
+        put_icon("RAM:WBGapI/p2", WBPROJECT, NULL);
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
+        n = read_all("RAM:.backdrop", was, sizeof was);
+        if (n < 0) { n = 0; was[0] = 0; DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was"); }
+        else if (!strstr(was, desk_lines)) write_file("RAM:wbgap-backdrop-was", was);
+        if (!strstr(was, desk_lines)) {
+            snprintf(text, sizeof text, "%s%s%s", was, n && was[n - 1] != '\n' ? "\n" : "", desk_lines);
+            write_file("RAM:.backdrop", text);
+        }
+        desk_told();
+        printf("INFO I11 RAM:WBGapI's LaunchT, p1 and p2 left out on the desktop\n");
+        return 0;
+    }
+    if (!stricmp(what, "CHECK")) {
+        char buf[400];
+        int t;
+        for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
+        if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0 && read_all("RAM:wbgap-desk-clicked", buf, sizeof buf) < 0) {
+            skip("I11", "not clicked: WBGapDesk.rexx found no icons to click");
+            return 0;
+        }
+        if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0) {
+            fail("I11", "Shift-double-clicking LaunchT with p1 and p2 selected started nothing");
+            return 5;
+        }
+        printf("INFO RAM:wbgap-launchdesk: %s", buf);
+        if (wbgap_launch_args(buf, "LaunchT p1 p2")) pass("I11");
+        else fail("I11", "Shift-double-click: not 3 arguments LaunchT, p1, p2 in order");
+        return fails ? 5 : 0;
+    }
+    if (!stricmp(what, "DONE")) {
+        if ((n = read_all("RAM:wbgap-backdrop-was", was, sizeof was)) >= 0) {
+            write_file("RAM:.backdrop", was);
+            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
+        } else
+            DeleteFile((CONST_STRPTR)"RAM:.backdrop");
+        desk_told();
+        return 0;
+    }
+    printf("unknown: LAUNCHDESK %s\n", what);
+    return 20;
 }
 
 /* ---- L1, the default layout: the drawer; WBGapLayout.rexx opens it and reads the icons' places ---- */
@@ -1355,7 +1450,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LAUNCH | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -1366,6 +1461,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
+    else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
     else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);

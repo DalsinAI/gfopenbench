@@ -47,4 +47,8 @@ typedef void (*wbgap_out)(void *ctx, const char *line);
  * Returns the number of FAIL lines. */
 int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx);
 
+/* a launch record, "launch stack S pri P args N name1 name2 ...", as LaunchT writes it (LAUNCHREC): 1 if it holds
+ * exactly the names of want (blank-separated), in that order, and N is their count; 0 otherwise */
+int wbgap_launch_args(const char *rec, const char *want);
+
 #endif
