@@ -57,6 +57,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
   "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
 "$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
+# ob_stack: the Information window's stack field, a whole number of bytes (gap N6)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_stack.c" \
+  "$HERE/tests/host/test_ob_stack.c" -o "$OUT/test_ob_stack"
+"$OUT/test_ob_stack"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_backdrop.c" \
