@@ -1,0 +1,11 @@
+; WBGapCheck.script: after WBGapTest.script and a reboot. The WBStartup rows (S1-S3, S2d) and LoadWB's (A10a)
+; added to WBGapTest.script's results in SYS:T/WBGap, the WBGapA-E programs taken out of SYS:WBStartup again,
+; and the whole report: one PASS, FAIL or SKIP line per gap id, in SYS:T/WBGap/wbgap-report and RAM:wbgap-report.
+; MIT, Copyright (c) 2026 AmiCradle Team.
+FailAt 21
+CD SYS:T/WBGap
+WBGapTest STARTUP CHECK >>SYS:T/WBGap/wbgap-results
+Delete SYS:WBStartup/WBGap#? QUIET
+WBGapTest REPORT SYS:T/WBGap/wbgap-results >RAM:wbgap-report
+Copy RAM:wbgap-report SYS:T/WBGap/ QUIET
+Type RAM:wbgap-report

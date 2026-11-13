@@ -10,6 +10,14 @@ HERE=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=${TMPDIR:-/tmp}/openbench-host-tests
 mkdir -p "$OUT"
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$HERE/tests/host/test_spyfmt.c" -o "$OUT/test_spyfmt"
+# wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
+  "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
+# wbgap_index: the ACFS index's "::wb" lines as WBGapIndex reads them (tests/amiga/wbgap_index.c; build row 8's rows)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
+  "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
+"$OUT/test_wbgap_index"
+"$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 
 # icon_core, with the address and undefined-behaviour checkers where the
@@ -44,7 +52,16 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_vols.c" \
   "$HERE/tests/host/test_ob_vols.c" -o "$OUT/test_ob_vols"
+# ob_eject: which way Icons > Eject takes a disk, floppy, PCMCIA card or not removable (GFOpenBench 0.1.58, row M35)
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_eject.c" \
+  "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
+"$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
+# ob_stack: the Information window's stack field, a whole number of bytes (gap N6)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_stack.c" \
+  "$HERE/tests/host/test_ob_stack.c" -o "$OUT/test_ob_stack"
+"$OUT/test_ob_stack"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_backdrop.c" \
@@ -83,6 +100,11 @@ cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/bench
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_rexx.c" \
   "$HERE/tests/host/test_ob_rexx.c" -o "$OUT/test_ob_rexx"
+# ob_wbplan: GFOpenBench as workbench.library's Workbench, its paths, hook answers and AppMenuItems (GFOpenBench 0.1.56)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_wbplan.c" \
+  "$HERE/tests/host/test_ob_wbplan.c" -o "$OUT/test_ob_wbplan"
+"$OUT/test_ob_wbplan"
 "$OUT/test_ob_rexx"
 # ob_tasks: the Workbench task model: supervisor, job queue, low-memory reserve (build plan row 3)
 # shellcheck disable=SC2086
