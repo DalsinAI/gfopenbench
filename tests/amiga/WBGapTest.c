@@ -739,7 +739,7 @@ static int dirs_in(const char *path, char names_out[][32], int n)
     int k = 0;
     if (l && fib && Examine(l, fib))
         while (ExNext(l, fib))
-            if (fib->fib_DirEntryType > 0 && k < n) snprintf(names_out[k++], 32, "%s", fib->fib_FileName);
+            if (fib->fib_DirEntryType > 0 && k < n) snprintf(names_out[k++], 32, "%.31s", fib->fib_FileName);
     if (fib) FreeDosObject(DOS_FIB, fib);
     if (l) UnLock(l);
     return k;
