@@ -14,5 +14,14 @@ if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/nu
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c"
+# WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout)
+if [ -n "${AMICRADLE_GUEST:-}" ]; then
+  OIX="$AMICRADLE_GUEST/tools/openindex"
+  # shellcheck disable=SC2086
+  "$CC" $COMMON -I"$OIX/amiga" -I"$OIX/core" -I"$AMICRADLE_GUEST/devices/acscsi.device/include" -o "$OUT/WBGapIndex" \
+    "$HERE/WBGapIndex.c" "$HERE/wbgap_index.c" "$OIX/amiga/oix_acfs.c" "$OIX/core/oix_core.c"
+else
+  echo "WBGapIndex not built: set AMICRADLE_GUEST to an amicradle-guest checkout"
+fi
 cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapDesk.rexx" "$OUT/"
 ls -l "$OUT"
