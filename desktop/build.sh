@@ -174,8 +174,12 @@ else
     FIND_SRC="$W/wb_find_none.c"
     echo "GFOpenBench: no amicradle-guest at $GUEST (set GUEST): drawers built without the search of every drive"
 fi
+# The launcher's rules (0.1.56; Workbench build plan row 6), plain C (tests/host): the order of SYS:WBStartup,
+# Shift-double-click and LoadWB's switches. The launches themselves are gfopenlaunch.library's (build.sh, launcher/)
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
+"$CC" $FLAGS -c -o "$TMP/ol_core.o" "$HERE/../launcher/ol_core.c"
+# shellcheck disable=SC2086
+"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
     $BUILTIN_OBJS $DROP_OBJS \
     "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" $FIND_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga
