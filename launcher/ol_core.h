@@ -18,6 +18,7 @@
 
 #define OL_WAIT_MAX 60                /* seconds a program with neither DONOTWAIT nor WAIT=n holds up the next */
 #define OL_STACK_MAX (1024L * 1024L)  /* the most stack a STACK tool type gives */
+#define OL_ICON_STACK_BAD (64L * 1024L * 1024L)  /* an icon's own stack above this is corrupt, and ignored */
 #define OL_NAME_LEN 108
 
 /* ---- tool types ---- */
@@ -55,8 +56,8 @@ typedef struct ol_opts {
     int pri;                          /* the process's priority, -128 to 127 */
 } ol_opts;
 
-/* What a launch gets: the most of the icon's stack, its STACK tool type and Workbench's default stack (STACK
- * kept to OL_STACK_MAX); TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
+/* What a launch gets: the most of the icon's own stack (taken as it is, as 3.2.3 does; above OL_ICON_STACK_BAD it is
+ * corrupt and ignored), its STACK tool type (kept to OL_STACK_MAX) and Workbench's default stack; TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
 void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_stack);
 
 /* ---- I11: Shift-double-click ---- */
@@ -69,6 +70,22 @@ enum { OL_K_OTHER = 0, OL_K_TOOL, OL_K_PROJECT, OL_K_DRAWER };
  * clicked project too, in its place): args[] gets their indexes (n at the most), and the count is returned. -1 when there is nothing to run: a drawer or disk clicked
  * opens as itself. */
 int ol_shift_args(const int *sel, int n, int clicked, int *tool, int *args);
+
+/* ---- the reaper's port (gfopenlaunch.library) ---- */
+
+/* How ol_port_locked reaches the library: fetch gives the reaper's port, starting the reaper when it isn't there
+ * (NULL when it can't be), and is called without lock; current gives the port as it is now, called with lock held. */
+typedef struct ol_port_ops {
+    void *(*fetch)(void *ctx);
+    void (*lock)(void *ctx);
+    void (*unlock)(void *ctx);
+    void *(*current)(void *ctx);
+} ol_port_ops;
+
+/* The reaper's port with lock held, so the reaper can't end and delete it before the run is listed. Between
+ * fetch and lock the reaper may have ended (a low-memory expunge's CTRL_C): then lock is let go and it starts over,
+ * at most tries times. NULL, with lock not held, when no port can be had. */
+void *ol_port_locked(const ol_port_ops *ops, void *ctx, int tries);
 
 /* ---- A10: LoadWB's switches ---- */
 
