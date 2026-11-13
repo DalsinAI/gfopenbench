@@ -130,6 +130,6 @@ while read -r name exact; do
 done < "$OUT/icons/manifest.txt"
 [ "$bad" = 0 ] && echo "icon dumps: all match"
 # nettest: WBGapTest's NET group (tests/net), against a stand-in GFNetBench
-if python3 "$HERE/tests/net/test_nettest.py" >"$OUT/nettest.log" 2>&1; then echo "nettest: all passed"
+if python3 -B "$HERE/tests/net/test_nettest.py" >"$OUT/nettest.log" 2>&1; then echo "nettest: all passed"
 else cat "$OUT/nettest.log"; bad=1; fi
 exit $bad

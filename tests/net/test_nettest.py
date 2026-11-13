@@ -143,7 +143,7 @@ class Cli(unittest.TestCase):
 
     def cli(self, *args, scale="1"):
         runner = "%s %s %s {cmd}" % (sys.executable, FAKE, scale)
-        return subprocess.run([sys.executable, os.path.join(HERE, "nettest.py")] + list(args) +
+        return subprocess.run([sys.executable, "-B", os.path.join(HERE, "nettest.py")] + list(args) +
                               ["--peer", "127.0.0.1:5201", "--limits", self.lim, "--runner", runner],
                               capture_output=True, text=True)
 
@@ -167,7 +167,7 @@ class Cli(unittest.TestCase):
         self.assertIn("NET tcp_down FAIL 20 MB/s (baseline 40, limit >= 36)", p.stdout)
 
     def test_runner_that_fails(self):
-        p = subprocess.run([sys.executable, os.path.join(HERE, "nettest.py"), "run", "i32", "bridge",
+        p = subprocess.run([sys.executable, "-B", os.path.join(HERE, "nettest.py"), "run", "i32", "bridge",
                             "--peer", "x:1", "--limits", self.lim, "--runner", "false {cmd}"],
                            capture_output=True, text=True)
         self.assertEqual(p.returncode, 20)
@@ -176,7 +176,7 @@ class Cli(unittest.TestCase):
     def test_no_runner(self):
         e = dict(os.environ)
         e.pop("NETTEST_RUNNER", None)
-        p = subprocess.run([sys.executable, os.path.join(HERE, "nettest.py"), "run", "i32", "bridge",
+        p = subprocess.run([sys.executable, "-B", os.path.join(HERE, "nettest.py"), "run", "i32", "bridge",
                             "--peer", "x:1", "--limits", self.lim], capture_output=True, text=True, env=e)
         self.assertEqual(p.returncode, 20)
 
