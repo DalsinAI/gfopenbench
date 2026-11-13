@@ -1,0 +1,16 @@
+{
+  "limits": {
+    "req_rate": {"drop_pct": 15},
+    "tcp_down": {"drop_pct": 10},
+    "tcp_up": {"drop_pct": 10},
+    "udp_loss": {"max": 1}
+  },
+  "machines": {
+    "instance-32": {
+      "host-bridge": {"baseline": {}}
+    },
+    "cm4": {
+      "host-bridge": {"baseline": {}}
+    }
+  }
+}
