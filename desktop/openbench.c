@@ -284,7 +284,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.56"
+#define OPENBENCH_VERSION "0.1.57"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -4541,7 +4541,24 @@ static void wb_changed(ULONG notes)
     if (notes & OWB_NOTE_MENUS) menus_again();
 }
 
-static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_drawer, wb_changed };
+static void rx_changed(const char *dir);
+static int rx_info(const char *path);
+
+/* 0.1.57 (build plan row 4, gap rows A7, A9, N8). UpdateWorkbench: the drawers showing dir read again ("": the disks) */
+static void wbreq_reread(const char *dir)
+{
+    if (!root) return;
+    if (!*dir) volumes_again();
+    else rx_changed(dir);
+}
+
+/* WBInfo: path's Information window */
+static int wbreq_info(const char *path)
+{
+    return rx_info(path);
+}
+
+static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_drawer, wb_changed, wbreq_reread, wbreq_info };
 
 /* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
 

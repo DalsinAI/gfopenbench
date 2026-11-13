@@ -139,6 +139,22 @@ static void answer(struct OWBRequest *rq)
         rq->or_Result = TRUE;
         break;
     }
+    case OWBREQ_UPDATE: {
+        /* UpdateWorkbench: the drawer read again before the program goes on (gap row A7); no lock: the disks */
+        dir[0] = 0;
+        if (rq->or_Lock && !NameFromLock(rq->or_Lock, (STRPTR)dir, sizeof dir)) break;
+        if (env.reread) env.reread(dir);
+        rq->or_Result = TRUE;
+        break;
+    }
+    case OWBREQ_INFO: {
+        /* WBInfo: the Information window for name in the lock's drawer (gap rows A9, N8) */
+        char path[512];
+        if (!rq->or_Lock || !NameFromLock(rq->or_Lock, (STRPTR)dir, sizeof dir)) break;
+        if (!ob_wbp_join(dir, rq->or_Name ? (const char *)rq->or_Name : "", path, sizeof path)) break;
+        if (env.info && env.info(path)) rq->or_Result = TRUE;
+        break;
+    }
     case OWBREQ_WHICH:
         /* nothing of ours is named there yet: WBO_NONE, as OS 3.2.3 answers for a place with no icon */
         rq->or_IoErr = 0;

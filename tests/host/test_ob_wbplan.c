@@ -1,4 +1,4 @@
-/* ob_wbplan's host test: GFOpenBench as workbench.library's Workbench (0.1.56, gap item 4, rows A4, A8a, A8b): a
+/* ob_wbplan's host test: GFOpenBench as workbench.library's Workbench (0.1.56, gap item 4, rows A4, A8a, A8b; 0.1.57, rows A7, A9, N8): a
  * path into its drawer and name (MakeWorkbenchObjectVisibleA, AppMessages' WBArgs), a ChangeWorkbenchSelectionA
  * hook's answer, and where programs' AppMenuItems go (Tools, sub items, their own menus).
  *   test_ob_wbplan
@@ -50,6 +50,20 @@ int main(void)
     CHECK(split_is("", "", ""), "nothing");
     n = ob_wbp_split("Work:Pictures/x", small, sizeof small);
     CHECK(!strcmp(small, "Work") && !strcmp(n, "x"), "the drawer cut to the room given: '%s'", small);
+
+    /* ---- UpdateWorkbench's and WBInfo's object: name in its drawer ---- */
+    {
+        char out[16];
+        CHECK(ob_wbp_join("Work:", "x", out, sizeof out) && !strcmp(out, "Work:x"), "at a disk's root: %s", out);
+        CHECK(ob_wbp_join("RAM:WBGap", "a", out, sizeof out) && !strcmp(out, "RAM:WBGap/a"), "in a drawer: %s", out);
+        CHECK(ob_wbp_join("Work:a/", "x", out, sizeof out) && !strcmp(out, "Work:a/x"), "no second '/': %s", out);
+        CHECK(ob_wbp_join("Work:a", "", out, sizeof out) && !strcmp(out, "Work:a"), "no name: the drawer itself");
+        CHECK(ob_wbp_join("Work:", NULL, out, sizeof out) && !strcmp(out, "Work:"), "NULL name: the disk");
+        CHECK(!ob_wbp_join("", "x", out, sizeof out) && !out[0], "a name with no drawer: refused");
+        CHECK(!ob_wbp_join("RAM:WBGap", "abcdefgh", out, sizeof out) && !out[0], "too long: refused, nothing half-made");
+        CHECK(ob_wbp_join("RAM:WBGap", "abcde", out, sizeof out) && !strcmp(out, "RAM:WBGap/abcde"), "exactly fits");
+        CHECK(!ob_wbp_join("RAM:", "x", out, 0), "no room at all");
+    }
 
     /* ---- the hook's answers ---- */
     CHECK(ob_wbp_hook_answer(OB_WBP_UNSELECT) == 0, "Unselect");

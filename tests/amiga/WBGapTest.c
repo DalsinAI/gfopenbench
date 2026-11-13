@@ -6,9 +6,9 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, A6-A8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
- *                               ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
+ *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
  *                               then a file with an icon made and an icon changed from here: the window's
  *                               inside must change by itself within 5 seconds, with no Update
@@ -370,6 +370,34 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
+ * Workbench's windows */
+static int tools_item_within(const char *item, int want, int ticks)
+{
+    char spec[64];
+    snprintf(spec, sizeof spec, "tools:%s", item);
+    for (;;) {
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *w;
+        ULONG lock;
+        int found;
+        nnames = 0;
+        if (wb) {
+            lock = LockIBase(0);
+            for (w = wb->FirstWindow; w; w = w->NextWindow)
+                if ((w->Flags & WFLG_WBENCHWINDOW) && w->MenuStrip) walk_strip(w->MenuStrip, 0);
+            UnlockIBase(lock);
+            UnlockPubScreen(NULL, wb);
+        }
+        found = has(spec);
+        nnames = 0;
+        if (found == want) return 1;
+        if (ticks <= 0) return 0;
+        Delay(5);
+        ticks -= 5;
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -384,18 +412,59 @@ static int do_api(void)
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
-    if (mi) { pass("A4"); RemoveAppMenuItem(mi); } else printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
+    if (mi) {
+        pass("A4");
+        /* M27: the item shows in the Tools menu of the Workbench's windows within 2 s, and goes when removed */
+        if (tools_item_within("wbgapitem", 1, 100)) {
+            RemoveAppMenuItem(mi);
+            if (tools_item_within("wbgapitem", 0, 100)) pass("M27"); else fail("M27", "Tools/WBGapItem still shown 2 s after RemoveAppMenuItem");
+        } else { RemoveAppMenuItem(mi); fail("M27", "Tools/WBGapItem not in the Workbench windows' menus 2 s after AddAppMenuItemA"); }
+    } else { printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()); fails++; fail("M27", "no AppMenuItem (A4)"); }
     ok = OpenWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6"); else printf("FAIL A6 OpenWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     Delay(50);
-    {   /* UpdateWorkbench gives no answer; IoErr says (103 where no Workbench takes it) */
-        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+    {   /* UpdateWorkbench (A7): a file and icon made, then UpdateWorkbench; the drawer's window must show it at once,
+         * sooner than the 200 ms GFOpenBench's own notify waits, and IoErr stays as it was */
+        BPTR dir;
+        struct Window *w = NULL;
+        ULONG before = 0;
+        int t;
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2");
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2.info");
+        for (t = 0; t < 30 && !(w = find_window("WBGap")); t++) Delay(10);
+        if (w) { Delay(100); before = inside_sum(w); }
+        write_file("RAM:WBGap/new2", "new\n");
+        put_icon("RAM:WBGap/new2", WBPROJECT, NULL);
+        dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
         SetIoErr(0);
         UpdateWorkbench((CONST_STRPTR)"new2", dir, UPDATEWB_ObjectAdded);
+        printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
+        if (IoErr() != 0) fail("A7", "UpdateWorkbench set IoErr");
+        else if (!w) fail("A7", "RAM:WBGap's window isn't open");
+        else {
+            Delay(5);
+            if (inside_sum(w) != before) pass("A7");
+            else fail("A7", "the drawer didn't show the new icon 100 ms after UpdateWorkbench");
+        }
         if (dir) UnLock(dir);
     }
-    printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
-    if (IoErr() == 0) pass("A7"); else fail("A7", "UpdateWorkbench set IoErr");
+    {   /* WBInfo (A9; N8: a program's WBInfo opens it): TRUE, and its window comes; then closed (Ctrl-C) */
+        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *iw = NULL;
+        ULONG r;
+        int t;
+        r = dir ? WBInfo(dir, (CONST_STRPTR)"a", wb) : 0;
+        for (t = 0; r && t < 30 && !(iw = find_window("Information: a")); t++) Delay(10);
+        if (r && iw) { pass("A9"); pass("N8"); }
+        else {
+            printf("FAIL A9 WBInfo %s, %s (IoErr %ld)\n", r ? "TRUE" : "FALSE", iw ? "window open" : "no window", (long)IoErr()), fails++;
+            printf("FAIL N8 WBInfo from a program opened no Information window\n"), fails++;
+        }
+        if (iw && iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+        if (wb) UnlockPubScreen(NULL, wb);
+        if (dir) UnLock(dir);
+    }
     ok = MakeWorkbenchObjectVisibleA((STRPTR)"RAM:WBGap/a", NULL);
     if (ok) pass("A8a"); else printf("FAIL A8a MakeWorkbenchObjectVisibleA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     memset(&hook, 0, sizeof hook);
