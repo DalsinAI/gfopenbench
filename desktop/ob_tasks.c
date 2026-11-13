@@ -82,6 +82,19 @@ static int same_vol(const char *a, const char *b)
     }
 }
 
+void ob_vol_name(const char *path, char *out, int n)
+{
+    int i;
+    if (n <= 0) return;
+    out[0] = 0;
+    if (!path) return;
+    for (i = 0; path[i] && path[i] != ':'; i++) ;
+    if (path[i] != ':') return;
+    if (i > n - 1) i = n - 1;
+    for (n = 0; n < i; n++) out[n] = path[n];
+    out[i] = 0;
+}
+
 void ob_jobq_init(ob_jobq *q, int max_running)
 {
     zero(q, sizeof *q);
@@ -214,6 +227,25 @@ void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size)
     }
 }
 
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m)
+{
+    return refill(r, m);
+}
+
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory)
+{
+    if (!no_memory) return 0;
+    if (r->block) m->free(m->user, r->block, r->size);   /* so the requester can open */
+    r->block = 0;
+    r->low = 1;
+    return m->ask(m->user) != 0;
+}
+
+int ob_low(long err, unsigned long largest)
+{
+    return err == OB_NO_FREE_STORE || largest < OB_LOW_FLOOR;
+}
+
 void ob_reserve_end(ob_reserve *r, const ob_mem *m)
 {
     if (r->block) m->free(m->user, r->block, r->size);
@@ -318,4 +350,67 @@ int ob_unpack(const char *buf, int size, int count, const char **out, int max)
         k = e + 1;
     }
     return i;
+}
+
+/* ---- a crashed task, held by the task guard ---- */
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper)
+{
+    unsigned long r;
+    if (spupper < 56 || spupper <= splower) return 0;
+    r = (spupper - 56) & ~3UL;
+    if (r < splower || r + 16 > spupper) return 0;
+    return r;
+}
+
+static unsigned long be32(const unsigned char *p)
+{
+    return (unsigned long)p[0] << 24 | (unsigned long)p[1] << 16 | (unsigned long)p[2] << 8 | p[3];
+}
+
+int ob_guard_read(const unsigned char *rec, ob_held *h)
+{
+    unsigned long v;
+    if (!rec || be32(rec) != OB_GUARD_MAGIC) return 0;
+    v = be32(rec + 4);
+    if (v != 3 && v != 4 && v != 10) return 0;      /* the only ones the guard holds */
+    if (h) {
+        h->vector = (int)v;
+        h->pc = be32(rec + 8);
+        h->addr = be32(rec + 12);
+    }
+    return 1;
+}
+
+/* ---- the starts sent to the launcher and not answered yet ---- */
+
+int ob_out_add(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++)
+        if (!o->slot[i]) {
+            o->slot[i] = r;
+            return 1;
+        }
+    return 0;
+}
+
+void ob_out_del(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++) if (o->slot[i] == r) o->slot[i] = 0;
+}
+
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max)
+{
+    int i, k, n = 0;
+    for (i = 0; i < OB_OUT_MAX && n < max; i++) {
+        void *r = o->slot[i];
+        int q = 0;
+        if (!r) continue;
+        for (k = 0; k < nq; k++) q |= queued[k] == r;
+        if (q || (answered && answered(r))) continue;   /* the next launcher's, or launch_answers' to reply */
+        o->slot[i] = 0;
+        lost[n++] = r;
+    }
+    return n;
 }

@@ -83,6 +83,9 @@ int ob_jobq_cancel(ob_jobq *q, unsigned long id);                /* 1 taken out,
 void ob_jobq_finish(ob_jobq *q, unsigned long id, int ok);
 int ob_jobq_reap(ob_jobq *q);                                    /* finished jobs dropped; how many */
 int ob_jobq_percent(const ob_job *j);
+/* What a job is ordered by when there is no disk to ask: the volume or device name of path, before its ':'
+ * ("DH0:a/b" gives "DH0"); "" when path names none (a relative path: the caller's current disk) */
+void ob_vol_name(const char *path, char *out, int n);
 
 /* ---- low memory ---- */
 typedef struct ob_mem {
@@ -101,6 +104,15 @@ typedef struct ob_reserve {
 int ob_reserve_init(ob_reserve *r, const ob_mem *m, unsigned long size);   /* 0: couldn't, low from the start */
 void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size);
 void ob_reserve_end(ob_reserve *r, const ob_mem *m);
+/* The reserve taken back when memory allows (the desktop's tick): 1 when it is held */
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m);
+/* Something other than ob_reserve_alloc failed (a program's LoadSeg, a drawer's window): no_memory says it was for
+ * want of memory (ob_low). Then the reserve is given back and the user asked: 1 Retry; 0 Cancel, or not memory */
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory);
+/* A failure was for want of memory: dos's ERROR_NO_FREE_STORE, or less than OB_LOW_FLOOR bytes in one piece */
+#define OB_LOW_FLOOR 65536UL
+#define OB_NO_FREE_STORE 103
+int ob_low(long err, unsigned long largest);
 
 /* ---- the launcher's WBStartup order (ob_launch.h) ----
  * SYS:WBStartup is started one at a time, as Workbench starts it (ob_startup.h), without the desktop ever waiting:
@@ -130,5 +142,27 @@ int ob_names_format(char *out, int n, const char *const *names, int count);
  * how many. */
 int ob_pack(char *buf, int size, int *count, const char *s);
 int ob_unpack(const char *buf, int size, int count, const char **out, int max);
+
+/* ---- a crashed task, held by the task guard ----
+ * The host's task guard (amicradle docs/architecture/TASK_GUARD.md), and GFOpenGuard on a real 68040, hold a task
+ * that crashes in Wait(0) (tc_SigWait 0) and leave a record 56 bytes below tc_SPUpper (long aligned): 'TGRD', the
+ * vector, the PC, the address or opcode, 16 bytes big-endian. The supervisor looks for it (ob_guard.c). */
+#define OB_GUARD_MAGIC 0x54475244UL     /* 'TGRD' */
+typedef struct ob_held {
+    int vector;                         /* 3 address error, 4 illegal instruction, 10 line A */
+    unsigned long pc, addr;
+} ob_held;
+
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
+int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
+
+/* ---- the starts sent to the launcher and not answered yet (X4: a held launcher loses none) ---- */
+#define OB_OUT_MAX 64
+typedef struct ob_out { void *slot[OB_OUT_MAX]; } ob_out;
+int ob_out_add(ob_out *o, void *r);              /* 0 when all OB_OUT_MAX are taken: the caller answers it itself */
+void ob_out_del(ob_out *o, void *r);
+/* The launcher crashed: the starts it had taken, neither still queued on its port (queued, nq) nor answered
+ * already (answered(r): its reply is in, not yet read), taken off the list into lost (at most max). How many. */
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max);
 
 #endif

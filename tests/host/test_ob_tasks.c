@@ -71,6 +71,21 @@ static void test_super(void)
     CHECK("ids still unique", extra[0] != extra[1]);
 }
 
+static void test_vol_name(void)
+{
+    char v[8];
+    ob_vol_name("DH0:a/b", v, sizeof v);
+    CHECK("vol: device", !strcmp(v, "DH0"));
+    ob_vol_name("RAM:", v, sizeof v);
+    CHECK("vol: root", !strcmp(v, "RAM"));
+    ob_vol_name("a/b", v, sizeof v);
+    CHECK("vol: relative has none", !v[0]);
+    ob_vol_name("VeryLongVolume:x", v, sizeof v);
+    CHECK("vol: cut to fit", !strcmp(v, "VeryLon"));
+    ob_vol_name(NULL, v, sizeof v);
+    CHECK("vol: null", !v[0]);
+}
+
 static void test_jobq(void)
 {
     ob_jobq q;
@@ -175,6 +190,24 @@ static void test_reserve(void)
     answer_retry = 0;
     CHECK("no reserve, still asks", ob_reserve_alloc(&r, &m, 5000) == 0 && asked == 1);
     ob_reserve_end(&r, &m);
+    /* a failure elsewhere (a program's LoadSeg): not for memory, nothing asked and the reserve kept */
+    budget = 100000;
+    ob_reserve_init(&r, &m, 32768);
+    asked = 0;
+    answer_retry = 1;
+    CHECK("not memory: no requester", ob_reserve_failed(&r, &m, ob_low(205, 1000000)) == 0 && asked == 0 && r.block);
+    /* for memory: the reserve given back for the requester, Retry answered */
+    CHECK("memory: retry", ob_reserve_failed(&r, &m, ob_low(103, 1000000)) == 1 && asked == 1 && !r.block && r.low);
+    answer_retry = 0;
+    CHECK("memory: cancel", ob_reserve_failed(&r, &m, 1) == 0 && asked == 2);
+    /* taken back on the tick once memory allows, not before */
+    budget = 1000;
+    CHECK("refill waits for memory", ob_reserve_refill(&r, &m) == 0 && r.low);
+    budget = 40000;
+    CHECK("refill when it fits", ob_reserve_refill(&r, &m) == 1 && r.block && !r.low);
+    CHECK("refill held: nothing more taken", ob_reserve_refill(&r, &m) == 1 && budget == 40000 - 32768);
+    ob_reserve_end(&r, &m);
+    CHECK("ob_low: little in one piece", ob_low(0, OB_LOW_FLOOR - 1) && !ob_low(0, OB_LOW_FLOOR));
 }
 
 
@@ -239,14 +272,59 @@ static void test_pack(void)
     CHECK("no NUL: nothing", ob_unpack(buf, sizeof buf, 1, out, 4) == 0);
 }
 
+static void test_guard(void)
+{
+    unsigned char rec[16] = {'T', 'G', 'R', 'D', 0, 0, 0, 4, 0, 0x21, 0xF0, 0x0A, 0, 0, 0x4A, 0xFC};
+    ob_held h;
+    CHECK("rec at", ob_guard_rec_at(0x1000, 0x2000) == 0x2000 - 56);
+    CHECK("rec aligned", ob_guard_rec_at(0x1000, 0x2003) == ((0x2003UL - 56) & ~3UL));
+    CHECK("stack too small", ob_guard_rec_at(0x1FF0, 0x2000) == 0);
+    CHECK("bad bounds", ob_guard_rec_at(0x2000, 0x1000) == 0 && ob_guard_rec_at(0, 10) == 0);
+    CHECK("read", ob_guard_read(rec, &h) == 1 && h.vector == 4 && h.pc == 0x0021F00AUL && h.addr == 0x4AFC);
+    rec[7] = 2;
+    CHECK("vector not the guard's", ob_guard_read(rec, &h) == 0);
+    rec[7] = 3;
+    rec[0] = 'X';
+    CHECK("no magic", ob_guard_read(rec, &h) == 0);
+    CHECK("null", ob_guard_read(0, &h) == 0);
+}
+
+/* X4: the starts a crashed launcher had: none answered twice, none lost (gfopenbench #109, Franklin's review) */
+static int replied[4];
+static int is_replied(void *r) { return *(int *)r; }
+static void test_out(void)
+{
+    ob_out o;
+    int a = 0, b = 0, c = 0, d = 0, i, n;
+    void *q[1], *lost[OB_OUT_MAX];
+    (void)replied;
+    memset(&o, 0, sizeof o);
+    CHECK("out: add", ob_out_add(&o, &a) && ob_out_add(&o, &b) && ob_out_add(&o, &c) && ob_out_add(&o, &d));
+    ob_out_del(&o, &d);                              /* answered and read: off the list */
+    c = 1;                                           /* answered by the launcher, its reply not read yet */
+    q[0] = &b;                                       /* still on the crashed launcher's port */
+    n = ob_out_lost(&o, q, 1, is_replied, lost, OB_OUT_MAX);
+    CHECK("out: only the one it had taken is lost (not the queued, not the answered)", n == 1 && lost[0] == &a);
+    n = ob_out_lost(&o, q, 1, is_replied, lost, OB_OUT_MAX);
+    CHECK("out: and only once", n == 0);
+    c = 0;
+    n = ob_out_lost(&o, NULL, 0, NULL, lost, OB_OUT_MAX);
+    CHECK("out: the rest when nothing is queued or answered", n == 2);
+    for (i = 0; i < OB_OUT_MAX; i++) if (!ob_out_add(&o, &a)) break;
+    CHECK("out: full after OB_OUT_MAX", i == OB_OUT_MAX && !ob_out_add(&o, &b));
+}
+
 int main(void)
 {
     test_super();
     test_jobq();
     test_reserve();
+    test_vol_name();
     test_seq();
     test_names();
     test_pack();
+    test_guard();
+    test_out();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

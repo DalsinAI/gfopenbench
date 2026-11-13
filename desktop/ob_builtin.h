@@ -23,6 +23,9 @@
 
 /* 1 when path names a built-in (it is started, or sent Ctrl-F when it runs already), else 0. */
 int ob_builtin_open(const char *path);
+/* The built-ins the task guard holds (crashed) let go, so the user can open them again and GFOpenBench's quit doesn't
+ * wait on them (build plan row 3, X4). How many. */
+int ob_builtin_held(void);
 /* How many are running. */
 int ob_builtin_running(void);
 /* Ctrl-C to every one running, then up to 5 s for them to finish. */

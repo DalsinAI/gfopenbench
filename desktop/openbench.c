@@ -280,6 +280,7 @@
 #include "ob_arexx.h"
 #include "ob_launch.h"
 #include "ob_tasks.h"
+#include "ob_guard.h"
 #include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
@@ -1858,6 +1859,21 @@ static dicon *icon_at(LONG x, LONG y)
 static struct MsgPort *launch_port;
 static int launcher_up;
 
+/* 0.1.57 (X4): the starts sent and not answered yet, so a launcher the task guard holds (it crashed) loses none:
+ * those still on its port go to the next one, the one it had taken is answered "couldn't start" */
+static ob_out outstanding;                  /* ob_tasks.h */
+
+/* 0 when all OB_OUT_MAX are out: the start isn't sent, and its caller is answered "couldn't start" */
+static int out_add(ob_lreq *r)
+{
+    return ob_out_add(&outstanding, r);
+}
+
+static void out_del(ob_lreq *r)
+{
+    ob_out_del(&outstanding, r);
+}
+
 /* what the next start_tool is for: set around an ob_open_object by whoever needs its answer */
 static struct {
     void *om;                               /* an ob_msg to answer once the launcher has (obmsg.h) */
@@ -1871,6 +1887,61 @@ static int open_drawer(const char *path);
 
 #define parent_and_name ob_parent_and_name
 
+/* ---- low memory (Workbench build plan row 3, WBGapTest X3) ----------------------------------------------------
+ * 32 KiB is set aside at the start. When the desktop runs out (its own allocations, a drawer's window, a program's
+ * LoadSeg), the block is given back so the requester can open, and the user answers Retry or Cancel; the block is
+ * taken back on the 2-second tick as soon as memory allows (ob_reserve, ob_tasks.h). The desktop's task only: the
+ * built-ins and the dock allocate as before. */
+#define OB_RESERVE_BYTES 32768UL
+static ob_reserve reserve;
+static int asking_low;
+
+static void *lm_alloc(void *user, unsigned long n)
+{
+    (void)user;
+    return AllocVec((ULONG)n, MEMF_PUBLIC | MEMF_CLEAR);
+}
+
+static void lm_free(void *user, void *p, unsigned long n)
+{
+    (void)user;
+    (void)n;
+    FreeVec(p);
+}
+
+static int lm_ask(void *user)
+{
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"GFOpenBench",
+        (UBYTE *)"There is not enough memory for this.\nClose a window or quit a program,\nthen choose Retry.",
+        (UBYTE *)"Retry|Cancel" };
+    int r;
+    (void)user;
+    if (asking_low || !root) return 0;          /* one requester at a time; none while the screen is being reset */
+    asking_low = 1;
+    r = EasyRequestArgs(root, &es, NULL, NULL);
+    asking_low = 0;
+    return r == 1;
+}
+
+static const ob_mem lowmem = { lm_alloc, lm_free, lm_ask, NULL };
+
+/* The desktop's AllocVec(n, MEMF_PUBLIC | MEMF_CLEAR), asking the user when there is no memory for it */
+static void *desk_alloc(ULONG n)
+{
+    return ob_reserve_alloc(&reserve, &lowmem, n);
+}
+
+/* Something failed with err (IoErr) and largest bytes in one piece then: when that was for want of memory, the
+ * low-memory requester; 1 when the user chose Retry */
+static int low_asked;                       /* how many times the requester has been shown */
+
+static int low_retry(LONG err, ULONG largest)
+{
+    int no_memory = ob_low(err, largest);
+    if (no_memory) low_asked++;
+    return ob_reserve_failed(&reserve, &lowmem, no_memory);
+}
+
 /* A tool started with a WBStartup message: arg 0 the tool, then args (a project; Shift-double-click's every
  * selected icon, WBGapTest I11), with the icon's stack and tool types (STACK, TOOLPRI: I12). 1 when the launcher has
  * been asked to start it; whether it did comes back on launch_port (launch_answers). The launcher starts it through
@@ -1881,7 +1952,7 @@ static int start_tool_args(const char *tool, const char *const *args, int n, LON
     int i;
     if (!launcher_up) return 0;
     if (strlen(tool) >= sizeof r->tool) return 0;
-    if (!(r = AllocVec(sizeof *r, MEMF_PUBLIC | MEMF_CLEAR))) return 0;
+    if (!(r = desk_alloc(sizeof *r))) return 0;
     r->kind = OB_LR_START;
     strcpy(r->tool, tool);
     for (i = 0; i < n; i++)
@@ -1896,6 +1967,7 @@ static int start_tool_args(const char *tool, const char *const *args, int n, LON
     r->user = open_ctx.om;
     if (open_ctx.fail) snprintf(r->fail, sizeof r->fail, "%s", open_ctx.fail);
     r->msg.mn_ReplyPort = launch_port;
+    if (!out_add(r)) { FreeVec(r); return 0; }    /* 64 starts out already: this one "couldn't start" */
     ob_launch_send(r);
     open_ctx.sent = 1;
     return 1;
@@ -1918,8 +1990,14 @@ static ob_lreq *launcher_ask(int kind, int secs)
     r->secs = secs;
     r->msg.mn_ReplyPort = mp;
     ob_launch_send(r);
-    WaitPort(mp);
-    GetMsg(mp);
+    while (!GetMsg(mp)) {                       /* looked at every 100 ms: a launcher that crashes on quitting is */
+        struct Task *t = ob_launch_task();       /* held by the task guard and never answers */
+        if (!t || ob_task_held(t, NULL)) {
+            DeleteMsgPort(mp);                  /* the held task never runs again: nothing comes to mp */
+            return NULL;                        /* r stays with it */
+        }
+        Delay(5);
+    }
     DeleteMsgPort(mp);
     return r;
 }
@@ -1957,6 +2035,16 @@ static void launch_answers(void)
         ob_lreq *r = (ob_lreq *)m;
         if (r->kind == OB_LR_ENDED) wbstartup_ended(r->id);
         else if (r->kind == OB_LR_START) {
+            out_del(r);
+            /* X3: it couldn't start for want of memory: the user asked, and on Retry it goes to the launcher again,
+               its dock or ARexx caller still waiting */
+            if (!r->ok && (r->err || r->largest) && launcher_up && low_retry(r->err, r->largest) && out_add(r)) {
+                r->ok = 0;                          /* answered by the launcher */
+                r->err = 0;
+                r->largest = 0;
+                ob_launch_send(r);
+                continue;
+            }
             if (r->user) {
                 ((struct ob_msg *)r->user)->ok = r->ok;
                 ReplyMsg((struct Message *)r->user);
@@ -1966,6 +2054,86 @@ static void launch_answers(void)
         }
         FreeVec(r);
     }
+}
+
+/* ---- supervision (Workbench build plan row 3, WBGapTest X4) -------------------------------------------------
+ * Every two seconds the desktop looks for its tasks the task guard holds (they crashed: ob_guard.h). The launcher is
+ * started again (ob_super: up to OB_RESTART_MAX times a minute, then left off and each start refused with a
+ * requester); a built-in is let go, to be opened again; the dock is started again. The desktop stays up. */
+static ob_super super;
+static unsigned long launcher_sid, dock_sid, super_secs;
+
+/* a start the launcher answered whose answer launch_answers hasn't read: never answered twice */
+static int lreq_replied(void *r)
+{
+    return ((ob_lreq *)r)->msg.mn_Node.ln_Type == NT_REPLYMSG;
+}
+
+static void launcher_held(void)
+{
+    struct MsgPort *old;
+    struct Message *m;
+    ob_lreq *again[OB_OUT_MAX];
+    void *lost[OB_OUT_MAX];
+    int n = 0, nl, i, act;
+    launch_answers();                          /* what it answered before it crashed: answered as usual, once */
+    old = ob_launch_abandon();
+    act = ob_super_crashed(&super, launcher_sid, super_secs);
+    launcher_up = 0;
+    if (act == OB_ACT_RESTART && (launcher_up = ob_launch_start())) launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
+    else launcher_sid = 0;
+    Forbid();
+    while (old && n < OB_OUT_MAX && (m = GetMsg(old))) again[n++] = (ob_lreq *)m;   /* not taken yet */
+    Permit();
+    while (old && (m = GetMsg(old))) {        /* more than it can hold (never, with 64 starts out at most): answered */
+        ((ob_lreq *)m)->ok = 0;                 /* "couldn't start", read by launch_answers */
+        ReplyMsg(m);
+    }
+    for (i = 0; i < n; i++) {
+        if (launcher_up && again[i]->kind == OB_LR_START) ob_launch_send(again[i]);
+        else {
+            again[i]->ok = 0;
+            ReplyMsg(&again[i]->msg);          /* to launch_port: answered as any other, "couldn't start" */
+        }
+    }
+    /* the one it had taken: answered here, left to the held task (not one queued again, nor one answered whose
+     * reply is on launch_port: launch_answers answers that) */
+    nl = ob_out_lost(&outstanding, (void *const *)again, n, lreq_replied, lost, OB_OUT_MAX);
+    for (i = 0; i < nl; i++) {
+        ob_lreq *r = lost[i];
+        if (r->user) {
+            ((struct ob_msg *)r->user)->ok = 0;
+            ReplyMsg((struct Message *)r->user);
+        }
+        if (r->tag) wbstartup_answered(r->tag, 0, 0);
+    }
+}
+
+static struct Task *dock_task(void);
+static void remove_dock_port(void);
+static void start_dock(void);
+
+static void supervise(void)
+{
+    struct Task *t;
+    super_secs += 2;
+    ob_reserve_refill(&reserve, &lowmem);          /* X3: the low-memory reserve back as soon as memory allows */
+    if (launcher_up && (t = ob_launch_task()) && ob_task_held(t, NULL)) launcher_held();
+    ob_builtin_held();
+    Forbid();
+    t = dock_task();
+    if (t && ob_task_held(t, NULL)) {
+        int act = ob_super_crashed(&super, dock_sid, super_secs);
+        remove_dock_port();                     /* the held one's: never used again */
+        Permit();
+        dock_sid = 0;
+        if (act == OB_ACT_RESTART || act == OB_ACT_NONE) {
+            start_dock();
+            dock_sid = ob_super_add(&super, OB_T_SERVICE, NULL);
+        }
+        return;
+    }
+    Permit();
 }
 
 /* 1 when the file is a program (an AmigaDOS load file: HUNK_HEADER). */
@@ -2108,7 +2276,21 @@ static int old_prefs_open(const char *path)
     return start_tool(OPENPREFS_APP, project, 32768);
 }
 
+static int open_object_once(const char *path);
+
+/* X3: an icon or file opened; when that failed for want of memory (its icon, its lock, its first bytes couldn't be
+ * read) and nothing on the way asked already, the low-memory requester, and Retry opens it again */
 static int ob_open_object(const char *path)
+{
+    for (;;) {
+        int asked = low_asked, ok;
+        SetIoErr(0);
+        if ((ok = open_object_once(path))) return ok;
+        if (low_asked != asked || !low_retry(IoErr(), AvailMem(MEMF_ANY | MEMF_LARGEST)) || !root) return 0;
+    }
+}
+
+static int open_object_once(const char *path)
 {
     struct DiskObject *o;
     int ok = 0;
@@ -2299,9 +2481,20 @@ static int open_drawer(const char *path)
         ActivateWindow(w);
         return 1;
     }
-    if (ndrawers >= MAX_WINDOWS || !(d = wb_drawer_open(&look, path))) {
+    if (ndrawers >= MAX_WINDOWS) {
         DisplayBeep(look.scr);
         return 0;
+    }
+    for (;;) {
+        ULONG largest;
+        SetIoErr(0);
+        if ((d = wb_drawer_open(&look, path))) break;
+        largest = AvailMem(MEMF_ANY | MEMF_LARGEST);
+        if (!low_retry(IoErr(), largest)) {        /* X3: for want of memory, the user asked: Retry opens it again */
+            DisplayBeep(look.scr);
+            return 0;
+        }
+        if (!root) return 0;
     }
     snprintf(drawer_paths[ndrawers], sizeof drawer_paths[0], "%s", path);
     drawers[ndrawers++] = d;
@@ -2845,6 +3038,14 @@ static struct Task *dock_task(void)
 {
     struct MsgPort *p = FindPort((CONST_STRPTR)"GFOpenDock");
     return p ? p->mp_SigTask : NULL;
+}
+
+/* 0.1.57 (X4): a dock the task guard holds keeps its port: taken off the public list (under Forbid) so a new dock
+ * can start and be found */
+static void remove_dock_port(void)
+{
+    struct MsgPort *p = FindPort((CONST_STRPTR)"GFOpenDock");
+    if (p) RemPort(p);
 }
 
 /* 1 when path is there; no requester while we look (a volume the machine hasn't got, say). */
@@ -5074,6 +5275,9 @@ static int run(void)
         no_signal("the programs it starts");
         goto out;
     }
+    ob_super_init(&super);                         /* 0.1.57: supervision (X4) */
+    ob_reserve_init(&reserve, &lowmem, OB_RESERVE_BYTES);   /* low memory (X3): low from the start when it can't */
+    launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
     if ((picture_sig = AllocSignal(-1)) < 0) {
         no_signal("the root picture");
         goto out;
@@ -5147,6 +5351,7 @@ static int run(void)
     /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
     if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
+    dock_sid = ob_super_add(&super, OB_T_SERVICE, NULL);   /* 0.1.57: started again if it crashes (X4) */
     switches_record();
     if (ob_switches & OL_SW_CLEANUP) {             /* A10: as Window > Clean Up */
         cleanup_snaps();
@@ -5331,6 +5536,7 @@ static int run(void)
                     wb_down = 2;                    /* tried again each tick */
                 }
             }
+            supervise();                            /* 0.1.57: a crashed task of ours (X4) */
             tr->tr_time.tv_secs = 2;
             tr->tr_time.tv_micro = 0;
             SendIO((struct IORequest *)tr);
@@ -5385,6 +5591,7 @@ out:
     stop_dock();
     ob_wb_stop();                               /* 0.1.56: no longer the Workbench; AppMessages answered */
     ob_drop_stop();                             /* 0.1.26: its copies run our code; AppMessages answered */
+    ob_reserve_end(&reserve, &lowmem);
     if (timer) {
         AbortIO((struct IORequest *)tr);
         WaitIO((struct IORequest *)tr);
