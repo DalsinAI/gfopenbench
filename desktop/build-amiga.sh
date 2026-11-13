@@ -12,7 +12,7 @@ GIT_BASE=${AMIGACHROME_GIT_BASE:-https://github.com/}
 mkdir -p "$DEPS"
 fetch() {   # fetch NAME [optional]
     if [ ! -d "$DEPS/$1/.git" ]; then
-        if ! git clone -q --depth 1 "${GIT_BASE}DalsinAI/$1" "$DEPS/$1"; then
+        if ! git clone -q --depth 1 $([ "$1" = gfopengadtools ] && echo "-b team3/wb-menus-keys-20261113") "${GIT_BASE}DalsinAI/$1" "$DEPS/$1"; then
             [ "${2:-}" = optional ] && { echo "build-amiga.sh: $1 not fetched; built without it"; return 0; }
             echo "build-amiga.sh: couldn't fetch DalsinAI/$1" >&2; exit 1
         fi
