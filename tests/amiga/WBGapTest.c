@@ -582,7 +582,7 @@ static int from_workbench(struct WBStartup *wbs)
 }
 
 /* A10a: the LoadWB switches GFOpenBench says it took (ENV:GFOpenBench/LoadWB, words) are the ones on the
- * Startup-Sequence's LoadWB line */
+ * Startup-Sequence's line that started the desktop: "SYS:System/OpenBench ..." where that exists, else "LoadWB ..." */
 static const char *const loadwb_switches[] = {"DEBUG", "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SKIP",
                                               "SIMPLEGELS", "LEGACY"};
 static int stricmp_n(const char *a, const char *b, int n)
@@ -621,14 +621,28 @@ static void check_loadwb(void)
     if (!(fh = Open((CONST_STRPTR)"ENV:GFOpenBench/LoadWB", MODE_OLDFILE))) { fail("A10a", "no ENV:GFOpenBench/LoadWB"); return; }
     { long n = Read(fh, env, sizeof env - 1); env[n > 0 ? n : 0] = 0; }
     Close(fh);
-    if ((fh = Open((CONST_STRPTR)"S:Startup-Sequence", MODE_OLDFILE))) {
-        while (FGets(fh, (STRPTR)line, sizeof line)) {
-            char *p = line;
-            while (*p == ' ' || *p == '\t') p++;
-            if (!stricmp_n(p, "C:LoadWB", 8)) p += 2;
-            if (!stricmp_n(p, "LoadWB", 6) && (p[6] == ' ' || p[6] == '\t' || p[6] == '\n' || !p[6])) { snprintf(seq, sizeof seq, "%s", p + 6); break; }
+    {   /* the line that started the desktop: SYS:System/OpenBench's where it exists (Instance-32), else LoadWB's */
+        int ob = exists("SYS:System/OpenBench");
+        const char *cmd = ob ? "SYS:System/OpenBench" : "LoadWB";
+        int cl = (int)strlen(cmd);
+        if ((fh = Open((CONST_STRPTR)"S:Startup-Sequence", MODE_OLDFILE))) {
+            while (FGets(fh, (STRPTR)line, sizeof line)) {
+                char *p = line;
+                for (;;) {   /* leading blanks, "Run" and redirections */
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (!stricmp_n(p, "Run ", 4)) { p += 4; continue; }
+                    if (*p == '>' || *p == '<') { while (*p && *p != ' ' && *p != '\t') p++; continue; }
+                    break;
+                }
+                if (!ob && !stricmp_n(p, "C:LoadWB", 8)) p += 2;
+                if (!stricmp_n(p, cmd, cl) && (p[cl] == ' ' || p[cl] == '\t' || p[cl] == '\n' || !p[cl])) {
+                    snprintf(seq, sizeof seq, "%s", p + cl);
+                    break;
+                }
+            }
+            Close(fh);
         }
-        Close(fh);
+        printf("INFO A10a the desktop's line: %s%s", cmd, seq[0] ? seq : "\n");
     }
     switches_of(seq, want, sizeof want);
     switches_of(env, got, sizeof got);
