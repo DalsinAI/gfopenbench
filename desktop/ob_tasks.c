@@ -502,3 +502,37 @@ const char *ob_name_in(const char *path, const char *dir)
     if (!*rest || strchr(rest, '/') || strchr(rest, ':')) return NULL;
     return rest;
 }
+
+/* ---- the starts sent to the launcher and not answered yet ---- */
+
+int ob_out_add(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++)
+        if (!o->slot[i]) {
+            o->slot[i] = r;
+            return 1;
+        }
+    return 0;
+}
+
+void ob_out_del(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++) if (o->slot[i] == r) o->slot[i] = 0;
+}
+
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max)
+{
+    int i, k, n = 0;
+    for (i = 0; i < OB_OUT_MAX && n < max; i++) {
+        void *r = o->slot[i];
+        int q = 0;
+        if (!r) continue;
+        for (k = 0; k < nq; k++) q |= queued[k] == r;
+        if (q || (answered && answered(r))) continue;   /* the next launcher's, or launch_answers' to reply */
+        o->slot[i] = 0;
+        lost[n++] = r;
+    }
+    return n;
+}

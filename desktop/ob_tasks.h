@@ -193,4 +193,13 @@ const char *ob_name_in(const char *path, const char *dir);
 /* Two names the same in any case (Latin-1's letters too, as ob_snap.c compares) */
 int ob_same_name(const char *a, const char *b);
 
+/* ---- the starts sent to the launcher and not answered yet (X4: a held launcher loses none) ---- */
+#define OB_OUT_MAX 64
+typedef struct ob_out { void *slot[OB_OUT_MAX]; } ob_out;
+int ob_out_add(ob_out *o, void *r);              /* 0 when all OB_OUT_MAX are taken: the caller answers it itself */
+void ob_out_del(ob_out *o, void *r);
+/* The launcher crashed: the starts it had taken, neither still queued on its port (queued, nq) nor answered
+ * already (answered(r): its reply is in, not yet read), taken off the list into lost (at most max). How many. */
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max);
+
 #endif

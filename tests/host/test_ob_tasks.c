@@ -334,6 +334,31 @@ static void test_dpack(void)
     CHECK("name at volume root", ob_name_in("x", "") && !ob_name_in("a/x", ""));
 }
 
+/* X4: the starts a crashed launcher had: none answered twice, none lost (gfopenbench #109, Franklin's review) */
+static int replied[4];
+static int is_replied(void *r) { return *(int *)r; }
+static void test_out(void)
+{
+    ob_out o;
+    int a = 0, b = 0, c = 0, d = 0, i, n;
+    void *q[1], *lost[OB_OUT_MAX];
+    (void)replied;
+    memset(&o, 0, sizeof o);
+    CHECK("out: add", ob_out_add(&o, &a) && ob_out_add(&o, &b) && ob_out_add(&o, &c) && ob_out_add(&o, &d));
+    ob_out_del(&o, &d);                              /* answered and read: off the list */
+    c = 1;                                           /* answered by the launcher, its reply not read yet */
+    q[0] = &b;                                       /* still on the crashed launcher's port */
+    n = ob_out_lost(&o, q, 1, is_replied, lost, OB_OUT_MAX);
+    CHECK("out: only the one it had taken is lost (not the queued, not the answered)", n == 1 && lost[0] == &a);
+    n = ob_out_lost(&o, q, 1, is_replied, lost, OB_OUT_MAX);
+    CHECK("out: and only once", n == 0);
+    c = 0;
+    n = ob_out_lost(&o, NULL, 0, NULL, lost, OB_OUT_MAX);
+    CHECK("out: the rest when nothing is queued or answered", n == 2);
+    for (i = 0; i < OB_OUT_MAX; i++) if (!ob_out_add(&o, &a)) break;
+    CHECK("out: full after OB_OUT_MAX", i == OB_OUT_MAX && !ob_out_add(&o, &b));
+}
+
 int main(void)
 {
     test_dpack();
@@ -345,6 +370,7 @@ int main(void)
     test_names();
     test_pack();
     test_guard();
+    test_out();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }
