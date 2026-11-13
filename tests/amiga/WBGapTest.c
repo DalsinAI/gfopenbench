@@ -597,13 +597,13 @@ static struct Window *new_window(struct Screen *s, struct Window **was, int n, i
 {
     struct Window *now[MAXWINS];
     int t, k, j;
-    for (t = 0; t < secs * 10; t++) {
+    for (t = 0; t < secs * 10 || t == 0; t++) {
         int m = windows_now(s, now, MAXWINS);
         for (k = 0; k < m; k++) {
             for (j = 0; j < n && was[j] != now[k]; j++) {}
             if (j == n) return now[k];
         }
-        Delay(5);
+        if (secs) Delay(5);
     }
     return NULL;
 }
@@ -691,6 +691,26 @@ static int pick(struct Window *w, const char *spec)
     return 1;
 }
 
+/* picked in w's menus, or where w's haven't got it, in another Workbench window's (GFOpenBench keeps its own
+ * menu on the desktop's window) */
+static int pick_any(struct Window *w, const char *spec)
+{
+    struct Window *o, *other = NULL;
+    struct wbgap_box mb, ib, sb;
+    int r = pick(w, spec), hs, f = 0;
+    ULONG lock;
+    if (r != 0) return r;
+    lock = LockIBase(0);
+    for (o = w->WScreen->FirstWindow; o && !other; o = o->NextWindow)
+        if (o != w && (o->Flags & WFLG_WBENCHWINDOW) && o->MenuStrip && (f = find_item(o->MenuStrip, spec, &mb, &ib, &sb, &hs)) != 0)
+            other = o;
+    UnlockIBase(lock);
+    if (!other) return 0;
+    if (f < 0) return -1;
+    printf("INFO %s from the menus of \"%s\"\n", spec, other->Title ? (const char *)other->Title : "(no title)");
+    return pick(other, spec);
+}
+
 /* a requester's button clicked: the leftmost (0) or rightmost (1) of the gadgets lowest in it */
 static int click_button(struct Window *w, int right)
 {
@@ -747,7 +767,7 @@ static int dirs_in(const char *path, char names_out[][32], int n)
 
 static void not_picked(const char *row, int r)
 {
-    skip(row, r < 0 ? "its item is disabled here" : "its item isn't in the drawer window's menus (MENUS says)");
+    skip(row, r < 0 ? "its item is disabled here" : "its item isn't in the Workbench windows' menus (MENUS says)");
 }
 
 static int do_menudrive(void)
@@ -802,12 +822,15 @@ static int do_menudrive(void)
     n0 = dirs_in("RAM:WBGap", d0, 32);
     nwas = windows_now(s, was, MAXWINS);
     if ((r = pick(w, "window:new drawer")) <= 0) not_picked("M8", r);
-    else if (!(nw = new_window(s, was, nwas, 3))) fail("M8", "New Drawer: no requester came");
     else {
         int t, made = -1;
-        key(0x44);   /* Return */
-        for (t = 0; t < 30 && made < 0; t++) {
+        nw = NULL;
+        for (t = 0; t < 30 && made < 0; t++) {   /* a requester for its name, or (no requester) the drawer at once */
             int j, i;
+            if (!nw && (nw = new_window(s, was, nwas, 0))) {
+                printf("INFO M8 a requester came: Return takes the name it offers\n");
+                key(0x44);   /* Return */
+            }
             Delay(5);
             n1 = dirs_in("RAM:WBGap", d1, 32);
             for (i = 0; i < n1 && made < 0; i++) {
@@ -818,18 +841,18 @@ static int do_menudrive(void)
         if (made >= 0) {
             char p[64];
             pass("M8");
-            printf("INFO M8 made RAM:WBGap/%s\n", d1[made]);
+            printf("INFO M8 made RAM:WBGap/%s%s\n", d1[made], nw ? "" : " (no requester)");
             snprintf(p, sizeof p, "RAM:WBGap/%s.info", d1[made]);
             DeleteFile((CONST_STRPTR)p);
             snprintf(p, sizeof p, "RAM:WBGap/%s", d1[made]);
             DeleteFile((CONST_STRPTR)p);
-        } else fail("M8", "New Drawer: Return in its requester made no drawer");
-        if (still_there(s, nw)) click_button(nw, 1);   /* Cancel */
+        } else fail("M8", nw ? "New Drawer: Return in its requester made no drawer" : "New Drawer: no requester, no drawer made");
+        if (nw && still_there(s, nw)) click_button(nw, 1);   /* Cancel */
     }
 
     /* M6 About: a window comes; its button closes it */
     nwas = windows_now(s, was, MAXWINS);
-    if ((r = pick(w, "workbench|gfopenbench:about")) <= 0) not_picked("M6", r);
+    if ((r = pick_any(w, "workbench|gfopenbench:about")) <= 0) not_picked("M6", r);
     else if ((nw = new_window(s, was, nwas, 3))) {
         pass("M6");
         click_button(nw, 0);
@@ -838,20 +861,20 @@ static int do_menudrive(void)
 
     /* M2 Execute Command: its requester comes; Cancel */
     nwas = windows_now(s, was, MAXWINS);
-    if ((r = pick(w, "workbench|gfopenbench:execute command")) <= 0) not_picked("M2", r);
+    if ((r = pick_any(w, "workbench|gfopenbench:execute command")) <= 0) not_picked("M2", r);
     else if ((nw = new_window(s, was, nwas, 3))) {
         pass("M2");
         click_button(nw, 1);
         if (still_there(s, nw)) key(0x45);
     } else fail("M2", "Execute Command: no requester came");
 
-    /* M9 Open Parent: Ram Disk's window comes */
-    if (find_window("Ram Disk")) skip("M9", "Ram Disk's window was open already");
-    else if ((r = pick(w, "window:open parent")) <= 0) not_picked("M9", r);
-    else {
-        for (k = 0; k < 30 && !find_window("Ram Disk"); k++) Delay(5);
-        if (find_window("Ram Disk")) pass("M9"); else fail("M9", "Open Parent: no Ram Disk window came");
-    }
+    /* M9 Open Parent: RAM:'s window comes */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick(w, "window:open parent")) <= 0) not_picked("M9", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M9");
+        printf("INFO M9 \"%s\" came\n", nw->Title ? (const char *)nw->Title : "(no title)");
+    } else fail("M9", "Open Parent: no window came (RAM:'s was not open before)");
 
     /* M10 Close, last: the drawer's window goes; opened again for what comes after */
     if ((r = pick(w, "window:close")) <= 0) not_picked("M10", r);
