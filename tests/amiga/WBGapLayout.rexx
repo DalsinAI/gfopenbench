@@ -53,7 +53,7 @@ DO k = 2 TO WORDS(want)
   IF x.a ~= x.b | y.a ~= y.b THEN same = 0
 END
 bad = ''
-IF same THEN bad = 'every icon at' x.a','y.a': no places to read'
+IF same THEN bad = 'every icon at' x.a','y.a
 ELSE
 DO k = 2 TO WORDS(want)
   a = WORD(want, k - 1); b = WORD(want, k)
@@ -62,11 +62,16 @@ DO k = 2 TO WORDS(want)
   IF ABS(y.b - y.a) <= half & x.b > x.a THEN ITERATE
   bad = bad a || '>' || b
 END
+/* every icon at 0,0: the WORKBENCH port gave no places (GFOpenBench before #132 answers 0,0 in a drawer window),
+ * so the order can't be read: SKIP. Every icon at one other place is a layout that piles them up: FAIL */
+noplaces = same & x.a = 0 & y.a = 0
 IF bad = '' THEN SAY 'PASS L1a'
-ELSE IF same THEN SAY 'FAIL L1a' bad
+ELSE IF noplaces THEN SAY 'SKIP L1a' bad': no places read (the WORKBENCH port''s window.icons.all.N.left/top)'
+ELSE IF same THEN SAY 'FAIL L1a icons piled up:' bad
 ELSE SAY 'FAIL L1a out of order:' bad
 IF same THEN DO
-  SAY 'SKIP L1b no icon places read'; SAY 'SKIP L1c no icon places read'
+  IF noplaces THEN DO; SAY 'SKIP L1b no icon places read'; SAY 'SKIP L1c no icon places read'; END
+  ELSE DO; SAY 'SKIP L1b icons piled up'; SAY 'SKIP L1c icons piled up'; END
   ADDRESS WORKBENCH; WINDOW 'RAM:WBGapL' CLOSE
   EXIT 5
 END
