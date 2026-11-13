@@ -87,6 +87,22 @@ static void launch_args(void)
     CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 1 LaunchT\n", "LaunchT"), "the tool alone");
 }
 
+/* LAUNCHDESK SETUP and DONE: DONE deletes RAM:.backdrop only when SETUP made it */
+static void backdrop_plan(void)
+{
+    CHECK(wbgap_backdrop_setup(-1, 2048, 0) == WBGAP_BD_MADE, "no .backdrop: SETUP makes it");
+    CHECK(wbgap_backdrop_setup(0, 2048, 0) == WBGAP_BD_SAVED, "an empty one is kept and put back");
+    CHECK(wbgap_backdrop_setup(100, 2048, 0) == WBGAP_BD_SAVED, "a short one is kept and put back");
+    CHECK(wbgap_backdrop_setup(100, 2048, 1) == WBGAP_BD_HAD, "the three lines there already: left as it is");
+    CHECK(wbgap_backdrop_setup(2046, 2048, 0) == WBGAP_BD_SAVED, "2046 bytes still fit");
+    CHECK(wbgap_backdrop_setup(2047, 2048, 0) == WBGAP_BD_TOOLONG, "2047 filled the buffer: too long");
+    CHECK(wbgap_backdrop_setup(2047, 2048, 1) == WBGAP_BD_TOOLONG, "too long wins over the lines");
+    CHECK(wbgap_backdrop_done(1, 0) == WBGAP_BD_RESTORE && wbgap_backdrop_done(1, 1) == WBGAP_BD_RESTORE,
+          "a kept copy is put back");
+    CHECK(wbgap_backdrop_done(0, 1) == WBGAP_BD_DELETE, "made by SETUP: deleted");
+    CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
+}
+
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
 static void i11_lines(void)
 {
@@ -246,6 +262,7 @@ int main(int argc, char **argv)
     lines();
     wildcard();
     launch_args();
+    backdrop_plan();
     i11_lines();
     print_all();
     print_empty();

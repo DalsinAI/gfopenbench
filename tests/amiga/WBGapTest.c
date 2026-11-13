@@ -274,7 +274,7 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
     {"M26", "*:resetwb|refresh openbench"},
-    {"M29", "workbench|gfopenbench:open volume"},
+    {"M29", "*:open volume"},   /* row 5 (#105) moves it to the Window menu */
     {"M30", "window:clear selection"},
     {"M31", "window:resize to fit"},
     {"M32", "window:sort order/reverse"},
@@ -1314,10 +1314,11 @@ static int do_launch(void)
 
 /* ---- I11 on the desktop: Shift-double-click, as a hand does it (WBGapDesk.rexx clicks) ----
  * SETUP: RAM:WBGapI holds LaunchT (a copy of this program, LAUNCHREC=RAM:wbgap-launchdesk) and projects p1 and p2,
- * left out on the desktop by RAM:.backdrop's lines (what was there before is kept in RAM:wbgap-backdrop-was), and
+ * left out on the desktop by RAM:.backdrop's lines (what was there before is kept in RAM:wbgap-backdrop-was; if
+ * there was no .backdrop, RAM:wbgap-backdrop-made says SETUP made it), and
  * "a disk was inserted" so the desktop reads it again. WBGapDesk.rexx then clicks p1, Shift-clicks p2 and
  * Shift-double-clicks LaunchT. CHECK: I11 from what LaunchT got (LaunchT, p1, p2 in that order). DONE: RAM:.backdrop
- * as it was, and the desktop told again. */
+ * as it was (put back, deleted only if SETUP made it, else left alone), and the desktop told again. */
 static const char desk_lines[] = ":WBGapI/LaunchT\n:WBGapI/p1\n:WBGapI/p2\n";
 
 static long read_all(const char *path, char *buf, long n)
@@ -1361,12 +1362,30 @@ static int do_desk(const char *what)
         put_icon("RAM:WBGapI/p2", WBPROJECT, NULL);
         DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-bad");
         n = read_all("RAM:.backdrop", was, sizeof was);
-        if (n < 0) { n = 0; was[0] = 0; DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was"); }
-        else if (!strstr(was, desk_lines)) write_file("RAM:wbgap-backdrop-was", was);
-        if (!strstr(was, desk_lines)) {
+        if (n < 0) was[0] = 0;
+        /* markers for DONE: wbgap-backdrop-was, the copy to put back; wbgap-backdrop-made, SETUP made the file */
+        switch (wbgap_backdrop_setup(n, (long)sizeof was, n >= 0 && strstr(was, desk_lines) != NULL)) {
+        case WBGAP_BD_TOOLONG:
+            printf("INFO I11 RAM:.backdrop is over %ld bytes: left as it is\n", (long)sizeof was - 2);
+            skip("I11", "RAM:.backdrop too long to keep and put back");
+            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
+            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
+            return 0;
+        case WBGAP_BD_MADE:
+            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
+            write_file("RAM:wbgap-backdrop-made", "made by WBGapTest LAUNCHDESK SETUP\n");
+            write_file("RAM:.backdrop", desk_lines);
+            break;
+        case WBGAP_BD_SAVED:
+            write_file("RAM:wbgap-backdrop-was", was);
+            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
             snprintf(text, sizeof text, "%s%s%s", was, n && was[n - 1] != '\n' ? "\n" : "", desk_lines);
             write_file("RAM:.backdrop", text);
+            break;
+        default:   /* the lines there already: no marker changed (an earlier SETUP's stay for its DONE) */
+            break;
         }
         desk_told();
         printf("INFO I11 RAM:WBGapI's LaunchT, p1 and p2 left out on the desktop\n");
@@ -1376,6 +1395,10 @@ static int do_desk(const char *what)
         char buf[400];
         int t;
         for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
+        if (read_all("RAM:wbgap-desk-bad", buf, sizeof buf) >= 0) {   /* a click failed: whatever started, no result */
+            skip("I11", "a click failed (WBGapDesk.rexx)");
+            return 0;
+        }
         if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0 && read_all("RAM:wbgap-desk-clicked", buf, sizeof buf) < 0) {
             skip("I11", "not clicked: WBGapDesk.rexx found no icons to click");
             return 0;
@@ -1390,12 +1413,23 @@ static int do_desk(const char *what)
         return fails ? 5 : 0;
     }
     if (!stricmp(what, "DONE")) {
-        if ((n = read_all("RAM:wbgap-backdrop-was", was, sizeof was)) >= 0) {
-            write_file("RAM:.backdrop", was);
-            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
-        } else
-            DeleteFile((CONST_STRPTR)"RAM:.backdrop");
+        char m[8];
+        n = read_all("RAM:wbgap-backdrop-was", was, sizeof was);
+        switch (wbgap_backdrop_done(n >= 0, read_all("RAM:wbgap-backdrop-made", m, sizeof m) >= 0)) {
+        case WBGAP_BD_RESTORE: write_file("RAM:.backdrop", was); break;
+        case WBGAP_BD_DELETE: DeleteFile((CONST_STRPTR)"RAM:.backdrop"); break;
+        default: break;   /* SETUP left .backdrop as it was */
+        }
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
         desk_told();
+        {   /* RAM:WBGapI and its icons gone */
+            static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
+                                               "RAM:WBGapI/p1", "RAM:WBGapI/p2.info", "RAM:WBGapI/p2", "RAM:WBGapI",
+                                               "RAM:wbgap-desk-clicked", "RAM:wbgap-desk-bad"};
+            int k;
+            for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
+        }
         return 0;
     }
     printf("unknown: LAUNCHDESK %s\n", what);
