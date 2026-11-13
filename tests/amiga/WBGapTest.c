@@ -17,7 +17,8 @@
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
- *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d) and ENV:GFOpenBench/LoadWB (A10a)
+ *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
+ *                               from WBStartup with STACK=40000 and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
  *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK=40000 and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
@@ -75,6 +76,7 @@ static void fail(const char *row, const char *why) { printf("FAIL %s %s\n", row,
 static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row, why); }
 
 /* the desktop is GFOpenBench: its OPENBENCH ARexx port (0.1.53 on), or (MENUS) a menu titled GFOpenBench */
+static int check_launchrec(const char *file, int args_too);
 static int gfos_menu_seen;
 static int is_gfos(void)
 {
@@ -554,10 +556,14 @@ static int from_workbench(struct WBStartup *wbs)
     struct DiskObject *d = GetDiskObject((CONST_STRPTR)name);
     long secs = 1;
     int rec = 0;
+    char recfile[64] = "RAM:wbgap-launch";
     if (d) {
         STRPTR v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"STAMPSECS");
         if (v) secs = atol((const char *)v);
-        rec = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"LAUNCHREC") != NULL;
+        if ((v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"LAUNCHREC"))) {   /* LAUNCHREC[=file] */
+            rec = 1;
+            if (*v) snprintf(recfile, sizeof recfile, "%s", (const char *)v);
+        }
         FreeDiskObject(d);
     }
     CurrentDir(old);
@@ -565,7 +571,7 @@ static int from_workbench(struct WBStartup *wbs)
         struct Task *me = FindTask(NULL);
         char line[400];
         int i, n;
-        BPTR fh = Open((CONST_STRPTR)"RAM:wbgap-launch", MODE_NEWFILE);
+        BPTR fh = Open((CONST_STRPTR)recfile, MODE_NEWFILE);
         n = snprintf(line, sizeof line, "launch stack %lu pri %d args %ld",
                      (unsigned long)((char *)me->tc_SPUpper - (char *)me->tc_SPLower), (int)me->tc_Node.ln_Pri,
                      (long)wbs->sm_NumArgs);
@@ -674,6 +680,11 @@ static int do_startup(const char *what)
                 ok = SetFileDate((CONST_STRPTR)names[i], &ds) && SetFileDate((CONST_STRPTR)path, &ds);
             }
         } else printf("INFO no SYS:WBStartup/WBGapD and WBGapE: S2d not set up\n");
+        if (exists("SYS:WBStartup/WBGapF")) {   /* I12a, I12b at WBStartup, which needs no registered Workbench */
+            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)"STACK=40000", (STRPTR)"TOOLPRI=-3",
+                                  (STRPTR)"DONOTWAIT", NULL};
+            ok = ok && put_icon("SYS:WBStartup/WBGapF", WBTOOL, tf);
+        } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
         printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
         return ok ? 0 : 20;
@@ -702,21 +713,47 @@ static int do_startup(const char *what)
             else if (se < sc && sc < sd) pass("S2d");
             else fail("S2d", "not by date added E, C, D");
         }
+        check_launchrec("RAM:wbgap-launchwb", 0);
         check_loadwb();
         return fails ? 5 : 0;
     }
 }
 
 /* ---- launching (row 6's launcher) ---- */
+/* the line a start with LAUNCHREC wrote: I12a STACK=40000, I12b TOOLPRI=-3, and with args, I11 three arguments.
+ * 0 if there was none (each row SKIPped) */
+static int check_launchrec(const char *file, int args_too)
+{
+    char buf[400];
+    long stack = 0, args = 0, n;
+    int pri = 0;
+    BPTR fh = Open((CONST_STRPTR)file, MODE_OLDFILE);
+    if (!fh) {
+        char why[96];
+        snprintf(why, sizeof why, "%s not written: not launched", file);
+        if (args_too) fail("I11", why);
+        skip("I12a", why);
+        skip("I12b", why);
+        return 0;
+    }
+    n = Read(fh, buf, sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    Close(fh);
+    printf("INFO %s: %s", file, buf);
+    sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
+    if (args_too) { if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
+    if (stack >= 40000) pass("I12a"); else fail("I12a", "STACK=40000 not given");
+    if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
+    return 1;
+}
+
 static int do_launch(void)
 {
     static STRPTR tt[] = {(STRPTR)"LAUNCHREC", (STRPTR)"STACK=40000", (STRPTR)"TOOLPRI=-3", NULL};
-    char cmd[320], buf[400];
-    BPTR dir, fh;
+    char cmd[320];
+    BPTR dir, fh = 0;
     BOOL ok;
     int t;
-    long stack = 0, args = 0;
-    int pri = 0;
     do_setup();
     {   /* this program, by its full name: a Shell's PROGDIR: is the Shell's */
         char self[256] = "WBGapTest";
@@ -737,16 +774,15 @@ static int do_launch(void)
                                     WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p2", TAG_DONE);
     for (t = 0; ok && t < 100 && !(fh = Open((CONST_STRPTR)"RAM:wbgap-launch", MODE_OLDFILE)); t++) Delay(5);
     if (dir) UnLock(dir);
-    if (!ok) { printf("FAIL I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld)\n", (long)IoErr()), fails++; skip("I12a", "not launched"); skip("I12b", "not launched"); return 10; }
-    if (!fh) { fail("I11", "LaunchT wrote nothing in 5 s"); skip("I12a", "not launched"); skip("I12b", "not launched"); return 10; }
+    if (!ok) {   /* I12 is checked at WBStartup too (STARTUP CHECK), which needs no registered Workbench */
+        printf("FAIL I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld): needs A6\n", (long)IoErr()), fails++;
+        skip("I12a", "not launched here (A6); see STARTUP CHECK");
+        skip("I12b", "not launched here (A6); see STARTUP CHECK");
+        return 10;
+    }
+    if (fh) Close(fh);
     Delay(10);   /* the line written whole */
-    { long n = Read(fh, buf, sizeof buf - 1); buf[n > 0 ? n : 0] = 0; }
-    Close(fh);
-    printf("INFO %s", buf);
-    sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
-    if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order");
-    if (stack >= 40000) pass("I12a"); else fail("I12a", "STACK=40000 not given");
-    if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
+    check_launchrec("RAM:wbgap-launch", 1);
     return fails ? 5 : 0;
 }
 

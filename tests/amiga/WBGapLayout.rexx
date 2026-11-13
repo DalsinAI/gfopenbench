@@ -47,16 +47,29 @@ IF missing ~= '' THEN DO
   EXIT 5
 END
 /* L1a: each icon after the one before it, in reading order: a lower row, or the same row further right */
+same = 1
+DO k = 2 TO WORDS(want)
+  a = WORD(want, 1); b = WORD(want, k)
+  IF x.a ~= x.b | y.a ~= y.b THEN same = 0
+END
 bad = ''
+IF same THEN bad = 'every icon at' x.a','y.a': no places to read'
+ELSE
 DO k = 2 TO WORDS(want)
   a = WORD(want, k - 1); b = WORD(want, k)
   half = h.a % 2
   IF y.b > y.a + half THEN ITERATE
   IF ABS(y.b - y.a) <= half & x.b > x.a THEN ITERATE
-  bad = bad a'>'b
+  bad = bad a || '>' || b
 END
 IF bad = '' THEN SAY 'PASS L1a'
+ELSE IF same THEN SAY 'FAIL L1a' bad
 ELSE SAY 'FAIL L1a out of order:' bad
+IF same THEN DO
+  SAY 'SKIP L1b no icon places read'; SAY 'SKIP L1c no icon places read'
+  ADDRESS WORKBENCH; WINDOW 'RAM:WBGapL' CLOSE
+  EXIT 5
+END
 /* L1b, L1c */
 clip = ''; maxr = 0; maxb = 0
 DO k = 1 TO WORDS(want)
