@@ -91,6 +91,19 @@ int ol_shift_args(const int *sel, int n, int clicked, int *tool, int *args)
     return k;
 }
 
+void *ol_port_locked(const ol_port_ops *ops, void *ctx, int tries)
+{
+    int i;
+    for (i = 0; i < tries; i++) {
+        void *p = ops->fetch(ctx);
+        if (!p) return 0;
+        ops->lock(ctx);
+        if (ops->current(ctx) == p) return p;
+        ops->unlock(ctx);                         /* the reaper ended in between: its port is gone */
+    }
+    return 0;
+}
+
 static const char *const ol_words[] = { "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SIMPLEGELS" };
 #define OL_NWORDS (int)(sizeof ol_words / sizeof ol_words[0])
 

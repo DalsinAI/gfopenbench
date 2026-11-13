@@ -70,6 +70,22 @@ enum { OL_K_OTHER = 0, OL_K_TOOL, OL_K_PROJECT, OL_K_DRAWER };
  * opens as itself. */
 int ol_shift_args(const int *sel, int n, int clicked, int *tool, int *args);
 
+/* ---- the reaper's port (gfopenlaunch.library) ---- */
+
+/* How ol_port_locked reaches the library: fetch gives the reaper's port, starting the reaper when it isn't there
+ * (NULL when it can't be), and is called without lock; current gives the port as it is now, called with lock held. */
+typedef struct ol_port_ops {
+    void *(*fetch)(void *ctx);
+    void (*lock)(void *ctx);
+    void (*unlock)(void *ctx);
+    void *(*current)(void *ctx);
+} ol_port_ops;
+
+/* The reaper's port with lock held, so the reaper can't end and delete it before the run is listed. Between
+ * fetch and lock the reaper may have ended (a low-memory expunge's CTRL_C): then lock is let go and it starts over,
+ * at most tries times. NULL, with lock not held, when no port can be had. */
+void *ol_port_locked(const ol_port_ops *ops, void *ctx, int tries);
+
 /* ---- A10: LoadWB's switches ---- */
 
 enum {

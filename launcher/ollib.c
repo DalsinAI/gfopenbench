@@ -162,6 +162,20 @@ static struct MsgPort *reaper_port(struct OLBase *b)
     return b->port;
 }
 
+static void *po_fetch(void *ctx)
+{
+    struct OLBase *b = ctx;
+    struct MsgPort *p;
+    ObtainSemaphore(&b->start);
+    p = reaper_port(b);
+    ReleaseSemaphore(&b->start);
+    return p;
+}
+static void po_lock(void *ctx) { ObtainSemaphore(&((struct OLBase *)ctx)->lock); }
+static void po_unlock(void *ctx) { ReleaseSemaphore(&((struct OLBase *)ctx)->lock); }
+static void *po_current(void *ctx) { return ((struct OLBase *)ctx)->port; }
+static const ol_port_ops port_ops = { po_fetch, po_lock, po_unlock, po_current };
+
 /* ---- starting a program ---- */
 
 /* A WBArg for path: the lock on its drawer and its name (a disk's root: its own lock, no name). A project that is
@@ -253,10 +267,7 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
         run_free_args(r);
         return 0;
     }
-    ObtainSemaphore(&b->start);
-    port = reaper_port(b);
-    ReleaseSemaphore(&b->start);
-    if (port) ObtainSemaphore(&b->lock);
+    port = (struct MsgPort *)ol_port_locked(&port_ops, b, 3);   /* with lock held, the port still the reaper's */
     if (!port) {
         if (r->resident) {
             Forbid();
