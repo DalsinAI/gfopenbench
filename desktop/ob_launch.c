@@ -8,6 +8,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
+#include <dos/var.h>
 #include <devices/timer.h>
 #include <workbench/startup.h>
 #include <proto/exec.h>
@@ -30,6 +31,7 @@ typedef struct launch {
 } launch;
 
 static struct MsgPort *volatile req_port;   /* the launcher's, for ob_lreq */
+static struct Task *launcher_task;
 static struct Task *parent;
 static BYTE ready_sig = -1;
 
@@ -113,7 +115,7 @@ static unsigned long start_tool(const ob_lreq *r)
     BPTR seg;
     struct Process *p;
     int n = 1;
-    if (!L) return 0;
+    if (!L) { SetIoErr(ERROR_NO_FREE_STORE); return 0; }
     if (r->nargs) ob_unpack(r->args, sizeof r->args, 1, &project, 1);   /* by itself: the first argument only, as 0.1.55 */
     if (!(L->args[0].wa_Lock = ob_parent_and_name(tool, L->names[0], sizeof L->names[0]))) { FreeVec(L); return 0; }
     L->args[0].wa_Name = (STRPTR)L->names[0];
@@ -290,12 +292,29 @@ static void quit_all(int secs)
     }
 }
 
+/* WBGapTest X4 (tests/amiga/WBGapX4.rexx), in a lab only: with ENV:GFOpenBench/X4Test set, a program named
+ * WBGapCrash makes the launcher crash here (an illegal instruction), for the task guard to hold and the desktop's
+ * supervisor to find (ob_guard.h). Nothing happens without the variable. */
+static void x4_test(const char *tool)
+{
+    char v[4];
+    const char *name = (const char *)FilePart((CONST_STRPTR)tool);
+    if (strcmp(name, "WBGapCrash") || GetVar((CONST_STRPTR)"GFOpenBench/X4Test", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) < 0)
+        return;
+    __asm volatile("illegal");
+}
+
 static void launcher_entry(void)
 {
     struct MsgPort *tport = NULL, *rp;
     struct timerequest *tr = NULL;
     int timer = 0, ticking = 0;
     ob_lreq *end = NULL;
+    int i;
+    /* a fresh start after one held by the task guard (ob_launch_abandon): nothing of the held one's is ours */
+    launches = NULL;
+    running = 0;
+    for (i = 0; i < OB_WATCH_MAX; i++) watch[i].id = 0;
     rp = CreateMsgPort();
     wbs_port = CreateMsgPort();
     if ((tport = CreateMsgPort()) && (tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
@@ -327,8 +346,12 @@ static void launcher_entry(void)
             switch (r->kind) {
             case OB_LR_START:
                 r->tool[sizeof r->tool - 1] = 0;
+                x4_test(r->tool);
+                SetIoErr(0);
                 r->id = OLBase ? ol_start(r) : start_tool(r);
                 r->ok = r->id != 0;
+                r->err = r->ok ? 0 : IoErr();
+                r->largest = r->ok ? 0 : AvailMem(MEMF_ANY | MEMF_LARGEST);   /* X3: was it for want of memory */
                 ReplyMsg(m);
                 break;
             case OB_LR_QUIT:
@@ -388,7 +411,10 @@ int ob_launch_start(void)
     SetSignal(0, 1UL << ready_sig);
     p = CreateNewProcTags(NP_Entry, (ULONG)launcher_entry, NP_StackSize, 16384,
                           NP_Name, (ULONG)"GFOpenBench launcher", TAG_DONE);
-    if (p) Wait(1UL << ready_sig);
+    if (p) {
+        Wait(1UL << ready_sig);
+        launcher_task = &p->pr_Task;
+    }
     FreeSignal(ready_sig);
     ready_sig = -1;
     return req_port != NULL;
@@ -399,4 +425,20 @@ void ob_launch_send(ob_lreq *r)
     r->msg.mn_Node.ln_Type = NT_MESSAGE;
     r->msg.mn_Length = sizeof *r;
     PutMsg(req_port, &r->msg);
+}
+
+struct Task *ob_launch_task(void)
+{
+    return req_port ? launcher_task : NULL;
+}
+
+struct MsgPort *ob_launch_abandon(void)
+{
+    struct MsgPort *old;
+    Forbid();
+    old = req_port;
+    req_port = NULL;
+    launcher_task = NULL;
+    Permit();
+    return old;
 }

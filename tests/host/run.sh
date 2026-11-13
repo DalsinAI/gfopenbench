@@ -13,6 +13,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$H
 # wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
   "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
+# wbgap_menu: the mouse's path to a menu item for WBGapTest MENUDRIVE (Workbench build row 7)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_menu.c" \
+  "$HERE/tests/host/test_wbgap_menu.c" -o "$OUT/test_wbgap_menu"
+"$OUT/test_wbgap_menu"
 # wbgap_index: the ACFS index's "::wb" lines as WBGapIndex reads them (tests/amiga/wbgap_index.c; build row 8's rows)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
   "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
@@ -130,4 +134,7 @@ while read -r name exact; do
   fi
 done < "$OUT/icons/manifest.txt"
 [ "$bad" = 0 ] && echo "icon dumps: all match"
+# nettest: WBGapTest's NET group (tests/net), against a stand-in GFNetBench
+if python3 -B "$HERE/tests/net/test_nettest.py" >"$OUT/nettest.log" 2>&1; then echo "nettest: all passed"
+else cat "$OUT/nettest.log"; bad=1; fi
 exit $bad

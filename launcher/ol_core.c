@@ -68,6 +68,7 @@ void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_st
 {
     long st = ol_num(ol_tt(tt, "STACK"), 0);
     if (st > OL_STACK_MAX) st = OL_STACK_MAX;
+    if (icon_stack > OL_ICON_STACK_BAD || icon_stack < 0) icon_stack = 0;   /* the icon's own as it is (3.2.3), unless corrupt */
     o->stack = icon_stack;
     if (st > o->stack) o->stack = st;
     if (wb_stack > o->stack) o->stack = wb_stack;
@@ -88,6 +89,19 @@ int ol_shift_args(const int *sel, int n, int clicked, int *tool, int *args)
     for (i = 0; i < n; i++)
         if (i != *tool) args[k++] = i;
     return k;
+}
+
+void *ol_port_locked(const ol_port_ops *ops, void *ctx, int tries)
+{
+    int i;
+    for (i = 0; i < tries; i++) {
+        void *p = ops->fetch(ctx);
+        if (!p) return 0;
+        ops->lock(ctx);
+        if (ops->current(ctx) == p) return p;
+        ops->unlock(ctx);                         /* the reaper ended in between: its port is gone */
+    }
+    return 0;
 }
 
 static const char *const ol_words[] = { "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SIMPLEGELS" };

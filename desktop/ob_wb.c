@@ -100,7 +100,7 @@ static void answer(struct OWBRequest *rq)
 {
     char dir[512];
     const char *name;
-    wb_drawer *d;
+    struct Window *w;
     rq->or_Result = FALSE;
     rq->or_IoErr = ERROR_OBJECT_NOT_FOUND;
     switch (rq->or_Call) {
@@ -117,24 +117,25 @@ static void answer(struct OWBRequest *rq)
         if (!*name) {
             BPTR l = Lock(rq->or_Name, ACCESS_READ);
             if (l) { UnLock(l); rq->or_Result = TRUE; }
-        } else if (env.drawer && (d = env.drawer(dir)) && wb_drawer_show_name(d, name))
+        } else if (env.show_name && env.show_name(dir, name))
             rq->or_Result = TRUE;
         break;
     case OWBREQ_SELECT: {
         /* each icon of an open drawer's window handed to the program's hook, which says what becomes of it */
         sel_ctx s;
-        if (!rq->or_Name || !rq->or_Hook || !env.drawer || !(d = env.drawer((const char *)rq->or_Name))) break;
+        if (!rq->or_Name || !rq->or_Hook || !env.window || !env.each) break;
+        if (!(w = env.window((const char *)rq->or_Name))) break;
         memset(&s, 0, sizeof s);
         s.hook = rq->or_Hook;
         s.ism.ism_Length = sizeof s.ism;
         s.ism.ism_Drawer = Lock(rq->or_Name, ACCESS_READ);
         s.ism.ism_Tags = rq->or_Tags;
-        s.ism.ism_DrawerWindow = s.ism.ism_ParentWindow = wb_drawer_window(d);
+        s.ism.ism_DrawerWindow = s.ism.ism_ParentWindow = w;
         if (s.ism.ism_DrawerWindow) {
             s.ism.ism_Width = s.ism.ism_DrawerWindow->Width;
             s.ism.ism_Height = s.ism.ism_DrawerWindow->Height;
         }
-        wb_drawer_each(d, select_one, &s);
+        env.each((const char *)rq->or_Name, select_one, &s);
         if (s.ism.ism_Drawer) UnLock(s.ism.ism_Drawer);
         rq->or_Result = TRUE;
         break;

@@ -71,8 +71,14 @@ typedef struct ob_wb_env {
     int (*open)(const char *path);
     /* CloseWorkbenchObjectA: the window showing that drawer closed. 1 when one was open. */
     int (*close)(const char *path);
-    /* The drawer window showing path, or NULL. */
-    wb_drawer *(*drawer)(const char *path);
+    /* The drawer window showing dir: name in it shown (wb_drawer_show_name). 0 when no window shows dir, or no name.
+     * Row 3: each drawer window is a task of its own, so these ask that task (ob_dtask.h). */
+    int (*show_name)(const char *dir, const char *name);
+    /* The window showing drawer path, or NULL; and each entry it shows handed to fn (wb_drawer_each), -1 when no
+     * window shows path. */
+    struct Window *(*window)(const char *path);
+    int (*each)(const char *path, int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y),
+                void *ctx);
     /* AppIcons (OWB_NOTE_APPICONS) or AppMenuItems (OWB_NOTE_MENUS) came or went. */
     void (*changed)(ULONG notes);
     /* UpdateWorkbench: the drawer windows showing dir read again now ("" : the disks on the desktop). */

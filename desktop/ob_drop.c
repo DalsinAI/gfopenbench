@@ -21,6 +21,9 @@
  *   - a disk's icon into a drawer: a new drawer named after the disk, with what the disk holds;
  *   - a copy shows its progress ("Copying name", a bar, Stop) after a moment; Stop leaves the files done and
  *     takes away the one being written;
+ *   - (Workbench build plan row 3) the jobs are queued (ob_jobq, ob_tasks.h): never two on the same disk at once,
+ *     so its head doesn't go back and forth between them, and at most OB_JOBS_AT_ONCE in all. A job waiting its turn
+ *     shows its window at once, "Waiting for the job before it", with Stop: stopped, it goes without doing anything;
  *   - a full disk: the copy starts, and DOS asks "Volume X is full", Retry or Cancel (room can be made and the
  *     copy goes on); a write-protected disk: DOS's "Volume X is write protected", Retry or Cancel;
  *   - onto a program's AppWindow (or one of its drop zones): one AppMessage, AMTYPE_APPWINDOW (or
@@ -66,6 +69,8 @@
 #include <proto/icon.h>
 
 #include "ob_drop.h"
+#include "ob_guard.h"
+#include "ob_tasks.h"
 #include "of_ops.h"
 #include "of_fs_amiga.h"
 #include "of_path.h"
@@ -93,6 +98,11 @@ static volatile int jobs_running;
 static int apps_out;
 static volatile int stopping;
 
+/* the queue (Workbench build plan row 3): the desktop's own, and the jobs only see their go flag (under Forbid) */
+#define OB_JOBS_AT_ONCE 3
+static ob_jobq jobq;
+static struct job *jobs_live;                   /* every job not yet back on done_port */
+
 /* ---- what is where ---- */
 
 struct Window *ob_drop_window_under(WORD sx, WORD sy, struct Window *skip)
@@ -117,20 +127,10 @@ struct Window *ob_drop_window_at(WORD sx, WORD sy)
     return ob_drop_window_under(sx, sy, NULL);
 }
 
-static wb_drawer *drawer_of(struct Window *w)
-{
-    int i;
-    for (i = 0; i < *env.ndrawers; i++)
-        if (wb_drawer_window(env.drawers[i]) == w) return env.drawers[i];
-    return NULL;
-}
-
 /* Every open drawer showing path, read again */
 static void reread(const char *path)
 {
-    int i;
-    for (i = 0; i < *env.ndrawers; i++)
-        if (of_path_equal(wb_drawer_path(env.drawers[i]), path)) wb_drawer_reread(env.drawers[i]);
+    if (env.reread) env.reread(path, NULL);
 }
 
 static int is_dir(const char *path)
@@ -189,6 +189,13 @@ typedef struct job {
     char said[OF_PATH_MAX + 48];                /* for the screen's title when the job ends (a move's taken name) */
     char into[OF_PATH_MAX];                     /* a disk's contents: the drawer made for them (OP_DISK) */
     struct of_fs *fs;                           /* the job's file system, for a file tried again */
+    /* its place in the queue (ob_jobq): set by the desktop before the job starts, go under Forbid */
+    struct job *next;                           /* jobs_live */
+    unsigned long qid;                          /* 0: not queued (the queue was full): it goes at once */
+    char vol[OB_VOL_LEN];                       /* the disk it works on (vol_key) */
+    volatile int go;                            /* its turn has come */
+    struct Task *proc;                          /* its process, to be signalled */
+    volatile BYTE go_sig;                       /* the signal it waits on, -1 until it waits */
 } job;
 
 static const char *op_doing(const job *j)
@@ -657,6 +664,52 @@ static int delete_forever(of_ctx *c, job *j)
     return OF_OK;
 }
 
+/* Waiting its turn: the window at once, with what it waits for */
+static void job_draw_wait(job *j)
+{
+    struct RastPort *rp = j->win->RPort;
+    int fh = rp->TxHeight, x = j->win->BorderLeft + 12, w = j->win->Width - j->win->BorderLeft - j->win->BorderRight - 24;
+    int y = j->win->BorderTop + 8;
+    SetAPen(rp, j->dri->dri_Pens[BACKGROUNDPEN]);
+    RectFill(rp, (WORD)x, (WORD)y, (WORD)(x + w - 1), (WORD)(y + 2 * (fh + 6) + 14));
+    SetAPen(rp, j->dri->dri_Pens[TEXTPEN]);
+    SetDrMd(rp, JAM1);
+    text_at(rp, x, y, w, "Waiting for the job before it");
+    text_at(rp, x, y + fh + 6, w, j->dst);
+}
+
+/* The job's turn (ob_jobq): 1 when it may go, 0 when it was stopped while it waited (or GFOpenBench is quitting) */
+static int wait_turn(job *j)
+{
+    BYTE sig;
+    Forbid();
+    if (j->go) { Permit(); return 1; }
+    sig = AllocSignal(-1);
+    j->go_sig = sig;
+    Permit();
+    j->tried = 1;                               /* its window now, not after a moment: it is waiting */
+    job_window(j);
+    if (j->win) job_draw_wait(j);
+    while (!j->go && !j->stopped && !stopping) {
+        ULONG mask = j->win ? 1UL << j->win->UserPort->mp_SigBit : 0;
+        struct IntuiMessage *m;
+        if (sig >= 0) Wait((1UL << sig) | mask | SIGBREAKF_CTRL_C);
+        else Delay(10);                         /* no signal to be had: it looks five times a second */
+        while (j->win && (m = GT_GetIMsg(j->win->UserPort))) {
+            ULONG cl = m->Class;
+            GT_ReplyIMsg(m);
+            if (cl == IDCMP_GADGETUP) j->stopped = 1;
+            else if (cl == IDCMP_REFRESHWINDOW) { GT_BeginRefresh(j->win); job_draw_wait(j); GT_EndRefresh(j->win, TRUE); }
+        }
+    }
+    Forbid();
+    j->go_sig = -1;
+    Permit();
+    if (sig >= 0) FreeSignal(sig);
+    j->ts = 0;                                  /* drawn as it works from the first progress on */
+    return j->go && !j->stopped && !stopping;
+}
+
 /* The job's process */
 static void job_entry(void)
 {
@@ -674,6 +727,13 @@ static void job_entry(void)
     /* no file system asks in this process: a full or write-protected disk is asked about by the job (retry_write) */
     ((struct Process *)FindTask(NULL))->pr_WindowPtr = (APTR)-1;
     CurrentTime(&j->t0s, &j->t0m);
+    if (!wait_turn(j)) {                        /* stopped before its turn: nothing done, nothing to say */
+        job_window_close(j);
+        Forbid();
+        jobs_running--;
+        PutMsg(done_port, &j->msg);
+        return;                                 /* under Forbid, as below */
+    }
     if (j->op == OP_MOVE) move_leave_taken(j, &fs);
     if (j->op == OP_DISK) j->rc = copy_volume(&c, j);
     else if (j->op == OP_EMPTY) {
@@ -718,10 +778,44 @@ static void job_entry(void)
     /* ends under Forbid: GFOpenBench, whose code this is, can't unload it before this process is gone */
 }
 
+/* The disk a job works on, to queue it by (two names of one disk, an assign and its volume, are one disk) */
+static void vol_key(const char *path, char *out)
+{
+    BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
+    if (!l) {
+        char parent[OF_PATH_MAX];
+        if (of_path_parent(parent, path)) l = Lock((CONST_STRPTR)parent, ACCESS_READ);
+    }
+    if (l) {
+        struct FileLock *fl = (struct FileLock *)BADDR(l);
+        snprintf(out, OB_VOL_LEN, "%lx", (unsigned long)fl->fl_Task);   /* its file system's port */
+        UnLock(l);
+    } else ob_vol_name(path, out, OB_VOL_LEN);
+}
+
+/* The jobs whose turn has come are told so (ob_jobq: one at a time on a disk, OB_JOBS_AT_ONCE in all) */
+static void jobs_pump(void)
+{
+    ob_job *q;
+    while ((q = ob_jobq_next(&jobq))) {
+        job *j;
+        ob_jobq_start(&jobq, q->id);
+        for (j = jobs_live; j && j->qid != q->id; j = j->next) ;
+        if (!j) continue;
+        Forbid();
+        j->go = 1;
+        if (j->proc && j->go_sig >= 0) Signal(j->proc, 1UL << j->go_sig);
+        Permit();
+    }
+}
+
 static int job_run(job *j)
 {
     struct Process *p;
     j->msg.mn_Length = sizeof *j;
+    j->go_sig = -1;
+    vol_key(j->op == OP_FOREVER && j->n ? j->src[0] : j->dst, j->vol);
+    if (!(j->qid = ob_jobq_add(&jobq, j->vol))) j->go = 1;   /* the queue full: it goes at once, as before */
     Forbid();
     /* 64 KB, as GFOpenFiles' own job worker: the engine goes down a drawer at a time (about 170 bytes a level once
      * gfopenfilemanager #41 is in, 2 KB before), with EasyRequest and the job window's drawing on top (1 Nov
@@ -730,10 +824,19 @@ static int job_run(job *j)
                           TAG_DONE);
     if (p) {
         p->pr_Task.tc_UserData = j;
+        j->proc = &p->pr_Task;
+        j->next = jobs_live;
+        jobs_live = j;
         jobs_running++;
     }
     Permit();
-    return p != NULL;
+    if (!p) {
+        if (j->qid) ob_jobq_cancel(&jobq, j->qid);
+        ob_jobq_reap(&jobq);
+        return 0;
+    }
+    jobs_pump();
+    return 1;
 }
 
 /* A job for these sources, into dst. Drawers to read again: dst, and where each came from when they go. */
@@ -875,6 +978,13 @@ static int appwindow_drop(struct Window *w, const char *const *paths, int n, WOR
         app_free(am);
         return 0;
     }
+    /* build plan row 3 (X4): a program the task guard holds (it crashed) has its AppWindow and port still, but never
+     * answers: nothing is sent to it, so the desktop doesn't wait on it for ever (app_port, ob_drop_end) */
+    if (ob_task_held(at.aa_Port->mp_SigTask, NULL)) {
+        Permit();
+        app_free(am);
+        return 0;
+    }
     am->am_Type = at.aa_Zone ? AMTYPE_APPWINDOWZONE : AMTYPE_APPWINDOW;
     am->am_ID = at.aa_ID;
     am->am_UserData = at.aa_UserData;
@@ -891,14 +1001,14 @@ static int appwindow_drop(struct Window *w, const char *const *paths, int n, WOR
 int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_drawer *from)
 {
     struct Window *w = ob_drop_window_at(sx, sy);
-    wb_drawer *d;
-    char dst[OF_PATH_MAX];
+    wb_drawer *d = NULL;
+    char dst[OF_PATH_MAX], dir[OF_PATH_MAX];
+    int at;
     (void)qual;                                 /* no qualifier changes a drop on OS 3.2.3 (measured) */
     if (!w || n <= 0 || stopping) return 0;
-    if ((d = drawer_of(w))) {
-        int at = wb_drawer_at(d, sx, sy, dst, sizeof dst);
+    if ((at = env.drawer_at(w, sx, sy, dst, sizeof dst, dir, sizeof dir, &d)) >= 0) {
         if (at == WB_AT_NONE || (d == from && at != WB_AT_DRAWER)) return 0;
-        if (at == WB_AT_FILE) of_strlcpy(dst, wb_drawer_path(d), sizeof dst);   /* onto a tool: into its drawer */
+        if (at == WB_AT_FILE) of_strlcpy(dst, dir, sizeof dst);   /* onto a tool: into its drawer */
         if (at == WB_AT_DRAWER && is_trash(dst)) return to_trash(paths, n, dst);
         return transfer(paths, n, dst);
     }
@@ -916,8 +1026,9 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
 int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
 {
     struct Window *w = ob_drop_window_at(sx, sy);
-    wb_drawer *d;
-    char dst[OF_PATH_MAX];
+    wb_drawer *d = NULL;
+    char dst[OF_PATH_MAX], dir[OF_PATH_MAX];
+    int at;
     (void)qual;
     if (!w || stopping) return 0;
     if (w == *env.root) {
@@ -927,10 +1038,9 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
             return job_for(NULL, 0, dst, OP_DISK, volume);
         return 0;
     }
-    if ((d = drawer_of(w))) {
-        int at = wb_drawer_at(d, sx, sy, dst, sizeof dst);
+    if ((at = env.drawer_at(w, sx, sy, dst, sizeof dst, dir, sizeof dir, &d)) >= 0) {
         if (at == WB_AT_NONE) return 0;
-        if (at == WB_AT_FILE) of_strlcpy(dst, wb_drawer_path(d), sizeof dst);
+        if (at == WB_AT_FILE) of_strlcpy(dst, dir, sizeof dst);
         if (of_path_inside(dst, volume) || (at == WB_AT_DRAWER && is_trash(dst))) return 0;  /* a disk into itself */
         return job_for(NULL, 0, dst, OP_DISK, volume);
     }
@@ -1034,6 +1144,8 @@ int ob_drop_start(const ob_drop_env *e)
     struct TagItem t[2];
     env = *e;
     stopping = 0;
+    ob_jobq_init(&jobq, OB_JOBS_AT_ONCE);
+    jobs_live = NULL;
     if (!(done_port = CreateMsgPort())) return 0;
     if (!(app_port = CreateMsgPort())) {
         DeleteMsgPort(done_port);
@@ -1060,13 +1172,22 @@ void ob_drop_handle(void)
     struct Message *m;
     int ended = 0;
     while (done_port && (m = GetMsg(done_port))) {
-        job *j = (job *)m;
+        job *j = (job *)m, **pp;
+        ob_job *q = j->qid ? ob_jobq_find(&jobq, j->qid) : NULL;
         int i;
+        if (q && q->state == OB_J_QUEUED) ob_jobq_cancel(&jobq, j->qid);   /* stopped before its turn */
+        else if (q) ob_jobq_finish(&jobq, j->qid, j->rc == OF_OK && !j->failed);
+        for (pp = &jobs_live; *pp; pp = &(*pp)->next)
+            if (*pp == j) { *pp = j->next; break; }
         if (!stopping)
             for (i = 0; i < j->ndirs; i++) reread(j->dirs[i]);
         if (!stopping && j->said[0] && env.say) env.say(j->said);
         job_free(j);
         ended = 1;
+    }
+    if (ended) {
+        ob_jobq_reap(&jobq);
+        if (!stopping) jobs_pump();             /* the next on each disk */
     }
     if (ended && !stopping && env.changed) env.changed();   /* icons left out may have gone with their files */
     while (app_port && (m = GetMsg(app_port))) {
@@ -1090,6 +1211,13 @@ void ob_drop_stop(void)
     /* the jobs stop where they are (the engine leaves the place a file was going as it was); the programs
      * get ten seconds to answer */
     stopping = 1;
+    {   /* the jobs still waiting their turn: woken, to go without doing anything */
+        job *j;
+        Forbid();
+        for (j = jobs_live; j; j = j->next)
+            if (j->proc && j->go_sig >= 0) Signal(j->proc, 1UL << j->go_sig);
+        Permit();
+    }
     for (i = 0; i < 500 && (jobs_running || apps_out); i++) {
         ob_drop_handle();
         if (jobs_running || apps_out) Delay(1);
@@ -1212,8 +1340,6 @@ int ob_new_drawer(const char *dir, wb_drawer *from)
         PutDiskObject((CONST_STRPTR)path, o);
         FreeDiskObject(o);
     }
-    for (i = 0; i < *env.ndrawers; i++)
-        if (env.drawers[i] != from && of_path_equal(wb_drawer_path(env.drawers[i]), dir))
-            wb_drawer_reread(env.drawers[i]);
+    if (env.reread) env.reread(dir, from);    /* from reads its own again */
     return 1;
 }

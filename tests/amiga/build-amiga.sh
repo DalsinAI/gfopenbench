@@ -13,7 +13,7 @@ if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/nu
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c"
+"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c"
 # WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout)
 if [ -n "${AMICRADLE_GUEST:-}" ]; then
   OIX="$AMICRADLE_GUEST/tools/openindex"
@@ -23,5 +23,5 @@ if [ -n "${AMICRADLE_GUEST:-}" ]; then
 else
   echo "WBGapIndex not built: set AMICRADLE_GUEST to an amicradle-guest checkout"
 fi
-cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$OUT/"
+cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$HERE/WBGapF3.rexx" "$HERE/WBGapDesk.rexx" "$OUT/"
 ls -l "$OUT"

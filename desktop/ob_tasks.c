@@ -82,6 +82,19 @@ static int same_vol(const char *a, const char *b)
     }
 }
 
+void ob_vol_name(const char *path, char *out, int n)
+{
+    int i;
+    if (n <= 0) return;
+    out[0] = 0;
+    if (!path) return;
+    for (i = 0; path[i] && path[i] != ':'; i++) ;
+    if (path[i] != ':') return;
+    if (i > n - 1) i = n - 1;
+    for (n = 0; n < i; n++) out[n] = path[n];
+    out[i] = 0;
+}
+
 void ob_jobq_init(ob_jobq *q, int max_running)
 {
     zero(q, sizeof *q);
@@ -214,6 +227,25 @@ void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size)
     }
 }
 
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m)
+{
+    return refill(r, m);
+}
+
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory)
+{
+    if (!no_memory) return 0;
+    if (r->block) m->free(m->user, r->block, r->size);   /* so the requester can open */
+    r->block = 0;
+    r->low = 1;
+    return m->ask(m->user) != 0;
+}
+
+int ob_low(long err, unsigned long largest)
+{
+    return err == OB_NO_FREE_STORE || largest < OB_LOW_FLOOR;
+}
+
 void ob_reserve_end(ob_reserve *r, const ob_mem *m)
 {
     if (r->block) m->free(m->user, r->block, r->size);
@@ -318,4 +350,209 @@ int ob_unpack(const char *buf, int size, int count, const char **out, int max)
         k = e + 1;
     }
     return i;
+}
+
+/* ---- a crashed task, held by the task guard ---- */
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper)
+{
+    unsigned long r;
+    if (spupper < 56 || spupper <= splower) return 0;
+    r = (spupper - 56) & ~3UL;
+    if (r < splower || r + 16 > spupper) return 0;
+    return r;
+}
+
+static unsigned long be32(const unsigned char *p)
+{
+    return (unsigned long)p[0] << 24 | (unsigned long)p[1] << 16 | (unsigned long)p[2] << 8 | p[3];
+}
+
+int ob_guard_held(int waiting, unsigned long sigwait, int rec_ok)
+{
+    (void)rec_ok;
+    return waiting && !sigwait;
+}
+
+int ob_q_take(volatile int *state)
+{
+    if (*state == OB_Q_WITHDRAWN) return 0;
+    *state = OB_Q_TAKEN;
+    return 1;
+}
+
+int ob_q_withdraw(volatile int *state, unsigned long waited_ticks)
+{
+    if (*state != OB_Q_QUEUED || waited_ticks < OB_ASK_TICKS) return 0;
+    *state = OB_Q_WITHDRAWN;
+    return 1;
+}
+
+int ob_guard_read(const unsigned char *rec, ob_held *h)
+{
+    unsigned long v;
+    if (!rec || be32(rec) != OB_GUARD_MAGIC) return 0;
+    v = be32(rec + 4);
+    if (v != 3 && v != 4 && v != 10) return 0;      /* the only ones the guard holds */
+    if (h) {
+        h->vector = (int)v;
+        h->pc = be32(rec + 8);
+        h->addr = be32(rec + 12);
+    }
+    return 1;
+}
+
+/* ---- a drawer task's answers about its own drawer ---- */
+#include <stdlib.h>
+#include <string.h>
+
+static int fold(int c)                  /* as ob_snap.c: Latin-1's letters, any case */
+{
+    c &= 0xFF;
+    if ((c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFE && c != 0xF7)) return c - 32;
+    return c;
+}
+
+int ob_same_name(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++)
+        if (fold((unsigned char)*a) != fold((unsigned char)*b)) return 0;
+    return !*a && !*b;
+}
+
+void ob_dpack_init(ob_dpack *p)
+{
+    zero(p, sizeof *p);
+}
+
+void ob_dpack_free(ob_dpack *p)
+{
+    free(p->e);
+    ob_dpack_init(p);
+}
+
+void ob_dpack_reset(ob_dpack *p, const char *dir, unsigned long gen)
+{
+    size_t n = strlen(dir);
+    if (n >= sizeof p->dir) n = sizeof p->dir - 1;
+    memcpy(p->dir, dir, n);
+    p->dir[n] = 0;
+    p->gen = gen;
+    p->n = 0;
+    p->filled = 1;
+}
+
+int ob_dpack_fresh(const ob_dpack *p, const char *dir, unsigned long gen)
+{
+    return p->filled && p->gen == gen && !strcmp(p->dir, dir);
+}
+
+static ob_dpent *find(const ob_dpack *p, const char *name)
+{
+    int i;
+    for (i = 0; i < p->n; i++)
+        if (ob_same_name(p->e[i].name, name)) return &p->e[i];
+    return NULL;
+}
+
+static ob_dpent *entry(ob_dpack *p, const char *name)
+{
+    ob_dpent *e = find(p, name);
+    size_t n = strlen(name);
+    if (e) return e;
+    if (n >= OB_DP_NAME) return NULL;
+    if (p->n == p->cap) {
+        int cap = p->cap ? p->cap * 2 : 16;
+        ob_dpent *ne = malloc((size_t)cap * sizeof *ne);
+        if (!ne) return NULL;
+        if (p->n) memcpy(ne, p->e, (size_t)p->n * sizeof *ne);
+        free(p->e);
+        p->e = ne;
+        p->cap = cap;
+    }
+    e = &p->e[p->n++];
+    zero(e, sizeof *e);
+    memcpy(e->name, name, n + 1);
+    return e;
+}
+
+int ob_dpack_hide(ob_dpack *p, const char *name)
+{
+    ob_dpent *e = entry(p, name);
+    if (!e) return 0;
+    e->hidden = 1;
+    return 1;
+}
+
+int ob_dpack_snap(ob_dpack *p, const char *name, int where, long x, long y, int gx, int gy)
+{
+    ob_dpent *e = entry(p, name);
+    if (!e) return 0;
+    if (e->snap) return 1;              /* the first one found stands */
+    e->snap = 1;
+    e->where = (char)where;
+    e->x = x; e->y = y; e->gx = gx; e->gy = gy;
+    return 1;
+}
+
+int ob_dpack_hidden(const ob_dpack *p, const char *name)
+{
+    const ob_dpent *e = find(p, name);
+    return e && e->hidden;
+}
+
+int ob_dpack_snapped(const ob_dpack *p, const char *name, int *gx, int *gy, long *x, long *y)
+{
+    const ob_dpent *e = find(p, name);
+    if (!e || !e->snap || e->where != 'W') return 0;
+    *gx = e->gx; *gy = e->gy; *x = e->x; *y = e->y;
+    return 1;
+}
+
+const char *ob_name_in(const char *path, const char *dir)
+{
+    size_t k, dl = strlen(dir);
+    const char *rest;
+    for (k = 0; k < dl; k++)
+        if (!path[k] || fold((unsigned char)path[k]) != fold((unsigned char)dir[k])) return NULL;
+    rest = path + dl;
+    if (dl && dir[dl - 1] != ':') {     /* "Work:Tools" + "/x" */
+        if (*rest != '/') return NULL;
+        rest++;
+    }
+    if (!*rest || strchr(rest, '/') || strchr(rest, ':')) return NULL;
+    return rest;
+}
+
+/* ---- the starts sent to the launcher and not answered yet ---- */
+
+int ob_out_add(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++)
+        if (!o->slot[i]) {
+            o->slot[i] = r;
+            return 1;
+        }
+    return 0;
+}
+
+void ob_out_del(ob_out *o, void *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++) if (o->slot[i] == r) o->slot[i] = 0;
+}
+
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max)
+{
+    int i, k, n = 0;
+    for (i = 0; i < OB_OUT_MAX && n < max; i++) {
+        void *r = o->slot[i];
+        int q = 0;
+        if (!r) continue;
+        for (k = 0; k < nq; k++) q |= queued[k] == r;
+        if (q || (answered && answered(r))) continue;   /* the next launcher's, or launch_answers' to reply */
+        o->slot[i] = 0;
+        lost[n++] = r;
+    }
+    return n;
 }

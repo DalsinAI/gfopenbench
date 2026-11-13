@@ -83,6 +83,9 @@ int ob_jobq_cancel(ob_jobq *q, unsigned long id);                /* 1 taken out,
 void ob_jobq_finish(ob_jobq *q, unsigned long id, int ok);
 int ob_jobq_reap(ob_jobq *q);                                    /* finished jobs dropped; how many */
 int ob_jobq_percent(const ob_job *j);
+/* What a job is ordered by when there is no disk to ask: the volume or device name of path, before its ':'
+ * ("DH0:a/b" gives "DH0"); "" when path names none (a relative path: the caller's current disk) */
+void ob_vol_name(const char *path, char *out, int n);
 
 /* ---- low memory ---- */
 typedef struct ob_mem {
@@ -101,6 +104,15 @@ typedef struct ob_reserve {
 int ob_reserve_init(ob_reserve *r, const ob_mem *m, unsigned long size);   /* 0: couldn't, low from the start */
 void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size);
 void ob_reserve_end(ob_reserve *r, const ob_mem *m);
+/* The reserve taken back when memory allows (the desktop's tick): 1 when it is held */
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m);
+/* Something other than ob_reserve_alloc failed (a program's LoadSeg, a drawer's window): no_memory says it was for
+ * want of memory (ob_low). Then the reserve is given back and the user asked: 1 Retry; 0 Cancel, or not memory */
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory);
+/* A failure was for want of memory: dos's ERROR_NO_FREE_STORE, or less than OB_LOW_FLOOR bytes in one piece */
+#define OB_LOW_FLOOR 65536UL
+#define OB_NO_FREE_STORE 103
+int ob_low(long err, unsigned long largest);
 
 /* ---- the launcher's WBStartup order (ob_launch.h) ----
  * SYS:WBStartup is started one at a time, as Workbench starts it (ob_startup.h), without the desktop ever waiting:
@@ -130,5 +142,78 @@ int ob_names_format(char *out, int n, const char *const *names, int count);
  * how many. */
 int ob_pack(char *buf, int size, int *count, const char *s);
 int ob_unpack(const char *buf, int size, int count, const char **out, int max);
+
+/* ---- a crashed task, held by the task guard ----
+ * The host's task guard (amicradle docs/architecture/TASK_GUARD.md), and GFOpenGuard on a real 68040, hold a task
+ * that crashes in Wait(0) (tc_SigWait 0) and leave a record 56 bytes below tc_SPUpper (long aligned): 'TGRD', the
+ * vector, the PC, the address or opcode, 16 bytes big-endian. The supervisor looks for it (ob_guard.c). */
+#define OB_GUARD_MAGIC 0x54475244UL     /* 'TGRD' */
+typedef struct ob_held {
+    int vector;                         /* 3 address error, 4 illegal instruction, 10 line A */
+    unsigned long pc, addr;
+} ob_held;
+
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
+int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
+/* Held: waiting (in exec's TaskWait) on no signal at all, Wait(0), which only the guard's hold does to a task of
+ * ours; the record (rec_ok) only says why. Not the record alone: a lab's runtime that moves stacks may leave it
+ * where the task's bounds no longer point (#118 review, WBGapF3). */
+int ob_guard_held(int waiting, unsigned long sigwait, int rec_ok);
+
+/* ---- a question the desktop asks a drawer's task (ob_dtask.c's ask) ----
+ * The desktop withdraws one the task hasn't taken within OB_ASK_TICKS (a drawer busy on a slow disk must not hold
+ * the desktop); one the task took is answered, quickly, from what it has in memory, and waited for. The state
+ * changes under Forbid. ob_q_take: 1 to answer it, 0 when withdrawn (the task frees it). ob_q_withdraw: 1 when
+ * withdrawn (the desktop asks with a new one). */
+#define OB_ASK_TICKS 50                 /* 1 second, in DateStamp ticks */
+enum { OB_Q_QUEUED = 0, OB_Q_TAKEN, OB_Q_WITHDRAWN };
+int ob_q_take(volatile int *state);
+int ob_q_withdraw(volatile int *state, unsigned long waited_ticks);
+
+/* ---- a drawer task's answers about its own drawer (ob_dtask.h) ----
+ * wb_look's hidden and snapped are asked once for every entry a drawer reads. A drawer task asks the desktop once
+ * for everything about its drawer: the entries left out on the desktop (hidden) and those snapshotted in it, and
+ * answers the rest itself, until its drawer or the desktop's generation (left outs and snapshots changed) differ. */
+#define OB_DP_NAME 108
+typedef struct ob_dpent {
+    char name[OB_DP_NAME];
+    char hidden;                        /* left out on the desktop */
+    char snap;                          /* there is a snapshot for it; where says which */
+    char where;                         /* OB_SNAP_DESK 'D' or OB_SNAP_DRAWER 'W' */
+    int gx, gy;
+    long x, y;
+} ob_dpent;
+
+typedef struct ob_dpack {
+    char dir[256];                      /* the drawer, as the drawer names it */
+    unsigned long gen;
+    int filled;                         /* 0: nothing asked yet */
+    ob_dpent *e;
+    int n, cap;
+} ob_dpack;
+
+void ob_dpack_init(ob_dpack *p);
+void ob_dpack_free(ob_dpack *p);
+void ob_dpack_reset(ob_dpack *p, const char *dir, unsigned long gen);   /* empty, for dir at gen */
+int ob_dpack_fresh(const ob_dpack *p, const char *dir, unsigned long gen);
+int ob_dpack_hide(ob_dpack *p, const char *name);                       /* 0: no memory or name too long */
+/* The first snapshot found for a name is the one kept (as ob_snap_find's first match) */
+int ob_dpack_snap(ob_dpack *p, const char *name, int where, long x, long y, int gx, int gy);
+int ob_dpack_hidden(const ob_dpack *p, const char *name);
+int ob_dpack_snapped(const ob_dpack *p, const char *name, int *gx, int *gy, long *x, long *y);  /* 'W' only */
+/* The name of an entry directly in dir ("Work:Tools/x" in "Work:Tools", "Work:x" in "Work:", "a/x" in "a", "x" in
+ * ""), any case; NULL when path isn't one */
+const char *ob_name_in(const char *path, const char *dir);
+/* Two names the same in any case (Latin-1's letters too, as ob_snap.c compares) */
+int ob_same_name(const char *a, const char *b);
+
+/* ---- the starts sent to the launcher and not answered yet (X4: a held launcher loses none) ---- */
+#define OB_OUT_MAX 64
+typedef struct ob_out { void *slot[OB_OUT_MAX]; } ob_out;
+int ob_out_add(ob_out *o, void *r);              /* 0 when all OB_OUT_MAX are taken: the caller answers it itself */
+void ob_out_del(ob_out *o, void *r);
+/* The launcher crashed: the starts it had taken, neither still queued on its port (queued, nq) nor answered
+ * already (answered(r): its reply is in, not yet read), taken off the list into lost (at most max). How many. */
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max);
 
 #endif

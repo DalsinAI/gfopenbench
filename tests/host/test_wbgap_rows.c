@@ -28,7 +28,7 @@ static const char *const printed_ids[] = {"A6b", "A8a", "A8b", "C2a", "C2b", "R1
 
 /* rows for the 13 Nov decisions */
 static const char *const decision_ids[] = {
-    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "I12c", "X2a", "X2b", "P4b", "P6r",
+    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "I12c", "X2a", "X2b", "P4a", "P4b", "P6r",
 };
 
 static void list_shape(void)
@@ -68,6 +68,52 @@ static void every_id(void)
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
+    CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
+}
+
+/* the launch record LaunchT writes, as LAUNCH and LAUNCHDESK read it for I11 */
+static void launch_args(void)
+{
+    const char *want = "LaunchT p1 p2";
+    CHECK(wbgap_launch_args("launch stack 2097152 pri -3 args 3 LaunchT p1 p2\n", want), "the three, in order");
+    CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p2", want), "no line's end");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p2 p1\n", want), "out of order");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 2 LaunchT p1\n", want), "one missing");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 4 LaunchT p1 p2 p3\n", want), "one too many");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 2 LaunchT p1 p2\n", want), "a count that doesn't match");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p22\n", want), "a longer name isn't the name");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p\n", want), "a shorter one neither");
+    CHECK(!wbgap_launch_args("", want) && !wbgap_launch_args("start WBGapA\n", want), "not a launch record");
+    CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 1 LaunchT\n", "LaunchT"), "the tool alone");
+}
+
+/* LAUNCHDESK SETUP and DONE: DONE deletes RAM:.backdrop only when SETUP made it */
+static void backdrop_plan(void)
+{
+    CHECK(wbgap_backdrop_setup(-1, 2048, 0) == WBGAP_BD_MADE, "no .backdrop: SETUP makes it");
+    CHECK(wbgap_backdrop_setup(0, 2048, 0) == WBGAP_BD_SAVED, "an empty one is kept and put back");
+    CHECK(wbgap_backdrop_setup(100, 2048, 0) == WBGAP_BD_SAVED, "a short one is kept and put back");
+    CHECK(wbgap_backdrop_setup(100, 2048, 1) == WBGAP_BD_HAD, "the three lines there already: left as it is");
+    CHECK(wbgap_backdrop_setup(2046, 2048, 0) == WBGAP_BD_SAVED, "2046 bytes still fit");
+    CHECK(wbgap_backdrop_setup(2047, 2048, 0) == WBGAP_BD_TOOLONG, "2047 filled the buffer: too long");
+    CHECK(wbgap_backdrop_setup(2047, 2048, 1) == WBGAP_BD_TOOLONG, "too long wins over the lines");
+    CHECK(wbgap_backdrop_done(1, 0) == WBGAP_BD_RESTORE && wbgap_backdrop_done(1, 1) == WBGAP_BD_RESTORE,
+          "a kept copy is put back");
+    CHECK(wbgap_backdrop_done(0, 1) == WBGAP_BD_DELETE, "made by SETUP: deleted");
+    CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
+}
+
+/* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
+static void i11_lines(void)
+{
+    static struct wbgap_report r;
+    wbgap_report_init(&r);
+    CHECK(wbgap_report_line(&r, "INFO I11 OpenWorkbenchObjectA on a tool FALSE (IoErr 103): A6's, see LAUNCHDESK") == 0,
+          "LAUNCH's INFO line sets nothing");
+    CHECK(r.state[wbgap_find("I11")] == WBGAP_NONE, "I11 still has no line");
+    CHECK(wbgap_report_line(&r, "SKIP I11 not left out on the desktop (RAM:.backdrop): p1") == 1 &&
+          r.state[wbgap_find("I11")] == WBGAP_SKIP, "WBGapDesk.rexx's SKIP");
+    CHECK(wbgap_report_line(&r, "PASS I11") == 1 && r.state[wbgap_find("I11")] == WBGAP_PASS, "then LAUNCHDESK CHECK's PASS");
 }
 
 /* with the document: every "| ID |" at the start of a table row is in the list */
@@ -187,7 +233,8 @@ static void print_all(void)
     CHECK(!strncmp(line_of("A8"), "SKIP A8 ", 8) && strstr(line_of("A8"), "A8c"), "A8 waits on A8c: \"%s\"", line_of("A8"));
     CHECK(!strncmp(line_of("C2"), "FAIL C2 ", 8) && strstr(line_of("C2"), "C2b"), "C2 fails by C2b: \"%s\"", line_of("C2"));
     CHECK(!strcmp(line_of("I12"), "PASS I12"), "I12 passes by its parts: \"%s\"", line_of("I12"));
-    CHECK(!strncmp(line_of("P4"), "SKIP P4 look: ", 14) && strstr(line_of("P4"), "P4b"), "a look row with parts: \"%s\"", line_of("P4"));
+    CHECK(!strncmp(line_of("P6"), "SKIP P6 look: ", 14) && strstr(line_of("P6"), "P6r"), "a look row with parts: \"%s\"", line_of("P6"));
+    CHECK(!strncmp(line_of("P4"), "SKIP P4 not settled: P4a P4b", 28), "an automatic row whose parts did not run: \"%s\"", line_of("P4"));
     CHECK(!strncmp(line_of("I1"), "SKIP I1 look", 12), "a look row with no line: \"%s\"", line_of("I1"));
     CHECK(!strncmp(line_of("X3"), "SKIP X3 hand", 12), "a hand row: \"%s\"", line_of("X3"));
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
@@ -215,6 +262,9 @@ int main(int argc, char **argv)
     if (argc > 1) from_doc(argv[1]);
     lines();
     wildcard();
+    launch_args();
+    backdrop_plan();
+    i11_lines();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);
