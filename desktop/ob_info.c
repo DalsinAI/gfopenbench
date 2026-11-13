@@ -3,7 +3,7 @@
  * code is GFOpenBench's). GadTools gadgets, the screen's font; the window is opened first and the gadgets laid out
  * inside its real borders (GFOpenFrames draws its own). Workbench 3.x's Information window, read for what it holds
  * (no code taken): name, type, size, date; Script, Archived, Readable, Writable, Executable, Deletable; comment;
- * a project's (or a disk's) default tool; a tool's or a project's tool types; Save and Cancel.
+ * a project's (or a disk's) default tool; a tool's or a project's stack and tool types; Save and Cancel.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -29,6 +29,7 @@
 #include <stdarg.h>
 
 #include "ob_info.h"
+#include "ob_stack.h"
 
 #define MAX_INFO 8
 #define MAX_TT 64
@@ -48,7 +49,7 @@ static struct Window *volatile info_win[MAX_INFO];
 static char info_for[MAX_INFO][PATH_LEN];
 
 enum { G_NAME = 1, G_TYPE, G_SIZE, G_DATE, G_PS, G_PA, G_PR, G_PW, G_PE, G_PD, G_COMMENT, G_TOOL, G_TTLIST, G_TTSTR,
-       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_COUNT };
+       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_COUNT };
 
 typedef struct {
     struct Screen *scr;
@@ -60,6 +61,7 @@ typedef struct {
     LONG prot;
     char comment[80];
     char tool[PATH_LEN];
+    char stack[16];                 /* a tool or a project's stack, bytes */
     struct List ttlist;
     struct Node ttnode[MAX_TT];
     char tt[MAX_TT][TT_LEN];
@@ -186,6 +188,8 @@ static int read_info(info *in)
         STRPTR *t = in->dob->do_ToolTypes;
         strncpy(in->type, in->dob->do_Type >= 1 && in->dob->do_Type <= 8 ? types[in->dob->do_Type] : "", sizeof in->type - 1);
         if (in->dob->do_DefaultTool) strncpy(in->tool, (const char *)in->dob->do_DefaultTool, sizeof in->tool - 1);
+        if (in->dob->do_Type == WBTOOL || in->dob->do_Type == WBPROJECT)
+            ob_stack_format(in->stack, sizeof in->stack, in->dob->do_StackSize);
         for (; t && *t && in->ntt < MAX_TT; t++) {
             strncpy(in->tt[in->ntt], (const char *)*t, TT_LEN - 1);
             in->ntt++;
@@ -254,7 +258,7 @@ static struct Gadget *gad(info *in, struct Gadget *prev, ULONG kind, int id, WOR
 /* The window's inner size for its gadgets; *lay 1: create them too, at the window's borders. */
 static void layout(info *in, WORD *iw, WORD *ih, int make)
 {
-    static const char *const labels[] = { "Name", "Type", "Size", "Changed", "Comment", "Default tool", "Tool types", NULL };
+    static const char *const labels[] = { "Name", "Type", "Size", "Changed", "Comment", "Default tool", "Stack", "Tool types", NULL };
     static const char *const prot[6] = { "Script", "Archived", "Readable", "Writable", "Executable", "Deletable" };
     struct Gadget *p = NULL;
     WORD fh = in->scr->Font->ta_YSize, rh = fh + 6, m = 8, lw = 0, vw = 340, x0, y, i, ox = 0, oy = 0, W, rows;
@@ -303,6 +307,9 @@ static void layout(info *in, WORD *iw, WORD *ih, int make)
     }
     if (has_tt(in)) {
         WORD lh = 5 * (fh + 2) + 4, bw2 = 64;
+        if (make) p = gad(in, p, STRING_KIND, G_STACK, ox + m + lw, oy + y, W - 2 * m - lw, rh, "Stack", PLACETEXT_LEFT,
+                          GTST_String, (ULONG)in->stack, GTST_MaxChars, 12, TAG_DONE);
+        y += rh + 4;
         if (make) {
             p = gad(in, p, LISTVIEW_KIND, G_TTLIST, ox + m + lw, oy + y, W - 2 * m - lw, lh, "Tool types", PLACETEXT_LEFT,
                     GTLV_Labels, (ULONG)&in->ttlist, GTLV_ShowSelected, 0, TAG_DONE);
@@ -390,17 +397,25 @@ static int save(info *in)
             return 0;
         }
     }
-    if (in->dob && (in->tt_changed || (in->g[G_TOOL] && strcmp(str_of(in, G_TOOL), in->tool)))) {
+    long new_stack = 0;
+    int stack_set = 0;
+    if (in->g[G_STACK]) {
+        if (!ob_stack_parse(str_of(in, G_STACK), &new_stack)) { say(in, "The stack is not a whole number."); return 0; }
+        stack_set = in->dob && new_stack != in->dob->do_StackSize;
+    }
+    if (in->dob && (in->tt_changed || (in->g[G_TOOL] && strcmp(str_of(in, G_TOOL), in->tool)) || stack_set)) {
         STRPTR arr[MAX_TT + 1], *keep_tt = in->dob->do_ToolTypes, keep_tool = in->dob->do_DefaultTool;
+        LONG keep_stack = in->dob->do_StackSize;
         int i;
         for (i = 0; i < in->ntt; i++) arr[i] = (STRPTR)in->tt[i];
         arr[in->ntt] = NULL;
         if (has_tt(in)) in->dob->do_ToolTypes = arr;
         if (in->g[G_TOOL]) in->dob->do_DefaultTool = (STRPTR)str_of(in, G_TOOL);
+        if (stack_set) in->dob->do_StackSize = new_stack;
         i = PutDiskObject((STRPTR)in->iconpath, in->dob);
         in->dob->do_ToolTypes = keep_tt;
         in->dob->do_DefaultTool = keep_tool;
-        if (!i) { say(in, "The icon could not be saved."); return 0; }
+        if (!i) { if (stack_set) in->dob->do_StackSize = keep_stack; say(in, "The icon could not be saved."); return 0; }
     }
     if (newname[0] && strcmp(newname, in->name)) {
         if (in->disk) {

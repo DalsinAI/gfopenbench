@@ -102,4 +102,33 @@ int ob_reserve_init(ob_reserve *r, const ob_mem *m, unsigned long size);   /* 0:
 void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size);
 void ob_reserve_end(ob_reserve *r, const ob_mem *m);
 
+/* ---- the launcher's WBStartup order (ob_launch.h) ----
+ * SYS:WBStartup is started one at a time, as Workbench starts it (ob_startup.h), without the desktop ever waiting:
+ * the desktop opens the next one, the launcher starts it and answers, and tells the desktop again when it has
+ * ended or its WAIT=n seconds are over; only then is the next one opened. */
+enum { OB_SEQ_DONE = -2, OB_SEQ_WAIT = -1 };
+
+typedef struct ob_seq {
+    const int *wait;                    /* each entry's seconds; 0: DONOTWAIT */
+    int n, cur;
+    int waiting;                        /* on tag's answer, then on id's end */
+    unsigned long tag, id;
+} ob_seq;
+
+void ob_seq_init(ob_seq *s, const int *wait, int n);
+int ob_seq_next(ob_seq *s);                                       /* the entry to open now, or OB_SEQ_WAIT/DONE */
+void ob_seq_opened(ob_seq *s, int at, unsigned long tag);         /* tag: the start asked for, 0 none */
+int ob_seq_answered(ob_seq *s, unsigned long tag, int ok, unsigned long id);   /* 1: it was the one waited on */
+int ob_seq_ended(ob_seq *s, unsigned long id);                    /* 1: it was the one waited on */
+
+/* The names of the programs still running, one to a line ("  name\n"), at most 8 and then "  and N more", for a
+ * requester: a '%' becomes '_' (the requester's text is a format). Its length. */
+int ob_names_format(char *out, int n, const char *const *names, int count);
+
+/* Strings packed one after another with their NULs into a fixed buffer (the launcher's messages carry their
+ * arguments and tool types so). ob_pack: 1 when s fitted (*count one more). ob_unpack: up to max pointers into buf,
+ * how many. */
+int ob_pack(char *buf, int size, int *count, const char *s);
+int ob_unpack(const char *buf, int size, int count, const char **out, int max);
+
 #endif
