@@ -252,6 +252,9 @@ int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx)
             }
             if (failed[0]) { state = WBGAP_FAIL; snprintf(line, sizeof line, "FAIL %s failed:%s", row->id, failed); }
             else if (all) { state = WBGAP_PASS; snprintf(line, sizeof line, "PASS %s", row->id); }
+            else if (row->how != WBGAP_AUTO)   /* a look or hand row: that, and its parts not settled */
+                state = WBGAP_SKIP, snprintf(line, sizeof line, "SKIP %s %s: %s (and%s)", row->id,
+                                             row->how == WBGAP_LOOK ? "look" : "hand", row->what, open);
             else { state = WBGAP_SKIP; snprintf(line, sizeof line, "SKIP %s not settled:%s", row->id, open); }
         } else {
             state = WBGAP_SKIP;
