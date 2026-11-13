@@ -1,8 +1,11 @@
 /* WBGapX3: row X3 of amicradle-teams designs/OPENBENCH-GAPS-20261112.md on GFOpenBench (build plan row 3): with
-   nearly no memory left, a program opened from the desktop gives the low-memory requester, not a crash, and Retry
-   starts it once memory is back. WBGapTest LOWMEM takes the memory, asks the desktop to open the program, finds the
+   nearly no memory left, a drawer opened from the desktop gives the low-memory requester, not a crash, and Retry
+   opens it once memory is back. WBGapTest LOWMEM takes the memory, asks the desktop to open the drawer, finds the
    requester, gives the memory back and clicks Retry (with DragTest, beside it). ARexx itself can't run with no
    memory, so the open goes by GFOpenBench's GFOPENBENCH port from WBGapTest.
+   A drawer, not a program: on AmiCradle a program's LoadSeg still loads with every piece of exec's memory taken
+   (the lab, 13 November 2026), so a program can't be made to fail for memory there; the launcher's side is in the
+   host tests.
      rx WBGapX3.rexx
    MIT, Copyright (c) 2026 AmiCradle Team. */
 OPTIONS RESULTS
@@ -10,30 +13,21 @@ IF ~SHOW('P', 'OPENBENCH') THEN DO
   SAY 'SKIP X3 no OPENBENCH port: not GFOpenBench'
   EXIT 0
 END
-CALL ADDLIB('rexxsupport.library', 0, -30, 0)
-ADDRESS COMMAND 'Copy SYS:T/WBGap/WBGapTest RAM:WBGapX3 QUIET'
-ADDRESS COMMAND 'Delete RAM:wbgap-order RAM:x3-eat QUIET >NIL:'
-ADDRESS COMMAND 'SYS:T/WBGap/WBGapTest LOWMEM 8 RAM:WBGapX3 >RAM:x3-eat'
-ADDRESS OPENBENCH
-started = 0
-DO i = 1 TO 20 WHILE ~started
-  CALL DELAY(50)
-  IF OPEN('f', 'RAM:wbgap-order', 'R') THEN DO
-    DO WHILE ~EOF('f')
-      IF READLN('f') = 'start WBGapX3' THEN started = 1
-    END
-    CALL CLOSE('f')
-  END
-END
+ADDRESS COMMAND 'MakeDir RAM:WBGapX3d >NIL:'
+ADDRESS COMMAND 'Delete RAM:x3-eat QUIET >NIL:'
+ADDRESS COMMAND 'SYS:T/WBGap/WBGapTest LOWMEM 8 RAM:WBGapX3d >RAM:x3-eat'
 seen = 0
+opened = 0
 IF OPEN('f', 'RAM:x3-eat', 'R') THEN DO
   DO WHILE ~EOF('f')
     l = READLN('f')
     IF l ~= '' THEN SAY l
     IF POS('requester open', l) > 0 THEN seen = 1
+    IF POS('answered the open: ok 1', l) > 0 THEN opened = 1
   END
   CALL CLOSE('f')
 END
+ADDRESS OPENBENCH
 GETATTR 'application.version'
 IF RC ~= 0 THEN DO
   SAY 'FAIL X3 the desktop did not answer after low memory'
@@ -41,6 +35,6 @@ IF RC ~= 0 THEN DO
 END
 SAY 'INFO X3 the desktop answers:' RESULT
 IF ~seen THEN SAY 'FAIL X3 no low-memory requester'
-ELSE IF ~started THEN SAY 'FAIL X3 Retry did not start the program'
+ELSE IF ~opened THEN SAY 'FAIL X3 Retry did not open the drawer'
 ELSE SAY 'PASS X3'
 EXIT 0
