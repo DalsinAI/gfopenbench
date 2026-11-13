@@ -6,7 +6,7 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
  *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
@@ -370,6 +370,34 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
+ * Workbench's windows */
+static int tools_item_within(const char *item, int want, int ticks)
+{
+    char spec[64];
+    snprintf(spec, sizeof spec, "tools:%s", item);
+    for (;;) {
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *w;
+        ULONG lock;
+        int found;
+        nnames = 0;
+        if (wb) {
+            lock = LockIBase(0);
+            for (w = wb->FirstWindow; w; w = w->NextWindow)
+                if ((w->Flags & WFLG_WBENCHWINDOW) && w->MenuStrip) walk_strip(w->MenuStrip, 0);
+            UnlockIBase(lock);
+            UnlockPubScreen(NULL, wb);
+        }
+        found = has(spec);
+        nnames = 0;
+        if (found == want) return 1;
+        if (ticks <= 0) return 0;
+        Delay(5);
+        ticks -= 5;
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -384,7 +412,14 @@ static int do_api(void)
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
-    if (mi) { pass("A4"); RemoveAppMenuItem(mi); } else printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
+    if (mi) {
+        pass("A4");
+        /* M27: the item shows in the Tools menu of the Workbench's windows within 2 s, and goes when removed */
+        if (tools_item_within("wbgapitem", 1, 100)) {
+            RemoveAppMenuItem(mi);
+            if (tools_item_within("wbgapitem", 0, 100)) pass("M27"); else fail("M27", "Tools/WBGapItem still shown 2 s after RemoveAppMenuItem");
+        } else { RemoveAppMenuItem(mi); fail("M27", "Tools/WBGapItem not in the Workbench windows' menus 2 s after AddAppMenuItemA"); }
+    } else { printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()); fails++; fail("M27", "no AppMenuItem (A4)"); }
     ok = OpenWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6"); else printf("FAIL A6 OpenWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     Delay(50);
