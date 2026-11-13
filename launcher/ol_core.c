@@ -68,7 +68,7 @@ void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_st
 {
     long st = ol_num(ol_tt(tt, "STACK"), 0);
     if (st > OL_STACK_MAX) st = OL_STACK_MAX;
-    if (icon_stack > OL_STACK_MAX) icon_stack = OL_STACK_MAX;   /* the icon's own too (a corrupt or odd icon) */
+    if (icon_stack > OL_ICON_STACK_BAD || icon_stack < 0) icon_stack = 0;   /* the icon's own as it is (3.2.3), unless corrupt */
     o->stack = icon_stack;
     if (st > o->stack) o->stack = st;
     if (wb_stack > o->stack) o->stack = wb_stack;

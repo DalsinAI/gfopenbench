@@ -102,8 +102,12 @@ static void test_opts(void)
     CHECK("tool types in brackets are off", o.stack == 8192 && o.pri == 0);
     ol_opts_read(&o, neg, 4096, 8192);
     CHECK("TOOLPRI kept to -128; a STACK below 0 is ignored", o.pri == -128 && o.stack == 8192);
+    ol_opts_read(&o, 0, 2L * 1024 * 1024, 8192);
+    CHECK("I12a: a 2 MB icon stack stays 2 MB (3.2.3 takes the icon's own as it is)", o.stack == 2L * 1024 * 1024);
+    ol_opts_read(&o, big, 2L * 1024 * 1024, 8192);
+    CHECK("I12a: STACK=65536 never lowers a 2 MB icon stack", o.stack == 2L * 1024 * 1024);
     ol_opts_read(&o, 0, 99999999L, 8192);
-    CHECK("the icon's own stack kept to 1 MB too", o.stack == OL_STACK_MAX);
+    CHECK("a corrupt icon stack (over 64 MB) is ignored: Workbench's default", o.stack == 8192);
     ol_opts_read(&o, 0, 30000, 8192);
     CHECK("no tool types: the icon's stack, priority 0", o.stack == 30000 && o.pri == 0);
 }

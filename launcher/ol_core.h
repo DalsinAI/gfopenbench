@@ -18,6 +18,7 @@
 
 #define OL_WAIT_MAX 60                /* seconds a program with neither DONOTWAIT nor WAIT=n holds up the next */
 #define OL_STACK_MAX (1024L * 1024L)  /* the most stack a STACK tool type gives */
+#define OL_ICON_STACK_BAD (64L * 1024L * 1024L)  /* an icon's own stack above this is corrupt, and ignored */
 #define OL_NAME_LEN 108
 
 /* ---- tool types ---- */
@@ -55,8 +56,8 @@ typedef struct ol_opts {
     int pri;                          /* the process's priority, -128 to 127 */
 } ol_opts;
 
-/* What a launch gets: the most of the icon's stack, its STACK tool type and Workbench's default stack (STACK
- * each kept to OL_STACK_MAX); TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
+/* What a launch gets: the most of the icon's own stack (taken as it is, as 3.2.3 does; above OL_ICON_STACK_BAD it is
+ * corrupt and ignored), its STACK tool type (kept to OL_STACK_MAX) and Workbench's default stack; TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
 void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_stack);
 
 /* ---- I11: Shift-double-click ---- */
