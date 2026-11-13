@@ -1,16 +1,20 @@
 ; WBGapTest.script: amicradle-teams designs/OPENBENCH-GAPS-20261112.md's automatic rows, in a lab, on
-; GFOpenBench and on OS 3.2.3's Workbench alike. Needs WBGapTest, WBGapRexx.rexx and DragTest in SYS:T/WBGap
-; (from build.sh's out dir). It prints PASS, FAIL, SKIP and INFO lines, and saves them to RAM:wbgap-results.
+; GFOpenBench and on OS 3.2.3's Workbench alike. Needs WBGapTest, WBGapRexx.rexx, WBGapLayout.rexx,
+; WBGapCheck.script and DragTest in SYS:T/WBGap (from build.sh's out dir). MENUS reads with RAM:WBGap's
+; drawer window open, so the drawer menus are in it. It prints PASS, FAIL, SKIP and INFO lines, and saves them to RAM:wbgap-results.
+; RAM:wbgap-report is the same as one PASS, FAIL or SKIP line per gap id (WBGapTest REPORT).
 ; Then: WBGapTest STARTUP SETUP has been run here, so the WBStartup rows need a reboot and
-; "SYS:T/WBGap/WBGapTest STARTUP CHECK" after it.
+; "Execute SYS:T/WBGap/WBGapCheck.script" after it, which gives the whole report.
 ; MIT, Copyright (c) 2026 AmiCradle Team.
 FailAt 21
 CD SYS:T/WBGap
 Echo "INFO WBGapTest run on" NOLINE
 Version workbench.library
+WBGapTest SETUP >NIL:
+DragTest OPEN RAM:WBGap
+Wait 2
 WBGapTest MENUS DUMP >RAM:wbgap-menus
 WBGapTest MENUS >RAM:wbgap-results
-WBGapTest SETUP >>RAM:wbgap-results
 WBGapTest API >>RAM:wbgap-results
 WBGapTest NOTIFY >>RAM:wbgap-results
 If NOT EXISTS SYS:Rexxc/rx
@@ -18,17 +22,29 @@ If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP R2 no rx" >>RAM:wbgap-results
   Echo "SKIP R1b no rx" >>RAM:wbgap-results
   Echo "SKIP R2b no rx" >>RAM:wbgap-results
+  Echo "SKIP L1a no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
   Wait 1
   SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx OPENBENCH >>RAM:wbgap-results
+  WBGapTest LAYOUT >>RAM:wbgap-results
+  SYS:Rexxc/rx SYS:T/WBGap/WBGapLayout.rexx >>RAM:wbgap-results
 EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
+WBGapTest LAUNCH >>RAM:wbgap-results
+If EXISTS WBGapIndex
+  WBGapIndex >>RAM:wbgap-results
+EndIf
 Copy WBGapTest SYS:WBStartup/WBGapA QUIET
 Copy WBGapTest SYS:WBStartup/WBGapB QUIET
 Copy WBGapTest SYS:WBStartup/WBGapC QUIET
+Copy WBGapTest SYS:WBStartup/WBGapD QUIET
+Copy WBGapTest SYS:WBStartup/WBGapE QUIET
+Copy WBGapTest SYS:WBStartup/WBGapF QUIET
+Copy WBGapTest SYS:WBStartup/WBGapG QUIET
 WBGapTest STARTUP SETUP >>RAM:wbgap-results
-Type RAM:wbgap-results
-Copy RAM:wbgap-results RAM:wbgap-menus SYS:T/WBGap/ QUIET
+WBGapTest REPORT RAM:wbgap-results >RAM:wbgap-report
+Type RAM:wbgap-report
+Copy RAM:wbgap-results RAM:wbgap-menus RAM:wbgap-report SYS:T/WBGap/ QUIET

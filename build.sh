@@ -72,8 +72,8 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
 # WBGapTest: the Workbench gap rows (amicradle-teams designs/OPENBENCH-GAPS-20261112.md), with DragTest
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c"
-cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$OUT/"
+"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c"
+cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapCheck.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$HERE/tests/amiga/WBGapLayout.rexx" "$OUT/"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/wbspy" "$HERE/tools/wbspy.c" "$HERE/tools/spyfmt.c"
 # r1swap: lets OS 3.2's own Workbench start under R1, for step L2 (lab only)
