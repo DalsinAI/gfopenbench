@@ -175,6 +175,24 @@ static void test_reserve(void)
     answer_retry = 0;
     CHECK("no reserve, still asks", ob_reserve_alloc(&r, &m, 5000) == 0 && asked == 1);
     ob_reserve_end(&r, &m);
+    /* a failure elsewhere (a program's LoadSeg): not for memory, nothing asked and the reserve kept */
+    budget = 100000;
+    ob_reserve_init(&r, &m, 32768);
+    asked = 0;
+    answer_retry = 1;
+    CHECK("not memory: no requester", ob_reserve_failed(&r, &m, ob_low(205, 1000000)) == 0 && asked == 0 && r.block);
+    /* for memory: the reserve given back for the requester, Retry answered */
+    CHECK("memory: retry", ob_reserve_failed(&r, &m, ob_low(103, 1000000)) == 1 && asked == 1 && !r.block && r.low);
+    answer_retry = 0;
+    CHECK("memory: cancel", ob_reserve_failed(&r, &m, 1) == 0 && asked == 2);
+    /* taken back on the tick once memory allows, not before */
+    budget = 1000;
+    CHECK("refill waits for memory", ob_reserve_refill(&r, &m) == 0 && r.low);
+    budget = 40000;
+    CHECK("refill when it fits", ob_reserve_refill(&r, &m) == 1 && r.block && !r.low);
+    CHECK("refill held: nothing more taken", ob_reserve_refill(&r, &m) == 1 && budget == 40000 - 32768);
+    ob_reserve_end(&r, &m);
+    CHECK("ob_low: little in one piece", ob_low(0, OB_LOW_FLOOR - 1) && !ob_low(0, OB_LOW_FLOOR));
 }
 
 

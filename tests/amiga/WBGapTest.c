@@ -18,6 +18,9 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order
+ *   WBGapTest LOWMEM secs       row X3 (WBGapX3.rexx): takes nearly all memory, in pieces too small for a program,
+ *                               for secs seconds; then looks for the desktop's low-memory requester, gives the
+ *                               memory back and clicks its Retry (DragTest)
  *
  * Started from the Workbench (as SYS:WBStartup/WBGapX), it writes "start X" to RAM:wbgap-order, waits
  * the STAMPSECS seconds its icon names, and writes "end X".
@@ -548,6 +551,73 @@ static int do_startup(const char *what)
     }
 }
 
+/* ---- row X3: low memory ---- */
+struct eaten { struct eaten *next; ULONG size; };
+
+/* The front screen's low-memory requester (EasyRequest's window, titled "GFOpenBench" and holding "Retry"):
+   where its left-hand button is, in screen pixels; 0 when there is none */
+static int find_retry(int *x, int *y)
+{
+    struct Screen *s;
+    struct Window *w;
+    int found = 0;
+    ULONG lock = LockIBase(0);
+    for (s = IntuitionBase->FirstScreen; s && !found; s = s->NextScreen)
+        for (w = s->FirstWindow; w && !found; w = w->NextWindow) {
+            struct Gadget *g, *left = NULL;
+            if (!w->Title || strcmp((const char *)w->Title, "GFOpenBench")) continue;
+            for (g = w->FirstGadget; g; g = g->NextGadget)
+                if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_BOOLGADGET && !(g->GadgetType & GTYP_SYSGADGET)
+                    && (g->Activation & GACT_RELVERIFY) && !(g->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM))
+                    && (!left || g->LeftEdge < left->LeftEdge))
+                    left = g;
+            if (!left) continue;
+            *x = w->LeftEdge + left->LeftEdge + left->Width / 2;
+            *y = w->TopEdge + left->TopEdge + left->Height / 2;
+            found = 1;
+        }
+    UnlockIBase(lock);
+    return found;
+}
+
+static int do_lowmem(int secs)
+{
+    struct eaten *list = NULL, *e, **pp;
+    ULONG n, got = 0, kept = 0;
+    int x = 0, y = 0, seen;
+    char cmd[300];
+    printf("INFO X3 taking the memory for %d s\n", secs);
+    fflush(stdout);
+    for (n = 1UL << 30; n >= 256;) {                /* the biggest pieces first, down to 256 bytes */
+        if (AvailMem(MEMF_ANY | MEMF_LARGEST) < n || !(e = AllocMem(n, MEMF_ANY))) { n >>= 1; continue; }
+        e->size = n;
+        e->next = list;
+        list = e;
+        got += n;
+    }
+    /* 48 KiB back for the system and ARexx, in pieces of 4 KiB at most: no program's code fits in one */
+    for (pp = &list; *pp && kept < 49152;) {
+        e = *pp;
+        if (e->size > 4096) { pp = &e->next; continue; }
+        *pp = e->next;
+        kept += e->size;
+        FreeMem(e, e->size);
+    }
+    Delay((ULONG)secs * 50);
+    seen = find_retry(&x, &y);
+    while ((e = list)) {
+        list = e->next;
+        FreeMem(e, e->size);
+    }
+    printf("INFO X3 took %lu KiB, largest free piece then %lu bytes\n", (unsigned long)(got >> 10),
+           (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
+    if (!seen) { printf("FAIL X3 no low-memory requester\n"); return 5; }
+    printf("INFO X3 low-memory requester open, Retry at %d,%d\n", x, y);
+    snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
+    SystemTags((CONST_STRPTR)cmd, TAG_DONE);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int rc = 20;
@@ -556,7 +626,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -566,6 +636,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
+    else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = do_lowmem(atoi(argv[2]));
     else printf("unknown: %s\n", argv[1]);
 out:
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
