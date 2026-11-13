@@ -18,9 +18,9 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
- *                               from WBStartup with STACK=40000 and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *                               from WBStartup with STACK= (64 KB over the default stack) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
- *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK=40000 and
+ *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK= (64 KB over the default stack) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
@@ -76,7 +76,9 @@ static void fail(const char *row, const char *why) { printf("FAIL %s %s\n", row,
 static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row, why); }
 
 /* the desktop is GFOpenBench: its OPENBENCH ARexx port (0.1.53 on), or (MENUS) a menu titled GFOpenBench */
-static int check_launchrec(const char *file, int args_too);
+static int check_launchrec(const char *file, int args_too, unsigned long want_stack);
+static unsigned long stack_wanted(void);
+static unsigned long icon_stack(const char *path);
 static int gfos_menu_seen;
 static int is_gfos(void)
 {
@@ -92,6 +94,53 @@ static int exists(const char *path)
     BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
     if (l) UnLock(l);
     return l != 0;
+}
+
+/* a program's "$VER: " string, up to its end; 0 if the file can't be read or has none */
+static int ver_of(const char *path, char *out, int n)
+{
+    static char buf[4096 + 128];
+    BPTR fh = Open((CONST_STRPTR)path, MODE_OLDFILE);
+    long got, keep = 0, i;
+    out[0] = 0;
+    if (!fh) return 0;
+    while ((got = Read(fh, buf + keep, 4096)) > 0) {
+        long len = keep + got;
+        for (i = 0; i + 6 <= len; i++)
+            if (!memcmp(buf + i, "$VER: ", 6)) {
+                int k = 0;
+                if (i + 6 + n > len) {   /* the string runs on: read the rest of it */
+                    memmove(buf, buf + i, len - i);
+                    len -= i;
+                    i = 0;
+                    got = Read(fh, buf + len, 64);
+                    if (got > 0) len += got;
+                }
+                for (i += 6; i < len && k < n - 1 && buf[i] && buf[i] != '\n' && buf[i] != '\r'; i++) out[k++] = buf[i];
+                out[k] = 0;
+                Close(fh);
+                return 1;
+            }
+        keep = len < 5 ? len : 5;   /* "$VER:" across two reads */
+        memmove(buf, buf + len - keep, keep);
+    }
+    Close(fh);
+    return 0;
+}
+
+/* GFOS (13 Nov): Format and DiskCopy are applications of their own, not 3.2.3's (version 40 to 47) */
+static void app_row(const char *row, const char *path, int gfos)
+{
+    char v[80], why[160];
+    const char *num;
+    if (!exists(path)) { snprintf(why, sizeof why, "no %s", path); fail(row, why); return; }
+    ver_of(path, v, sizeof v);
+    printf("INFO %s %s: %s\n", row, path, v[0] ? v : "no $VER");
+    num = strchr(v, ' ');
+    if (gfos && num && num[1] == '4' && num[2] >= '0' && num[2] <= '7' && num[3] == '.') {
+        snprintf(why, sizeof why, "%s is 3.2.3's (%s), not a GFOS application", path, v);
+        fail(row, why);
+    } else pass(row);
 }
 
 /* cybergraphics.library ReadRGBPixel (LVO -108: a1 rp, d0 x, d1 y), for a window on a deep RTG screen,
@@ -283,13 +332,13 @@ static int do_menus(int dump)
         } else if (is_gfos() && !strcmp(row, "M4")) {   /* Refresh OpenBench covers Update All */
             if (has("*:refresh openbench")) pass(row); else fail(row, "no Refresh OpenBench item (covers Update All)");
         } else if (is_gfos() && !strcmp(row, "M24")) {   /* Format: a separate application */
-            if (exists("SYS:System/Format")) pass(row); else fail(row, "no SYS:System/Format application");
+            app_row(row, "SYS:System/Format", 1);
         } else if (has(menu_rows[i].spec)) pass(row);
         else fail(row, menu_rows[i].spec);
     }
-    /* D3 Format and D4 DiskCopy: separate applications, as on 3.2.3 */
-    if (exists("SYS:System/Format")) pass("D3"); else fail("D3", "no SYS:System/Format");
-    if (exists("SYS:System/DiskCopy")) pass("D4"); else fail("D4", "no SYS:System/DiskCopy");
+    /* D3 Format and D4 DiskCopy: separate applications; on GFOS not 3.2.3's own */
+    app_row("D3", "SYS:System/Format", is_gfos());
+    app_row("D4", "SYS:System/DiskCopy", is_gfos());
     if (check_keys()) fail("M28", "Amiga-keys that mean something else than on 3.2.3 (INFO lines)"); else pass("M28");
     return fails ? 5 : 0;
 }
@@ -648,7 +697,7 @@ static void check_loadwb(void)
             }
             Close(fh);
         }
-        printf("INFO A10a the desktop's line: %s%s", cmd, seq[0] ? seq : "\n");
+        printf("INFO A10a the desktop's line (the first %s line in S:Startup-Sequence): %s%s", cmd, cmd, seq[0] ? seq : "\n");
     }
     switches_of(seq, want, sizeof want);
     switches_of(env, got, sizeof got);
@@ -681,8 +730,10 @@ static int do_startup(const char *what)
             }
         } else printf("INFO no SYS:WBStartup/WBGapD and WBGapE: S2d not set up\n");
         if (exists("SYS:WBStartup/WBGapF")) {   /* I12a, I12b at WBStartup, which needs no registered Workbench */
-            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)"STACK=40000", (STRPTR)"TOOLPRI=-3",
+            static char st[24];
+            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)st, (STRPTR)"TOOLPRI=-3",
                                   (STRPTR)"DONOTWAIT", NULL};
+            snprintf(st, sizeof st, "STACK=%lu", stack_wanted());
             ok = ok && put_icon("SYS:WBStartup/WBGapF", WBTOOL, tf);
         } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
@@ -713,16 +764,38 @@ static int do_startup(const char *what)
             else if (se < sc && sc < sd) pass("S2d");
             else fail("S2d", "not by date added E, C, D");
         }
-        check_launchrec("RAM:wbgap-launchwb", 0);
+        check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
         check_loadwb();
         return fails ? 5 : 0;
     }
 }
 
 /* ---- launching (row 6's launcher) ---- */
-/* the line a start with LAUNCHREC wrote: I12a STACK=40000, I12b TOOLPRI=-3, and with args, I11 three arguments.
+/* the STACK= the launch tests ask for: 64 KB over the Workbench's default stack (at least 40000), so the
+ * default can't pass for it */
+static unsigned long stack_wanted(void)
+{
+    ULONG def = 0;
+    WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&def, TAG_END);
+    return (def > 40000 ? def : 40000) + 65536;
+}
+
+/* STACK=n from an icon's tool types, 0 if none */
+static unsigned long icon_stack(const char *path)
+{
+    struct DiskObject *d = GetDiskObject((CONST_STRPTR)path);
+    unsigned long n = 0;
+    if (d) {
+        STRPTR v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"STACK");
+        if (v) n = strtoul((const char *)v, NULL, 10);
+        FreeDiskObject(d);
+    }
+    return n;
+}
+
+/* the line a start with LAUNCHREC wrote: I12a STACK= (64 KB over the default stack), I12b TOOLPRI=-3, and with args, I11 three arguments.
  * 0 if there was none (each row SKIPped) */
-static int check_launchrec(const char *file, int args_too)
+static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
 {
     char buf[400];
     long stack = 0, args = 0, n;
@@ -742,18 +815,22 @@ static int check_launchrec(const char *file, int args_too)
     printf("INFO %s: %s", file, buf);
     sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
     if (args_too) { if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
-    if (stack >= 40000) pass("I12a"); else fail("I12a", "STACK=40000 not given");
+    if ((unsigned long)stack >= want_stack) pass("I12a");
+    else { char why[64]; snprintf(why, sizeof why, "STACK=%lu not given (%ld)", want_stack, stack); fail("I12a", why); }
     if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
     return 1;
 }
 
 static int do_launch(void)
 {
-    static STRPTR tt[] = {(STRPTR)"LAUNCHREC", (STRPTR)"STACK=40000", (STRPTR)"TOOLPRI=-3", NULL};
+    static char st[24];
+    static STRPTR tt[] = {(STRPTR)"LAUNCHREC", (STRPTR)st, (STRPTR)"TOOLPRI=-3", NULL};
+    unsigned long want = stack_wanted();
     char cmd[320];
     BPTR dir, fh = 0;
     BOOL ok;
     int t;
+    snprintf(st, sizeof st, "STACK=%lu", want);
     do_setup();
     {   /* this program, by its full name: a Shell's PROGDIR: is the Shell's */
         char self[256] = "WBGapTest";
@@ -782,7 +859,7 @@ static int do_launch(void)
     }
     if (fh) Close(fh);
     Delay(10);   /* the line written whole */
-    check_launchrec("RAM:wbgap-launch", 1);
+    check_launchrec("RAM:wbgap-launch", 1, want);
     return fails ? 5 : 0;
 }
 

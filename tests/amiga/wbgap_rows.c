@@ -160,6 +160,7 @@ static const struct wbgap_row rows[] = {
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
+typedef char wbgap_rows_fit[NROWS <= WBGAP_MAXROWS ? 1 : -1];   /* the report has room for every row */
 
 int wbgap_row_count(void) { return NROWS; }
 
