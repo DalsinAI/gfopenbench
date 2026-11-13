@@ -1,0 +1,221 @@
+/* ob_tasks.c: the Workbench task model's bookkeeping (ob_tasks.h). Plain C, tested on the host.
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
+#include "ob_tasks.h"
+
+static void zero(void *p, unsigned long n)
+{
+    unsigned char *b = p;
+    while (n--) *b++ = 0;
+}
+
+/* ---- the supervisor ---- */
+void ob_super_init(ob_super *s)
+{
+    zero(s, sizeof *s);
+    s->next_id = 1;
+}
+
+unsigned long ob_super_add(ob_super *s, int kind, void *user)
+{
+    int i;
+    for (i = 0; i < OB_SUPER_MAX; i++)
+        if (!s->c[i].id) {
+            ob_child *c = &s->c[i];
+            zero(c, sizeof *c);
+            c->id = s->next_id++;
+            if (!s->next_id) s->next_id = 1;
+            c->kind = kind;
+            c->state = OB_S_RUNNING;
+            c->user = user;
+            return c->id;
+        }
+    return 0;
+}
+
+ob_child *ob_super_find(ob_super *s, unsigned long id)
+{
+    int i;
+    if (!id) return 0;
+    for (i = 0; i < OB_SUPER_MAX; i++)
+        if (s->c[i].id == id) return &s->c[i];
+    return 0;
+}
+
+int ob_super_count(const ob_super *s, int kind)
+{
+    int i, n = 0;
+    for (i = 0; i < OB_SUPER_MAX; i++)
+        if (s->c[i].id && s->c[i].kind == kind) n++;
+    return n;
+}
+
+int ob_super_ended(ob_super *s, unsigned long id)
+{
+    ob_child *c = ob_super_find(s, id);
+    if (!c) return 0;
+    zero(c, sizeof *c);
+    return 1;
+}
+
+int ob_super_crashed(ob_super *s, unsigned long id, unsigned long now)
+{
+    ob_child *c = ob_super_find(s, id);
+    if (!c) return OB_ACT_NONE;
+    if (!c->crashes || now - c->first_crash > OB_RESTART_WINDOW) {
+        c->crashes = 0;
+        c->first_crash = now;
+    }
+    if (++c->crashes > OB_RESTART_MAX) {
+        zero(c, sizeof *c);
+        return OB_ACT_CLOSE;
+    }
+    return OB_ACT_RESTART;
+}
+
+/* ---- the jobs ---- */
+static int same_vol(const char *a, const char *b)
+{
+    for (;; a++, b++) {
+        int x = *a >= 'A' && *a <= 'Z' ? *a + 32 : *a, y = *b >= 'A' && *b <= 'Z' ? *b + 32 : *b;
+        if (x != y) return 0;
+        if (!x) return 1;
+    }
+}
+
+void ob_jobq_init(ob_jobq *q, int max_running)
+{
+    zero(q, sizeof *q);
+    q->max_running = max_running > 0 ? max_running : 1;
+    q->next_id = 1;
+}
+
+unsigned long ob_jobq_add(ob_jobq *q, const char *vol)
+{
+    ob_job *j;
+    int i;
+    if (q->n >= OB_JOBS_MAX) return 0;
+    j = &q->j[q->n++];
+    zero(j, sizeof *j);
+    j->id = q->next_id++;
+    if (!q->next_id) q->next_id = 1;
+    j->state = OB_J_QUEUED;
+    for (i = 0; vol && vol[i] && i < OB_VOL_LEN - 1; i++) j->vol[i] = vol[i];
+    return j->id;
+}
+
+ob_job *ob_jobq_find(ob_jobq *q, unsigned long id)
+{
+    int i;
+    for (i = 0; i < q->n; i++)
+        if (q->j[i].id == id) return &q->j[i];
+    return 0;
+}
+
+ob_job *ob_jobq_next(ob_jobq *q)
+{
+    int i, k, running = 0;
+    for (i = 0; i < q->n; i++)
+        if (q->j[i].state == OB_J_RUNNING) running++;
+    if (running >= q->max_running) return 0;
+    for (i = 0; i < q->n; i++) {
+        int busy = 0;
+        if (q->j[i].state != OB_J_QUEUED) continue;
+        for (k = 0; k < q->n && !busy; k++)
+            busy = q->j[k].state == OB_J_RUNNING && same_vol(q->j[k].vol, q->j[i].vol);
+        if (!busy) return &q->j[i];
+    }
+    return 0;
+}
+
+void ob_jobq_start(ob_jobq *q, unsigned long id)
+{
+    ob_job *j = ob_jobq_find(q, id);
+    if (j && j->state == OB_J_QUEUED) j->state = OB_J_RUNNING;
+}
+
+int ob_jobq_progress(ob_jobq *q, unsigned long id, unsigned long done, unsigned long total)
+{
+    ob_job *j = ob_jobq_find(q, id);
+    if (!j || j->state != OB_J_RUNNING) return 0;
+    j->done = done;
+    j->total = total;
+    return !j->cancel;
+}
+
+int ob_jobq_cancel(ob_jobq *q, unsigned long id)
+{
+    ob_job *j = ob_jobq_find(q, id);
+    if (!j) return 0;
+    if (j->state == OB_J_QUEUED) { j->state = OB_J_CANCELLED; return 1; }
+    if (j->state == OB_J_RUNNING) { j->cancel = 1; return 2; }
+    return 0;
+}
+
+void ob_jobq_finish(ob_jobq *q, unsigned long id, int ok)
+{
+    ob_job *j = ob_jobq_find(q, id);
+    if (!j || j->state != OB_J_RUNNING) return;
+    j->state = j->cancel ? OB_J_CANCELLED : ok ? OB_J_DONE : OB_J_FAILED;
+}
+
+int ob_jobq_reap(ob_jobq *q)
+{
+    int i, k = 0, gone = 0;
+    for (i = 0; i < q->n; i++) {
+        int st = q->j[i].state;
+        if (st == OB_J_DONE || st == OB_J_FAILED || st == OB_J_CANCELLED) { gone++; continue; }
+        if (k != i) q->j[k] = q->j[i];
+        k++;
+    }
+    q->n = k;
+    return gone;
+}
+
+int ob_jobq_percent(const ob_job *j)
+{
+    if (!j || !j->total) return 0;
+    if (j->done >= j->total) return 100;
+    /* without overflow for large totals */
+    return j->total > 0xFFFFFFUL ? (int)(j->done / (j->total / 100)) : (int)(j->done * 100 / j->total);
+}
+
+/* ---- low memory ---- */
+static int refill(ob_reserve *r, const ob_mem *m)
+{
+    if (r->block || !r->size) return 1;
+    r->block = m->alloc(m->user, r->size);
+    r->low = !r->block;
+    return !r->low;
+}
+
+int ob_reserve_init(ob_reserve *r, const ob_mem *m, unsigned long size)
+{
+    r->block = 0;
+    r->size = size;
+    r->low = 1;
+    return refill(r, m);
+}
+
+void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size)
+{
+    for (;;) {
+        void *p;
+        if (r->low) refill(r, m);           /* the reserve first: the next requester needs it */
+        if ((p = m->alloc(m->user, size))) return p;
+        if (r->block) {                     /* give it back, so the requester can open */
+            m->free(m->user, r->block, r->size);
+            r->block = 0;
+            r->low = 1;
+            /* the request may fit now the reserve is back: no requester then (Koenig, Team 1, #102 review) */
+            if ((p = m->alloc(m->user, size))) return p;
+        }
+        r->low = 1;
+        if (!m->ask(m->user)) return 0;
+    }
+}
+
+void ob_reserve_end(ob_reserve *r, const ob_mem *m)
+{
+    if (r->block) m->free(m->user, r->block, r->size);
+    r->block = 0;
+}

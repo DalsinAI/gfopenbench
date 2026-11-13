@@ -904,6 +904,7 @@ int ob_drop(const char *const *paths, int n, WORD sx, WORD sy, UWORD qual, wb_dr
     }
     if (w == *env.root) {
         int k = env.icon_at ? env.icon_at(sx, sy, dst, sizeof dst) : OB_DESK_NONE;
+        if (env.appicon_drop && env.appicon_drop(paths, n, sx, sy)) return 1;   /* 0.1.56: onto a program's AppIcon */
         if (k == OB_DESK_DISK || k == OB_DESK_DRAWER) return transfer(paths, n, dst);
         if (k == OB_DESK_TRASH) return to_trash(paths, n, dst);
         /* the desktop's own space (or a tool left out there): left out, for this run, as on 3.2.3 */
@@ -920,6 +921,7 @@ int ob_drop_volume(const char *volume, WORD sx, WORD sy, UWORD qual)
     (void)qual;
     if (!w || stopping) return 0;
     if (w == *env.root) {
+        if (env.appicon_drop && env.appicon_drop(&volume, 1, sx, sy)) return 1;   /* 0.1.56: onto an AppIcon */
         /* onto a drawer left out on the desktop (a disk's icon onto another disk's only moves it there) */
         if (env.icon_at && env.icon_at(sx, sy, dst, sizeof dst) == OB_DESK_DRAWER && !of_path_inside(dst, volume))
             return job_for(NULL, 0, dst, OP_DISK, volume);

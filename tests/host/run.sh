@@ -17,6 +17,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/w
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_menu.c" \
   "$HERE/tests/host/test_wbgap_menu.c" -o "$OUT/test_wbgap_menu"
 "$OUT/test_wbgap_menu"
+# wbgap_index: the ACFS index's "::wb" lines as WBGapIndex reads them (tests/amiga/wbgap_index.c; build row 8's rows)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
+  "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
+"$OUT/test_wbgap_index"
 "$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 
@@ -52,6 +56,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_vols.c" \
   "$HERE/tests/host/test_ob_vols.c" -o "$OUT/test_ob_vols"
+# ob_eject: which way Icons > Eject takes a disk, floppy, PCMCIA card or not removable (GFOpenBench 0.1.58, row M35)
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_eject.c" \
+  "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
+"$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
@@ -84,7 +92,17 @@ cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/bench
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_rexx.c" \
   "$HERE/tests/host/test_ob_rexx.c" -o "$OUT/test_ob_rexx"
+# ob_wbplan: GFOpenBench as workbench.library's Workbench, its paths, hook answers and AppMenuItems (GFOpenBench 0.1.56)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_wbplan.c" \
+  "$HERE/tests/host/test_ob_wbplan.c" -o "$OUT/test_ob_wbplan"
+"$OUT/test_ob_wbplan"
 "$OUT/test_ob_rexx"
+# ob_tasks: the Workbench task model: supervisor, job queue, low-memory reserve (build plan row 3)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_tasks.c" \
+  "$HERE/tests/host/test_ob_tasks.c" -o "$OUT/test_ob_tasks"
+"$OUT/test_ob_tasks"
 "$OUT/test_benchmark"
 
 rm -rf "$OUT/icons"

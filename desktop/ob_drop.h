@@ -33,6 +33,9 @@ typedef struct ob_drop_env {
     /* 0.1.44: words for the screen's title, kept there until the next click, as OS 3.2.3 says an error that asks
      * nothing (a move within a volume onto a name that is taken). NULL: not said. */
     void (*say)(const char *text);
+    /* 0.1.56: icons let go at (sx, sy) on the desktop, on a program's AppIcon (ob_wb.h): its AppMessage sent with
+     * them. 1 when an AppIcon was there; 0 and the drop goes on as before. NULL: no AppIcons. */
+    int (*appicon_drop)(const char *const *paths, int n, WORD sx, WORD sy);
 } ob_drop_env;
 
 /* Before the dock and WBStartup: tells workbench.library that drops on AppWindows are delivered (the Team's

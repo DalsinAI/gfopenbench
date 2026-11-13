@@ -36,7 +36,7 @@ struct wbgap_report {
 
 void wbgap_report_init(struct wbgap_report *r);
 /* one line of WBGapTest's output: 1 if it set a row, 0 if it isn't a result (INFO, MENU, blank),
- * -1 if it names no row. "FAIL M* why" sets every M row with a mode that has no line yet. */
+ * -1 if it names no row. "FAIL M* why" sets every M row with no line yet that the first M row's mode checks. */
 int wbgap_report_line(struct wbgap_report *r, const char *line);
 
 typedef void (*wbgap_out)(void *ctx, const char *line);
