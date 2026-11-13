@@ -133,9 +133,21 @@ E="$FILES/engine"
 [ -f "$E/of_ops.c" ] || { echo "desktop/build.sh: no gfopenfilemanager at $FILES (set FILES)" >&2; exit 1; }
 echo "GFOpenBench: GFOpenFiles' engine from $FILES ($(cd "$FILES" && git rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
 DROP_OBJS=""
-for f in of_ops of_path of_fs_amiga of_alloc_amiga; do
+# The copies, moves, renames, deletes, trash and new drawers through gfopenfiles.library (Workbench redesign
+# row 1, 13 Nov 2026): GFOpenFiles' engine/of_ops_lib.c in place of of_ops.c, with the library's link stub, so the
+# one engine in LIBS: does the work and this code stays as it is. A gfopenfilemanager without the library links
+# the engine itself, as before.
+OPS=of_ops
+if [ -f "$E/of_ops_lib.c" ] && [ -f "$FILES/stub/gfopenfiles_stub.c" ]; then
+    OPS=of_ops_lib
     # shellcheck disable=SC2086
-    "$CC" $FLAGS -DOF_AMIGA -I"$E" -c -o "$TMP/$f.o" "$E/$f.c"
+    "$CC" $FLAGS -I"$FILES/include" -c -o "$TMP/gfopenfiles_stub.o" "$FILES/stub/gfopenfiles_stub.c"
+    DROP_OBJS="$TMP/gfopenfiles_stub.o"
+    echo "GFOpenBench: the file engine through gfopenfiles.library (LIBS:)"
+fi
+for f in $OPS of_path of_fs_amiga of_alloc_amiga; do
+    # shellcheck disable=SC2086
+    "$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$FILES/include" -c -o "$TMP/$f.o" "$E/$f.c"
     DROP_OBJS="$DROP_OBJS $TMP/$f.o"
 done
 # GFOpenFiles' requesters (app/of_req.c, with the list code its rename preview needs, app/of_dir.c): Window > New
