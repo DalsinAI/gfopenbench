@@ -208,6 +208,23 @@ static void test_names(void)
     CHECK("short buffer ends", ob_names_format(small, sizeof small, names, 10) < (int)sizeof small && strlen(small) < sizeof small);
 }
 
+static void test_pack(void)
+{
+    char buf[16];
+    const char *out[4];
+    int n = 0;
+    memset(buf, 'x', sizeof buf);
+    CHECK("pack a", ob_pack(buf, sizeof buf, &n, "SYS:a") && n == 1);
+    CHECK("pack empty", ob_pack(buf, sizeof buf, &n, "") && n == 2);
+    CHECK("pack b", ob_pack(buf, sizeof buf, &n, "RAM:b") && n == 3);
+    CHECK("too long refused", !ob_pack(buf, sizeof buf, &n, "DH0:long") && n == 3);
+    CHECK("unpack", ob_unpack(buf, sizeof buf, n, out, 4) == 3 && !strcmp(out[0], "SYS:a") && !strcmp(out[1], "")
+          && !strcmp(out[2], "RAM:b"));
+    CHECK("unpack max", ob_unpack(buf, sizeof buf, n, out, 2) == 2);
+    memset(buf, 'y', sizeof buf);
+    CHECK("no NUL: nothing", ob_unpack(buf, sizeof buf, 1, out, 4) == 0);
+}
+
 int main(void)
 {
     test_super();
@@ -215,6 +232,7 @@ int main(void)
     test_reserve();
     test_seq();
     test_names();
+    test_pack();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

@@ -125,4 +125,10 @@ int ob_seq_ended(ob_seq *s, unsigned long id);                    /* 1: it was t
  * requester: a '%' becomes '_' (the requester's text is a format). Its length. */
 int ob_names_format(char *out, int n, const char *const *names, int count);
 
+/* Strings packed one after another with their NULs into a fixed buffer (the launcher's messages carry their
+ * arguments and tool types so). ob_pack: 1 when s fitted (*count one more). ob_unpack: up to max pointers into buf,
+ * how many. */
+int ob_pack(char *buf, int size, int *count, const char *s);
+int ob_unpack(const char *buf, int size, int count, const char **out, int max);
+
 #endif

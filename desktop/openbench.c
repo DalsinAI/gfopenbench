@@ -200,6 +200,12 @@
  *     Window > Update does; on ACFS that read comes from the drive's index;
  *   - SYS:WBStartup starts as OS 3.2.3's does (0.1.55, ob_startup.h; CM4 item 12, WBGapTest rows S2 and S3): by STARTPRI
  *     then name, one program at a time, the next when this one has ended unless DONOTWAIT, after at most WAIT=n seconds;
+ *   - The launcher is a module of its own (0.1.56; Workbench build plan row 6, WBGapTest S2d, I11, I12, A10):
+ *     gfopenlaunch.library (launcher/), from gfosmodules/ when first opened. It starts every program and takes its
+ *     WBStartup back, so GFOpenBench never waits on one; it honours STACK and TOOLPRI. SYS:WBStartup with the same
+ *     STARTPRI goes by the date added. Shift-double-click on the desktop passes every selected icon. LoadWB's switches
+ *     are taken (SKIPWBSTARTUP, CLEANUP, DELAY) and written to ENV:GFOpenBench/LoadWB. Without the library,
+ *     programs start as in 0.1.55;
  *
  * Next (the user's order): the rest of workbench.library's entries (AppIcons, AppMenuItems) brought to GFOpenBench, as
  * Directory Opus 5 takes them.
@@ -264,7 +270,8 @@
 #include "ob_notify.h"
 #include "ob_vols.h"
 #include "ob_order.h"
-#include "ob_startup.h"
+#include "ol_core.h"                         /* the launcher's rules (Workbench build plan row 6) */
+#include "ol_lib.h"                          /* gfopenlaunch.library, the launcher module */
 #include "ob_backdrop.h"
 #include "ob_strip.h"
 #include "ob_host.h"
@@ -284,8 +291,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.55"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (12.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.56"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -955,7 +962,9 @@ typedef struct dicon {
     int lo;                                 /* 0.1.35: a left-out icon's louts[] entry; -1: a disk */
     int snapped;                            /* 0.1.38: snapshotted by GFOpenBench, its .info still so: on cell sgx, sgy */
     int sgx, sgy;
+    unsigned long selseq;                   /* when it was selected (sel_seq), for Shift-double-click's order (I11) */
 } dicon;
+static unsigned long sel_seq;
 
 static dicon icons[MAX_DESK];
 static int nicons;
@@ -1814,17 +1823,24 @@ static int open_drawer(const char *path);
 
 #define parent_and_name ob_parent_and_name
 
-/* A tool started with a WBStartup message: arg 0 the tool, arg 1 the project when there is one. 1 when the launcher
- * has been asked to start it; whether it did comes back on launch_port (launch_answers). */
-static int start_tool(const char *tool, const char *project, LONG stack)
+/* A tool started with a WBStartup message: arg 0 the tool, then args (a project; Shift-double-click's every
+ * selected icon, WBGapTest I11), with the icon's stack and tool types (STACK, TOOLPRI: I12). 1 when the launcher has
+ * been asked to start it; whether it did comes back on launch_port (launch_answers). The launcher starts it through
+ * gfopenlaunch.library when that is there (Workbench build plan row 6), else itself as 0.1.55 did. */
+static int start_tool_args(const char *tool, const char *const *args, int n, LONG stack, const char *const *tt)
 {
     ob_lreq *r;
+    int i;
     if (!launcher_up) return 0;
-    if (strlen(tool) >= sizeof r->tool || (project && strlen(project) >= sizeof r->project)) return 0;
+    if (strlen(tool) >= sizeof r->tool) return 0;
     if (!(r = AllocVec(sizeof *r, MEMF_PUBLIC | MEMF_CLEAR))) return 0;
     r->kind = OB_LR_START;
     strcpy(r->tool, tool);
-    if (project) strcpy(r->project, project);
+    for (i = 0; i < n; i++)
+        if (!ob_pack(r->args, sizeof r->args, &r->nargs, args[i])) { FreeVec(r); return 0; }
+    for (i = 0; tt && tt[i]; i++)
+        if (!ob_pack(r->tt, sizeof r->tt, &r->ntt, tt[i])) break;   /* tool types that don't fit: left out */
+    r->min_stack = (long)wb_stack;
     if (stack < (LONG)wb_stack) stack = (LONG)wb_stack;   /* Workbench's default stack, 8192 at the least */
     r->stack = stack;
     r->wait = open_ctx.wait;
@@ -1835,6 +1851,11 @@ static int start_tool(const char *tool, const char *project, LONG stack)
     ob_launch_send(r);
     open_ctx.sent = 1;
     return 1;
+}
+
+static int start_tool(const char *tool, const char *project, LONG stack)
+{
+    return start_tool_args(tool, project ? &project : NULL, project ? 1 : 0, stack, NULL);
 }
 
 /* A question to the launcher, waited for (only on quitting): NAMES or QUIT. Its answer, or NULL (FreeVec it). */
@@ -2061,12 +2082,13 @@ static int ob_open_object(const char *path)
         ok = open_drawer(path);
         break;
     case WBTOOL:
-        ok = tata_lets(path, 0) && start_tool(path, NULL, o->do_StackSize);
+        ok = tata_lets(path, 0) && start_tool_args(path, NULL, 0, o->do_StackSize, (const char *const *)o->do_ToolTypes);
         break;
     case WBPROJECT: {
         char tool[300];
+        const char *one = path;
         if (find_tool(path, (const char *)o->do_DefaultTool, tool, sizeof tool) && tata_lets(tool, 0) && tata_lets(path, 1))
-            ok = start_tool(tool, path, o->do_StackSize);
+            ok = start_tool_args(tool, &one, 1, o->do_StackSize, (const char *const *)o->do_ToolTypes);
         break;
     }
     }
@@ -2074,15 +2096,16 @@ static int ob_open_object(const char *path)
     return ok;
 }
 
-/* Everything in SYS:WBStartup, started as Workbench starts it (0.1.50, ob_startup.h): by STARTPRI, highest first,
- * then by name; one at a time, the next when this one has ended, unless its icon says DONOTWAIT, and after at most
- * WAIT=n seconds (OB_START_WAIT_MAX without one). */
+/* Everything in SYS:WBStartup, started as Workbench starts it (ol_core.h; WBGapTest S2, S2d, S3): by STARTPRI,
+ * highest first, then by the date each was added to the drawer, then by name; one at a time, the next when this one
+ * has ended, unless its icon says DONOTWAIT, and after at most WAIT=n seconds (OL_WAIT_MAX without one). Until the
+ * ACFS index records the date added (build plan row 8), it is the older of the program's and its icon's dates. */
 #define OB_START_MAX 64
 
 /* 0.1.57: the desktop doesn't wait for them. It opens one, the launcher starts it and says when it has ended or its
  * wait is over (ob_seq, ob_launch.h), and the next is opened then; the desktop's windows, menus and dock work all the
  * while. */
-static ob_start *wbs_e;
+static ol_start *wbs_e;
 static int wbs_wait[OB_START_MAX];
 static ob_seq wbs_seq;
 static unsigned long wbs_tag;
@@ -2120,14 +2143,35 @@ static void wbstartup_ended(unsigned long id)
     if (wbs_e && ob_seq_ended(&wbs_seq, id)) wbstartup_step();
 }
 
+/* A file's date in seconds (ol_stamp_secs), 0 when it isn't there. No DOS requester. */
+static unsigned long file_secs(const char *path)
+{
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR was = me->pr_WindowPtr;
+    struct FileInfoBlock *fib;
+    unsigned long t = 0;
+    BPTR l;
+    me->pr_WindowPtr = (APTR)-1;
+    if ((l = Lock((CONST_STRPTR)path, ACCESS_READ))) {
+        if ((fib = AllocDosObject(DOS_FIB, NULL))) {
+            if (Examine(l, fib))
+                t = ol_stamp_secs(fib->fib_Date.ds_Days, fib->fib_Date.ds_Minute, fib->fib_Date.ds_Tick);
+            FreeDosObject(DOS_FIB, fib);
+        }
+        UnLock(l);
+    }
+    me->pr_WindowPtr = was;
+    return t;
+}
+
 static void run_wbstartup(void)
 {
     BPTR l = Lock((CONST_STRPTR)"SYS:WBStartup", ACCESS_READ);
     struct FileInfoBlock *fib;
-    ob_start *e;
+    ol_start *e;
     int n = 0, i;
     if (!l || wbs_e) { if (l) UnLock(l); return; }
-    if (!(e = AllocVec(OB_START_MAX * sizeof *e, MEMF_ANY))) { UnLock(l); return; }
+    if (!(e = AllocVec(OB_START_MAX * sizeof *e, MEMF_ANY | MEMF_CLEAR))) { UnLock(l); return; }
     if ((fib = AllocDosObject(DOS_FIB, NULL))) {
         if (Examine(l, fib))
             while (n < OB_START_MAX && ExNext(l, fib)) {
@@ -2138,14 +2182,16 @@ static void run_wbstartup(void)
                 snprintf(e[n].name, sizeof e[0].name, "%.*s", len - 5, (const char *)fib->fib_FileName);
                 snprintf(path, sizeof path, "SYS:WBStartup/%s", e[n].name);
                 o = GetDiskObject((CONST_STRPTR)path);
-                ob_start_read(&e[n], o ? (const char *const *)o->do_ToolTypes : NULL);
+                ol_start_read(&e[n], o ? (const char *const *)o->do_ToolTypes : NULL);
                 if (o) FreeDiskObject(o);
+                e[n].added = ol_added(file_secs(path),
+                                      ol_stamp_secs(fib->fib_Date.ds_Days, fib->fib_Date.ds_Minute, fib->fib_Date.ds_Tick));
                 n++;
             }
         FreeDosObject(DOS_FIB, fib);
     }
     UnLock(l);
-    qsort(e, n, sizeof e[0], ob_start_cmp);
+    qsort(e, n, sizeof e[0], ol_start_cmp);
     for (i = 0; i < n; i++) wbs_wait[i] = e[i].wait;
     ob_seq_init(&wbs_seq, wbs_wait, n);
     wbs_e = e;
@@ -2686,8 +2732,53 @@ static void select_only(dicon *keep)
     for (i = 0; i < nicons; i++)
         if (icons[i].selected != (&icons[i] == keep)) {
             icons[i].selected = &icons[i] == keep;
+            if (icons[i].selected) icons[i].selseq = ++sel_seq;
             redraw_around(&icons[i]);
         }
+}
+
+/* Shift-double-click (WBGapTest I11, ol_shift_args): every icon selected on the desktop goes to the program run,
+ * in the order selected: the clicked icon when it is a tool, else the first tool selected, else the clicked
+ * project's default tool. 0 when it isn't such a launch (one icon, a disk clicked): the caller opens it as usual. */
+#define OB_SHIFT_MAX 32
+static int desk_open_selected(dicon *clicked)
+{
+    dicon *sel[OB_SHIFT_MAX];
+    int kind[OB_SHIFT_MAX], argi[OB_SHIFT_MAX], n = 0, i, j, tool, nargs, at = -1, ok = 0;
+    const char *argv[OB_SHIFT_MAX];
+    struct DiskObject *o = NULL;
+    char toolpath[300];
+    const char *run;
+    for (i = 0; i < nicons && n < OB_SHIFT_MAX; i++)
+        if (icons[i].selected || &icons[i] == clicked) sel[n++] = &icons[i];
+    if (n < 2) return 0;
+    for (i = 1; i < n; i++)                                 /* in the order selected (the clicked one last) */
+        for (j = i; j > 0; j--) {
+            unsigned long a = sel[j - 1] == clicked ? ~0UL : sel[j - 1]->selseq;
+            unsigned long b = sel[j] == clicked ? ~0UL : sel[j]->selseq;
+            dicon *t;
+            if (a <= b) break;
+            t = sel[j - 1], sel[j - 1] = sel[j], sel[j] = t;
+        }
+    for (i = 0; i < n; i++) {
+        struct DiskObject *d = sel[i]->lo >= 0 ? GetDiskObject((CONST_STRPTR)sel[i]->path) : NULL;
+        kind[i] = sel[i]->lo < 0 ? OL_K_DRAWER : !d ? OL_K_OTHER : d->do_Type == WBTOOL ? OL_K_TOOL :
+                  d->do_Type == WBPROJECT ? OL_K_PROJECT : OL_K_DRAWER;
+        if (d) FreeDiskObject(d);
+        if (sel[i] == clicked) at = i;
+    }
+    if ((nargs = ol_shift_args(kind, n, at, &tool, argi)) < 0) return 0;
+    if (!(o = GetDiskObject((CONST_STRPTR)(tool >= 0 ? sel[tool] : clicked)->path))) return 0;
+    if (tool >= 0) run = sel[tool]->path;
+    else if (find_tool(clicked->path, (const char *)o->do_DefaultTool, toolpath, sizeof toolpath)) run = toolpath;
+    else run = NULL;
+    if (run && tata_lets(run, 0)) {
+        for (i = 0; i < nargs; i++) argv[i] = sel[argi[i]]->path;
+        for (i = 0, ok = 1; i < nargs && ok; i++) if (kind[argi[i]] == OL_K_PROJECT && !tata_lets(argv[i], 1)) ok = 0;
+        if (ok) ok = start_tool_args(run, argv, nargs, o->do_StackSize, (const char *const *)o->do_ToolTypes);
+    }
+    FreeDiskObject(o);
+    return 1;                                               /* handled, started or not */
 }
 
 /* The root window's messages: selecting, opening and dragging the desktop's icons, its menus. 0 to quit. */
@@ -3473,6 +3564,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             if (ic && ic == last_click && DoubleClick(last_secs, last_micros, secs, micros)) {
                 last_click = NULL;
                 pressed_on = NULL;
+                if ((qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) && desk_open_selected(ic)) break;   /* I11 */
                 if (ic->lo >= 0) ob_open_object(ic->path);  /* 0.1.35: left out: what it stands for */
                 else open_drawer(ic->path);
                 break;
@@ -3483,6 +3575,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             if (ic) {
                 if (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) {
                     ic->selected = !ic->selected;
+                    if (ic->selected) ic->selseq = ++sel_seq;
                     redraw_around(ic);
                 } else if (!ic->selected)
                     select_only(ic);
@@ -4390,6 +4483,38 @@ static const ob_rexx_env rexx_env = {
     ob_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
 };
 
+/* LoadWB's switches (WBGapTest A10, ol_core.h): GFOpenBench takes LoadWB's template, from the Startup-Sequence's
+ * line or from workbench.library's StartWorkbench, which passes LoadWB's d0 on as these words. As 3.2.3:
+ * SKIPWBSTARTUP starts nothing from SYS:WBStartup; CLEANUP cleans up the desktop's icons at the start; DELAY waits
+ * three seconds before SYS:WBStartup, for the disks to settle. NEWPATH: the Shell's path GFOpenBench was started
+ * with is the one its Execute Command uses. -DEBUG and SIMPLEGELS are taken and kept, with nothing of their own
+ * yet (no Debug menu; the drag is GFOpenBench's own drawing). The switches taken are written to
+ * ENV:GFOpenBench/LoadWB, one word each, for WBGapTest. */
+static unsigned long ob_switches;
+
+static void switches_read(void)
+{
+    LONG a[7] = { 0, 0, 0, 0, 0, 0, 0 };
+    struct RDArgs *rd = ReadArgs((CONST_STRPTR)OL_LOADWB_TEMPLATE, a, NULL);
+    int i;
+    if (!rd) return;                               /* other words: ignored, a desktop always opens */
+    for (i = 0; i < 6; i++)
+        if (a[i]) ob_switches |= 1UL << i;
+    FreeArgs(rd);
+}
+
+static void switches_record(void)
+{
+    char words[96];
+    BPTR f, l;
+    int k = ol_switch_words(ob_switches, words, sizeof words);
+    if ((l = CreateDir((CONST_STRPTR)"ENV:GFOpenBench"))) UnLock(l);
+    if ((f = Open((CONST_STRPTR)"ENV:GFOpenBench/LoadWB", MODE_NEWFILE))) {
+        if (k) Write(f, words, k);
+        Close(f);
+    }
+}
+
 static int run(void)
 {
     struct MsgPort *pub = NULL, *tport = NULL;
@@ -4495,7 +4620,14 @@ static int run(void)
     /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
     if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
-    run_wbstartup();
+    switches_record();
+    if (ob_switches & OL_SW_CLEANUP) {             /* A10: as Window > Clean Up */
+        cleanup_snaps();
+        place_icons(1);
+        redraw_all();
+    }
+    if (ob_switches & OL_SW_DELAY) Delay(150);
+    if (!(ob_switches & OL_SW_SKIPSTARTUP)) run_wbstartup();
 
     /* every two seconds: the title (free memory); 0.1.40: the volumes' fingerprint (volumes_moved) */
     if (!(tport = CreateMsgPort())) no_signal("the 2-second timer");
@@ -4846,6 +4978,7 @@ int main(int argc, char **argv)
     (void)argv;
     (void)version;
     run_shell = argc != 0;
+    if (run_shell) switches_read();
     if (shift_held()) {
         /* safe start: Hyperion's Workbench */
         run_loadwb();

@@ -15,6 +15,7 @@
 
 #include "ob_launch.h"
 #include "ob_tasks.h"
+#include "ol_lib.h"                          /* gfopenlaunch.library (Team 2, build plan row 6) */
 
 /* A program's run: its WBStartup and its arguments, back on wbs_port when it ends. */
 typedef struct launch {
@@ -37,6 +38,11 @@ static struct MsgPort *wbs_port;
 static launch *launches;
 static int running;
 static unsigned long next_id = 1;
+static struct Library *OLBase;              /* gfopenlaunch.library, opened by the launcher; NULL: it starts them itself */
+
+/* the library's programs the desktop waits on (SYS:WBStartup): told when OL_Ended says so, or at deadline */
+#define OB_WATCH_MAX 16
+static struct { unsigned long id; struct MsgPort *tell; unsigned long deadline; } watch[OB_WATCH_MAX];
 
 static unsigned long now(void)
 {
@@ -103,11 +109,12 @@ static void resident_done(struct Segment *s)
 static unsigned long start_tool(const ob_lreq *r)
 {
     launch *L = AllocVec(sizeof *L, MEMF_PUBLIC | MEMF_CLEAR);
-    const char *tool = r->tool, *project = r->project[0] ? r->project : NULL;
+    const char *tool = r->tool, *project = NULL;
     BPTR seg;
     struct Process *p;
     int n = 1;
     if (!L) return 0;
+    if (r->nargs) ob_unpack(r->args, sizeof r->args, 1, &project, 1);   /* by itself: the first argument only, as 0.1.55 */
     if (!(L->args[0].wa_Lock = ob_parent_and_name(tool, L->names[0], sizeof L->names[0]))) { FreeVec(L); return 0; }
     L->args[0].wa_Name = (STRPTR)L->names[0];
     if (project) {
@@ -127,7 +134,8 @@ static unsigned long start_tool(const ob_lreq *r)
     }
     /* As Workbench starts a tool: no input or output and no current directory (0.1.7: dos's default NIL: made every
      * libnix tool fail on quitting with 8700000E; 0.1.10: a current directory of its own was unlocked twice) */
-    p = CreateNewProcTags(NP_Seglist, (ULONG)seg, NP_FreeSeglist, FALSE, NP_StackSize, (ULONG)r->stack,
+    p = CreateNewProcTags(NP_Seglist, (ULONG)seg, NP_FreeSeglist, FALSE,
+                          NP_StackSize, (ULONG)(r->stack > r->min_stack ? r->stack : r->min_stack),
                           NP_Name, (ULONG)L->names[0], NP_CurrentDir, 0,
                           NP_HomeDir, (ULONG)DupLock(L->args[0].wa_Lock), NP_Input, 0, NP_Output, 0,
                           NP_CloseInput, FALSE, NP_CloseOutput, FALSE, TAG_DONE);
@@ -160,17 +168,49 @@ static unsigned long start_tool(const ob_lreq *r)
     return L->id;
 }
 
-/* OB_LR_ENDED for L to its desktop, once */
-static void tell_ended(launch *L)
+/* Through gfopenlaunch.library: every argument, the icon's stack and tool types. Its id, or 0. */
+static unsigned long ol_start(ob_lreq *r)
+{
+    const char *args[OL_ARGS_MAX], *tt[65];
+    struct TagItem t[OL_ARGS_MAX + 6];
+    int n, ntt, k = 0, i;
+    unsigned long id;
+    n = ob_unpack(r->args, sizeof r->args, r->nargs, args, OL_ARGS_MAX - 1);
+    ntt = ob_unpack(r->tt, sizeof r->tt, r->ntt, tt, 64);
+    tt[ntt] = NULL;
+    t[k].ti_Tag = OLA_Tool, t[k++].ti_Data = (ULONG)r->tool;
+    for (i = 0; i < n; i++) t[k].ti_Tag = OLA_Arg, t[k++].ti_Data = (ULONG)args[i];
+    t[k].ti_Tag = OLA_StackSize, t[k++].ti_Data = (ULONG)r->stack;
+    t[k].ti_Tag = OLA_MinStack, t[k++].ti_Data = (ULONG)r->min_stack;
+    t[k].ti_Tag = OLA_ToolTypes, t[k++].ti_Data = (ULONG)(ntt ? tt : NULL);
+    t[k].ti_Tag = TAG_DONE, t[k].ti_Data = 0;
+    if (!(id = OL_LaunchA(OLBase, t)) || r->wait <= 0) return id;
+    for (i = 0; i < OB_WATCH_MAX; i++)
+        if (!watch[i].id) {
+            watch[i].id = id;
+            watch[i].tell = r->msg.mn_ReplyPort;
+            watch[i].deadline = now() + (unsigned long)r->wait * 50UL;
+            return id;
+        }
+    return id;          /* no room to watch it: the desktop's WBStartup waits its full WAIT=n, nothing more */
+}
+
+static void send_ended(struct MsgPort *to, unsigned long id)
 {
     ob_lreq *e;
-    if (!L->tell) return;
     if ((e = AllocVec(sizeof *e, MEMF_PUBLIC | MEMF_CLEAR))) {
         e->msg.mn_Length = sizeof *e;
         e->kind = OB_LR_ENDED;
-        e->id = L->id;
-        PutMsg(L->tell, &e->msg);
+        e->id = id;
+        PutMsg(to, &e->msg);
     }
+}
+
+/* OB_LR_ENDED for L to its desktop, once */
+static void tell_ended(launch *L)
+{
+    if (!L->tell) return;
+    send_ended(L->tell, L->id);
     L->tell = NULL;
 }
 
@@ -200,7 +240,15 @@ static int deadlines(void)
 {
     unsigned long t = now();
     launch *L;
-    int more = 0;
+    int more = 0, i;
+    for (i = 0; i < OB_WATCH_MAX; i++) {
+        if (!watch[i].id) continue;
+        if (OL_Ended(OLBase, watch[i].id) || (long)(t - watch[i].deadline) >= 0) {
+            send_ended(watch[i].tell, watch[i].id);
+            watch[i].id = 0;
+        } else
+            more = 1;
+    }
     for (L = launches; L; L = L->next) {
         if (!L->tell) continue;
         if ((long)(t - L->deadline) >= 0) tell_ended(L);
@@ -214,6 +262,12 @@ static void names(ob_lreq *r)
     const char *list[9];
     launch *L;
     int k = 0;
+    if (OLBase) {
+        char *c;
+        r->left = (int)OL_Running(OLBase, (STRPTR)r->names, sizeof r->names);
+        for (c = r->names; *c; c++) if (*c == '%') *c = '_';   /* the requester's text is a format */
+        return;
+    }
     for (L = launches; L && k < 9; L = L->next) list[k++] = L->names[0];
     ob_names_format(r->names, sizeof r->names, list, running);
     r->left = running;
@@ -257,6 +311,7 @@ static void launcher_entry(void)
         Signal(parent, 1UL << ready_sig);   /* req_port stays NULL: no launcher */
         return;
     }
+    OLBase = OpenLibrary((CONST_STRPTR)OL_LIBNAME, OL_LIBVER);   /* the launcher module, when it is there */
     req_port = rp;
     Signal(parent, 1UL << ready_sig);
     for (;;) {
@@ -271,14 +326,17 @@ static void launcher_entry(void)
             ob_lreq *r = (ob_lreq *)m;
             switch (r->kind) {
             case OB_LR_START:
-                r->tool[sizeof r->tool - 1] = r->project[sizeof r->project - 1] = 0;
-                r->id = start_tool(r);
+                r->tool[sizeof r->tool - 1] = 0;
+                r->id = OLBase ? ol_start(r) : start_tool(r);
                 r->ok = r->id != 0;
                 ReplyMsg(m);
                 break;
             case OB_LR_QUIT:
-                quit_all(r->secs);
-                r->left = running;
+                if (OLBase) r->left = (int)OL_QuitAll(OLBase, r->secs);
+                else {
+                    quit_all(r->secs);
+                    r->left = running;
+                }
                 ReplyMsg(m);
                 break;
             case OB_LR_NAMES:
@@ -311,6 +369,8 @@ static void launcher_entry(void)
     DeleteMsgPort(tport);
     DeleteMsgPort(wbs_port);
     wbs_port = NULL;
+    if (OLBase) CloseLibrary(OLBase);   /* its programs keep running: their code is the library's to unload */
+    OLBase = NULL;
     /* ends under Forbid: GFOpenBench, whose code this is, can't unload it before this process is gone */
     Forbid();
     req_port = NULL;

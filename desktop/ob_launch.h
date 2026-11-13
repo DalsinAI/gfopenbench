@@ -6,6 +6,9 @@
  * program it started has ended or a number of seconds are over, whichever is first (SYS:WBStartup's WAIT=n,
  * ob_seq in ob_tasks.h).
  *
+ * The launcher starts each through gfopenlaunch.library (Team 2's launcher module, launcher/ol_lib.h: STACK, TOOLPRI,
+ * any number of arguments) when it opens, and by itself as GFOpenBench 0.1.55 did when it doesn't.
+ *
  * Everything goes by messages (ob_lreq); the launcher owns the list of programs running and nobody else reads it.
  *
  * MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -25,13 +28,19 @@ enum {
 };
 
 #define OB_LR_PATH 300
+#define OB_LR_ARGS 4096
+#define OB_LR_TT 1024
 
 typedef struct ob_lreq {
     struct Message msg;
     int kind;
     char tool[OB_LR_PATH];
-    char project[OB_LR_PATH];   /* "" for none */
-    long stack;
+    char args[OB_LR_ARGS];      /* START: the arguments after the tool (a project; Shift-double-click's icons), packed
+                                   one after the other with their NULs (ob_pack) */
+    int nargs;
+    char tt[OB_LR_TT];          /* START: the icon's tool types, packed so (STACK, TOOLPRI) */
+    int ntt;
+    long stack, min_stack;      /* START: the icon's stack, Workbench's default */
     int wait;                   /* START: seconds before OB_LR_ENDED at the latest; 0 none sent */
     int secs;                   /* QUIT */
     /* the answer */

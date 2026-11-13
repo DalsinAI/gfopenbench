@@ -281,3 +281,38 @@ int ob_names_format(char *out, int n, const char *const *names, int count)
     out[k] = 0;
     return k;
 }
+
+/* ---- packed strings ---- */
+static int used(const char *buf, int size, int count)
+{
+    int k = 0;
+    while (count-- > 0 && k < size) {
+        while (k < size && buf[k]) k++;
+        k++;
+    }
+    return k;
+}
+
+int ob_pack(char *buf, int size, int *count, const char *s)
+{
+    int k = used(buf, size, *count), n = 0;
+    while (s[n]) n++;
+    if (k + n + 1 > size) return 0;
+    for (n = 0; s[n]; n++) buf[k + n] = s[n];
+    buf[k + n] = 0;
+    (*count)++;
+    return 1;
+}
+
+int ob_unpack(const char *buf, int size, int count, const char **out, int max)
+{
+    int k = 0, i;
+    for (i = 0; i < count && i < max && k < size; i++) {
+        int e = k;
+        while (e < size && buf[e]) e++;
+        if (e >= size) break;           /* no NUL: not one of ours */
+        out[i] = buf + k;
+        k = e + 1;
+    }
+    return i;
+}
