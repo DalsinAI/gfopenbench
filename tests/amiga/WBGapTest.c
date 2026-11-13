@@ -924,6 +924,11 @@ static int do_desk(const char *what)
         DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
         n = read_all("RAM:.backdrop", was, sizeof was);
+        if (n >= (long)sizeof was - 1) {   /* more than was holds: written back cut, it would lose lines */
+            printf("INFO I11 RAM:.backdrop is over %ld bytes: left as it is\n", (long)sizeof was - 2);
+            skip("I11", "RAM:.backdrop too long to keep and put back");
+            return 0;
+        }
         if (n < 0) { n = 0; was[0] = 0; DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was"); }
         else if (!strstr(was, desk_lines)) write_file("RAM:wbgap-backdrop-was", was);
         if (!strstr(was, desk_lines)) {
@@ -958,6 +963,13 @@ static int do_desk(const char *what)
         } else
             DeleteFile((CONST_STRPTR)"RAM:.backdrop");
         desk_told();
+        {   /* RAM:WBGapI and its icons gone */
+            static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
+                                               "RAM:WBGapI/p1", "RAM:WBGapI/p2.info", "RAM:WBGapI/p2", "RAM:WBGapI",
+                                               "RAM:wbgap-desk-clicked"};
+            int k;
+            for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
+        }
         return 0;
     }
     printf("unknown: LAUNCHDESK %s\n", what);
