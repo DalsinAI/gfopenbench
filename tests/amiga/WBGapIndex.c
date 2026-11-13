@@ -59,7 +59,7 @@ static int on_hit(void *ctx, const char *v, const ACSHit *h)
     if (!strcmp(h->device, "WB")) snprintf(a->wb, sizeof a->wb, "%s", h->path);
     else if (!strcmp(h->device, "ORDER") && a->norder < MAXORDER) {
         const char *n = wbgap_order_name(h->path);
-        snprintf(a->order[a->norder++], sizeof a->order[0], "%s", n ? n : h->path);
+        snprintf(a->order[a->norder++], sizeof a->order[0], "%.63s", n ? n : h->path);
     }
     return 0;
 }
@@ -163,7 +163,7 @@ static void check_settings(void)
     }
     printf("INFO ::wb get WBGapIdx/sorted: %s\n", a.wb);
     if (setting(&a, "sort", &on, v, sizeof v) && on && wbgap_same(v, "NAME,REVERSE")) pass("M32t");
-    else { snprintf(why, sizeof why, "SORT=NAME,REVERSE not kept whole: %s", a.wb); fail("M32t", why); }
+    else { snprintf(why, sizeof why, "SORT=NAME,REVERSE not kept whole: %.120s", a.wb); fail("M32t", why); }
     if (setting(&a, "show", &on, v, sizeof v) && on && wbgap_same(v, "ALL")) pass("M15t");
     else fail("M15t", "SHOW=ALL not kept");
     if (setting(&a, "arrange", &on, v, sizeof v) && !on) pass("M34t");
@@ -212,18 +212,18 @@ static void check_trash(void)
     int ok = 1;
     if (!write_file("WBGapIdx/t", "keep\n")) { fail("M23r", "WBGapIdx/t not made"); return; }
     if (!ask("trash", "WBGapIdx/t", &a) || !wbgap_wb_field(a.wb, "trash", st, sizeof st) || strcmp(st, "trash")) {
-        snprintf(why, sizeof why, "::wb trash didn't give trash=trash: %s", a.wb[0] ? a.wb : "no answer");
+        snprintf(why, sizeof why, "::wb trash didn't give trash=trash: %.120s", a.wb[0] ? a.wb : "no answer");
         fail("M23r", why);
         return;
     }
     if (!ask("live", "WBGapIdx/t", &a) || !wbgap_wb_field(a.wb, "trash", st, sizeof st) || strcmp(st, "live")) {
-        snprintf(why, sizeof why, "::wb live didn't give trash=live: %s", a.wb[0] ? a.wb : "no answer");
+        snprintf(why, sizeof why, "::wb live didn't give trash=live: %.120s", a.wb[0] ? a.wb : "no answer");
         fail("M23r", why);
         return;
     }
     if (!read_back("WBGapIdx/t", "keep\n")) { fail("M23r", "made live again, but its bytes are gone"); ok = 0; }
     if (ok && (!ask("final", "WBGapIdx/t", &a) || !wbgap_wb_field(a.wb, "trash", st, sizeof st) || strcmp(st, "final"))) {
-        snprintf(why, sizeof why, "::wb final didn't give trash=final: %s", a.wb[0] ? a.wb : "no answer");
+        snprintf(why, sizeof why, "::wb final didn't give trash=final: %.120s", a.wb[0] ? a.wb : "no answer");
         fail("M23r", why);
         ok = 0;
     }
