@@ -2125,6 +2125,16 @@ static void supervise(void)
     ob_reserve_refill(&reserve, &lowmem);          /* X3: the low-memory reserve back as soon as memory allows */
     if (launcher_up && (t = ob_launch_task()) && ob_task_held(t, NULL)) launcher_held();
     ob_builtin_held();
+    {
+        BPTR f = Open((CONST_STRPTR)"RAM:sup.log", MODE_READWRITE);
+        char v[4];
+        if (f) {
+            Seek(f, 0, OFFSET_END);
+            FPrintf(f, (CONST_STRPTR)"tick %lu ndrawers %ld getvar %ld\n", super_secs, (LONG)ndrawers,
+                    (LONG)GetVar((CONST_STRPTR)"GFOpenBench/X4Test", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY));
+            Close(f);
+        }
+    }
     supervise_drawers();                    /* row 3: a crashed drawer's task */
     Forbid();
     t = dock_task();
