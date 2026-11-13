@@ -3733,7 +3733,7 @@ static void drop_reread(const char *path, wb_drawer *except)
 {
     int i;
     for (i = 0; i < ndrawers; i++)
-        if (ob_dt_drawer(drawers[i]) != except && of_path_equal(ob_dt_path(drawers[i]), path))
+        if (ob_dt_drawer(drawers[i]) != except && !ci_cmp(ob_dt_path(drawers[i]), path))
             ob_dt_note(drawers[i], OB_DT_REREAD);
 }
 
