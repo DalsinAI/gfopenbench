@@ -1,7 +1,8 @@
 /* WBGapX3: row X3 of amicradle-teams designs/OPENBENCH-GAPS-20261112.md on GFOpenBench (build plan row 3): with
    nearly no memory left, a program opened from the desktop gives the low-memory requester, not a crash, and Retry
-   starts it once memory is back. WBGapTest LOWMEM takes the memory, finds the requester, gives the memory back and
-   clicks Retry (with DragTest, beside it).
+   starts it once memory is back. WBGapTest LOWMEM takes the memory, asks the desktop to open the program, finds the
+   requester, gives the memory back and clicks Retry (with DragTest, beside it). ARexx itself can't run with no
+   memory, so the open goes by GFOpenBench's GFOPENBENCH port from WBGapTest.
      rx WBGapX3.rexx
    MIT, Copyright (c) 2026 AmiCradle Team. */
 OPTIONS RESULTS
@@ -12,11 +13,8 @@ END
 CALL ADDLIB('rexxsupport.library', 0, -30, 0)
 ADDRESS COMMAND 'Copy SYS:T/WBGap/WBGapTest RAM:WBGapX3 QUIET'
 ADDRESS COMMAND 'Delete RAM:wbgap-order RAM:x3-eat QUIET >NIL:'
-ADDRESS COMMAND 'Run >RAM:x3-eat SYS:T/WBGap/WBGapTest LOWMEM 8'
-CALL DELAY(150)
+ADDRESS COMMAND 'SYS:T/WBGap/WBGapTest LOWMEM 8 RAM:WBGapX3 >RAM:x3-eat'
 ADDRESS OPENBENCH
-OPEN 'RAM:WBGapX3'
-IF RC ~= 0 THEN SAY 'INFO X3 OPEN answered RC' RC
 started = 0
 DO i = 1 TO 20 WHILE ~started
   CALL DELAY(50)

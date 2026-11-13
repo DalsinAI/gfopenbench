@@ -18,9 +18,10 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order
- *   WBGapTest LOWMEM secs       row X3 (WBGapX3.rexx): takes nearly all memory, in pieces too small for a program,
- *                               for secs seconds; then looks for the desktop's low-memory requester, gives the
- *                               memory back and clicks its Retry (DragTest)
+ *   WBGapTest LOWMEM secs path  row X3 (WBGapX3.rexx): takes nearly all memory, in pieces too small for a program,
+ *                               asks GFOpenBench to open path (its GFOPENBENCH port, as DragTest OPEN, without
+ *                               waiting: ARexx can't run with no memory) and waits secs seconds; then looks for the
+ *                               desktop's low-memory requester, gives the memory back and clicks its Retry (DragTest)
  *
  * Started from the Workbench (as SYS:WBStartup/WBGapX), it writes "start X" to RAM:wbgap-order, waits
  * the STAMPSECS seconds its icon names, and writes "end X".
@@ -580,13 +581,28 @@ static int find_retry(int *x, int *y)
     return found;
 }
 
-static int do_lowmem(int secs)
+/* GFOpenBench's message (gfopenprefs Common/obmsg.h: keep the layout the same, as DragTest's) */
+struct ob_msg {
+    struct Message m;
+    ULONG magic;
+    LONG ok;
+    char path[256];
+};
+
+static int do_lowmem(int secs, const char *path)
 {
     struct eaten *list = NULL, *e, **pp;
     ULONG n, got = 0, kept = 0;
-    int x = 0, y = 0, seen;
+    int x = 0, y = 0, seen, sent = 0, i;
     char cmd[300];
-    printf("INFO X3 taking the memory for %d s\n", secs);
+    struct MsgPort *reply = CreateMsgPort(), *ob;
+    struct ob_msg *m = AllocVec(sizeof *m, MEMF_PUBLIC | MEMF_CLEAR);   /* before the memory is taken */
+    if (!reply || !m) { printf("FAIL X3 setup\n"); if (m) FreeVec(m); if (reply) DeleteMsgPort(reply); return 20; }
+    m->m.mn_ReplyPort = reply;
+    m->m.mn_Length = sizeof *m;
+    m->magic = 0x4F424D31UL;
+    strncpy(m->path, path, sizeof m->path - 1);
+    printf("INFO X3 taking the memory for %d s, opening %s\n", secs, path);
     fflush(stdout);
     for (n = 1UL << 30; n >= 256;) {                /* the biggest pieces first, down to 256 bytes */
         if (AvailMem(MEMF_ANY | MEMF_LARGEST) < n || !(e = AllocMem(n, MEMF_ANY))) { n >>= 1; continue; }
@@ -603,6 +619,9 @@ static int do_lowmem(int secs)
         kept += e->size;
         FreeMem(e, e->size);
     }
+    Forbid();
+    if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) { PutMsg(ob, &m->m); sent = 1; }
+    Permit();
     Delay((ULONG)secs * 50);
     seen = find_retry(&x, &y);
     while ((e = list)) {
@@ -611,11 +630,17 @@ static int do_lowmem(int secs)
     }
     printf("INFO X3 took %lu KiB, largest free piece then %lu bytes\n", (unsigned long)(got >> 10),
            (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
-    if (!seen) { printf("FAIL X3 no low-memory requester\n"); return 5; }
-    printf("INFO X3 low-memory requester open, Retry at %d,%d\n", x, y);
-    snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
-    SystemTags((CONST_STRPTR)cmd, TAG_DONE);
-    return 0;
+    if (seen) {
+        printf("INFO X3 low-memory requester open, Retry at %d,%d\n", x, y);
+        snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
+        SystemTags((CONST_STRPTR)cmd, TAG_DONE);
+    } else printf("FAIL X3 no low-memory requester\n");
+    for (i = 0; sent && i < 100 && !GetMsg(reply); i++) Delay(10);   /* the desktop's answer, 20 s at most */
+    if (!sent) printf("FAIL X3 no GFOPENBENCH port\n");
+    else if (i < 100) printf("INFO X3 the desktop answered the open: ok %ld\n", (long)m->ok);
+    else printf("FAIL X3 the desktop didn't answer the open\n");
+    if (!sent || i < 100) { FreeVec(m); DeleteMsgPort(reply); }   /* else left: the desktop may still reply */
+    return seen ? 0 : 5;
 }
 
 int main(int argc, char **argv)
@@ -626,7 +651,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -636,7 +661,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
-    else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = do_lowmem(atoi(argv[2]));
+    else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else printf("unknown: %s\n", argv[1]);
 out:
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
