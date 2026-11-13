@@ -269,6 +269,8 @@
 #include "ob_strip.h"
 #include "ob_host.h"
 #include "ob_arexx.h"
+#include "ob_launch.h"
+#include "ob_tasks.h"
 #include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
@@ -1793,200 +1795,108 @@ static dicon *icon_at(LONG x, LONG y)
 
 /* ---- starting things, as Workbench starts them ------------------------------------------------ */
 
-/* A tool's run: its WBStartup and its arguments, back on launch_port when it ends. */
-typedef struct launch {
-    struct WBStartup wbs;
-    struct WBArg args[2];
-    char names[2][108];
-    struct launch *next;                    /* the tools running, for asking them to quit */
-    struct Segment *resident;               /* 0.1.32: the resident it runs (its code is the resident's), or NULL */
-} launch;
-
+/* The launcher (ob_launch.h, build plan row 3) starts the programs: the desktop sends it what to start and goes on,
+ * and its answers come back on launch_port. Before 0.1.57 the desktop loaded and started them itself, and waited on
+ * SYS:WBStartup's programs one by one before its first look at a click. */
 static struct MsgPort *launch_port;
-static int running;                         /* tools started whose message hasn't come back */
-static launch *launches;
+static int launcher_up;
+
+/* what the next start_tool is for: set around an ob_open_object by whoever needs its answer */
+static struct {
+    void *om;                               /* an ob_msg to answer once the launcher has (obmsg.h) */
+    unsigned long tag;                      /* WBStartup's (ob_seq) */
+    int wait;                               /* WBStartup's WAIT=n */
+    const char *fail;                       /* told to the user when it couldn't start */
+    int sent;                               /* 1: a start went to the launcher, its answer comes later */
+} open_ctx;
 
 static int open_drawer(const char *path);
 
-/* A lock on the drawer holding path, and the name in it. */
-static BPTR parent_and_name(const char *path, char *name, int n)
-{
-    BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ), p;
-    const char *fp = (const char *)FilePart((STRPTR)path);
-    if (!l) {
-        /* 0.1.25: a project that is only its icon, as SYS:System/Shell is (Shell.info, default tool
-         * SYS:System/CLI, no file Shell): its WBArg is its drawer and its name, as Workbench gives it. Before,
-         * no lock meant no start: GFOpenDock's "wb System:System/Shell" button and a double-click on the Shell
-         * icon opened nothing (lab t5-events, W53, Dale's disk: ob_open answered 0) */
-        char dir[256];
-        int k = (int)((const char *)PathPart((STRPTR)path) - path);
-        if (!*fp || k >= (int)sizeof dir) return 0;
-        memcpy(dir, path, (size_t)k);
-        dir[k] = 0;
-        if (!(p = Lock((CONST_STRPTR)dir, ACCESS_READ))) return 0;
-        snprintf(name, (size_t)n, "%s", fp);
-        return p;
-    }
-    if (!(p = ParentDir(l))) {
-        /* 0.1.52: a disk's root ("DF0:"): its WBArg is the root's own lock and no name, as Workbench gives a disk
-         * (Icons > Format Disk...) */
-        name[0] = 0;
-        return l;
-    }
-    UnLock(l);
-    snprintf(name, (size_t)n, "%s", fp);
-    return p;
-}
+#define parent_and_name ob_parent_and_name
 
-/* 0.1.32 (the no-ROM-volume design of 24 October 2026, section 7.3): a tool icon with no file runs the resident
- * of its name, as the Shell runs a resident command. GFOpenMonitor is the open ROM's, a system resident shell.library
- * makes, and only its icon is on the disk (SYS:Utilities/GFOpenMonitor.info); "Resident NAME file PURE" makes a user
- * one. Only when the tool's file isn't there (LoadSeg's ERROR_OBJECT_NOT_FOUND): a disk file of that name wins.
- * A user resident is looked for first, then a system one, as the Shell does (FindSegment, under Forbid); a user
- * one's count goes up while it runs, so Resident REMOVE leaves it, and back down at the end (resident_done). The
- * seglist is the resident's: the process gets it with NP_FreeSeglist FALSE, and launch_done never unloads it.
- * The seglist, or 0 (*res the resident). */
-static BPTR resident_tool(const char *tool, struct Segment **res)
-{
-    const char *name = (const char *)FilePart((CONST_STRPTR)tool);
-    struct Segment *s;
-    BPTR seg = 0;
-    *res = NULL;
-    if (IoErr() != ERROR_OBJECT_NOT_FOUND || !*name) return 0;
-    Forbid();
-    if (!(s = FindSegment((CONST_STRPTR)name, NULL, FALSE))) s = FindSegment((CONST_STRPTR)name, NULL, TRUE);
-    if (s && s->seg_Seg && s->seg_UC >= CMD_SYSTEM) {      /* not a Shell built-in (CMD_INTERNAL), nor one disabled */
-        if (s->seg_UC >= 0) s->seg_UC++;                   /* a user resident: in use while it runs */
-        seg = s->seg_Seg;
-        *res = s;
-    }
-    Permit();
-    return seg;
-}
-
-/* A resident's run has ended: a user resident's count back down. */
-static void resident_done(struct Segment *s)
-{
-    Forbid();
-    if (s->seg_UC > 0) s->seg_UC--;
-    Permit();
-}
-
-/* A tool started with a WBStartup message: arg 0 the tool, arg 1 the project when there is one. */
+/* A tool started with a WBStartup message: arg 0 the tool, arg 1 the project when there is one. 1 when the launcher
+ * has been asked to start it; whether it did comes back on launch_port (launch_answers). */
 static int start_tool(const char *tool, const char *project, LONG stack)
 {
-    launch *L = AllocVec(sizeof *L, MEMF_PUBLIC | MEMF_CLEAR);
-    BPTR seg;
-    struct Process *p;
-    int n = 1;
-    if (!L) return 0;
-    if (!(L->args[0].wa_Lock = parent_and_name(tool, L->names[0], sizeof L->names[0]))) { FreeVec(L); return 0; }
-    L->args[0].wa_Name = (STRPTR)L->names[0];
-    if (project) {
-        if (!(L->args[1].wa_Lock = parent_and_name(project, L->names[1], sizeof L->names[1]))) {
-            UnLock(L->args[0].wa_Lock);
-            FreeVec(L);
-            return 0;
-        }
-        L->args[1].wa_Name = (STRPTR)L->names[1];
-        n = 2;
-    }
-    if (!(seg = LoadSeg((CONST_STRPTR)tool)) && !(seg = resident_tool(tool, &L->resident))) {
-        UnLock(L->args[0].wa_Lock);
-        if (n > 1) UnLock(L->args[1].wa_Lock);
-        FreeVec(L);
-        return 0;
-    }
+    ob_lreq *r;
+    if (!launcher_up) return 0;
+    if (strlen(tool) >= sizeof r->tool || (project && strlen(project) >= sizeof r->project)) return 0;
+    if (!(r = AllocVec(sizeof *r, MEMF_PUBLIC | MEMF_CLEAR))) return 0;
+    r->kind = OB_LR_START;
+    strcpy(r->tool, tool);
+    if (project) strcpy(r->project, project);
     if (stack < (LONG)wb_stack) stack = (LONG)wb_stack;   /* Workbench's default stack, 8192 at the least */
-    /* As Workbench starts a tool: no input or output (Output() is 0 for it) and no current directory
-     * (NP_CurrentDir 0: the tool's own startup makes the WBArg's lock its current directory).
-     * 0.1.7: dos's default input and output (NIL:, closed at the end) made every libnix tool fail on
-     * quitting with 8700000E, a file closed twice. 0.1.10: with a current directory of its own (a DupLock
-     * dos unlocks at the end), a tool that leaves the WBArg's lock as its current directory (Mounter) had
-     * that lock unlocked by dos and again by launch_done: 81000005, memory list corrupt. */
-    p = CreateNewProcTags(NP_Seglist, (ULONG)seg, NP_FreeSeglist, FALSE, NP_StackSize, (ULONG)stack,
-                          NP_Name, (ULONG)L->names[0], NP_CurrentDir, 0,
-                          NP_HomeDir, (ULONG)DupLock(L->args[0].wa_Lock), NP_Input, 0, NP_Output, 0,
-                          NP_CloseInput, FALSE, NP_CloseOutput, FALSE, TAG_DONE);
-    if (!p) {
-        if (L->resident) resident_done(L->resident);
-        else UnLoadSeg(seg);
-        UnLock(L->args[0].wa_Lock);
-        if (n > 1) UnLock(L->args[1].wa_Lock);
-        FreeVec(L);
-        return 0;
-    }
-    L->wbs.sm_Message.mn_Node.ln_Type = NT_MESSAGE;
-    L->wbs.sm_Message.mn_ReplyPort = launch_port;
-    L->wbs.sm_Message.mn_Length = sizeof(struct WBStartup);
-    L->wbs.sm_Process = &p->pr_MsgPort;
-    L->wbs.sm_Segment = seg;
-    L->wbs.sm_NumArgs = n;
-    L->wbs.sm_ToolWindow = NULL;
-    L->wbs.sm_ArgList = L->args;
-    L->next = launches;
-    launches = L;
-    PutMsg(&p->pr_MsgPort, &L->wbs.sm_Message);
-    running++;
+    r->stack = stack;
+    r->wait = open_ctx.wait;
+    r->tag = open_ctx.tag;
+    r->user = open_ctx.om;
+    if (open_ctx.fail) snprintf(r->fail, sizeof r->fail, "%s", open_ctx.fail);
+    r->msg.mn_ReplyPort = launch_port;
+    ob_launch_send(r);
+    open_ctx.sent = 1;
     return 1;
 }
 
-static void launch_done(launch *L)
+/* A question to the launcher, waited for (only on quitting): NAMES or QUIT. Its answer, or NULL (FreeVec it). */
+static ob_lreq *launcher_ask(int kind, int secs)
 {
-    launch **pp;
-    int i;
-    for (pp = &launches; *pp; pp = &(*pp)->next)
-        if (*pp == L) { *pp = L->next; break; }
-    if (L->resident) resident_done(L->resident);   /* a resident's code stays: it is the resident list's */
-    else UnLoadSeg(L->wbs.sm_Segment);
-    for (i = 0; i < L->wbs.sm_NumArgs && i < 2; i++)
-        if (L->args[i].wa_Lock) UnLock(L->args[i].wa_Lock);
-    FreeVec(L);
-    running--;
+    struct MsgPort *mp;
+    ob_lreq *r;
+    if (!launcher_up) return NULL;
+    if (!(mp = CreateMsgPort())) return NULL;
+    if (!(r = AllocVec(sizeof *r, MEMF_PUBLIC | MEMF_CLEAR))) { DeleteMsgPort(mp); return NULL; }
+    r->kind = kind;
+    r->secs = secs;
+    r->msg.mn_ReplyPort = mp;
+    ob_launch_send(r);
+    WaitPort(mp);
+    GetMsg(mp);
+    DeleteMsgPort(mp);
+    return r;
 }
 
-/* The tools that have ended, their code unloaded. */
-static void launches_reap(void)
+/* How many programs started from GFOpenBench are still running, and (names, n bytes) their names for a requester */
+static int running_names(char *names, int n)
 {
-    struct Message *lm;
-    while ((lm = GetMsg(launch_port))) launch_done((launch *)lm);
-}
-
-/* The names of the tools still running, one to a line, for a requester. */
-static void running_names(char *out, int n)
-{
-    launch *L;
-    int k = 0, shown = 0;
-    out[0] = 0;
-    for (L = launches; L && k < n - 1; L = L->next) {
-        if (++shown > 8) { snprintf(out + k, (size_t)(n - k), "  and %d more\n", running - 8); break; }
-        int start = k + 2;
-        k += snprintf(out + k, (size_t)(n - k), "  %s\n", L->names[0]);
-        if (k >= n) k = n - 1;
-        for (; start < k; start++)
-            if (out[start] == '%') out[start] = '_';  /* the requester's text is a format */
-        if (k >= n - 1) break;
-    }
+    ob_lreq *r = launcher_ask(OB_LR_NAMES, 0);
+    int left = r ? r->left : 0;
+    if (names && n > 0) snprintf(names, (size_t)n, "%s", r ? r->names : "");
+    if (r) FreeVec(r);
+    return left;
 }
 
 /* 0.1.19: the tools started from GFOpenBench are asked to quit, with Ctrl-C as a Shell's Break asks, and waited
- * for up to secs seconds. Their code is GFOpenBench's to unload, so it can't go before them: GFOpenMeters from
- * SYS:WBStartup kept GFOpenBench's quit waiting for ever. 1 when none is left. */
+ * for up to secs seconds. Their code is GFOpenBench's to unload, so it can't go before them. 1 when none is left. */
 static int ask_running_to_quit(int secs)
 {
-    launch *L;
-    int i;
-    launches_reap();
-    Forbid();
-    for (L = launches; L; L = L->next)                 /* not yet replied: its process is there */
-        if (L->wbs.sm_Message.mn_Node.ln_Type != NT_REPLYMSG && L->wbs.sm_Process)
-            Signal(L->wbs.sm_Process->mp_SigTask, SIGBREAKF_CTRL_C);
-    Permit();
-    for (i = 0; running && i < secs * 10; i++) {
-        Delay(5);
-        launches_reap();
+    ob_lreq *r = launcher_ask(OB_LR_QUIT, secs);
+    int left = r ? r->left : 0;
+    if (r) FreeVec(r);
+    return !left;
+}
+
+static void wbstartup_answered(unsigned long tag, int ok, unsigned long id);
+static void wbstartup_ended(unsigned long id);
+static int ask(const char *title, const char *text, const char *gadgets);
+
+/* The launcher's answers: a dock's message answered now, the user told when a program couldn't start, WBStartup's
+ * next one opened */
+static void launch_answers(void)
+{
+    struct Message *m;
+    while (launch_port && (m = GetMsg(launch_port))) {
+        ob_lreq *r = (ob_lreq *)m;
+        if (r->kind == OB_LR_ENDED) wbstartup_ended(r->id);
+        else if (r->kind == OB_LR_START) {
+            if (r->user) {
+                ((struct ob_msg *)r->user)->ok = r->ok;
+                ReplyMsg((struct Message *)r->user);
+            }
+            if (r->tag) wbstartup_answered(r->tag, r->ok, r->id);
+            if (!r->ok && r->fail[0]) ask("GFOpenBench", r->fail, "OK");
+        }
+        FreeVec(r);
     }
-    return !running;
 }
 
 /* 1 when the file is a program (an AmigaDOS load file: HUNK_HEADER). */
@@ -2169,11 +2079,45 @@ static int ob_open_object(const char *path)
  * WAIT=n seconds (OB_START_WAIT_MAX without one). */
 #define OB_START_MAX 64
 
-static int launch_running(launch *L)
+/* 0.1.57: the desktop doesn't wait for them. It opens one, the launcher starts it and says when it has ended or its
+ * wait is over (ob_seq, ob_launch.h), and the next is opened then; the desktop's windows, menus and dock work all the
+ * while. */
+static ob_start *wbs_e;
+static int wbs_wait[OB_START_MAX];
+static ob_seq wbs_seq;
+static unsigned long wbs_tag;
+
+/* open the next ones, until one is to be waited for or they are all started */
+static void wbstartup_step(void)
 {
-    launch *x;
-    for (x = launches; x; x = x->next) if (x == L) return 1;
-    return 0;
+    int i;
+    if (!wbs_e) return;
+    while ((i = ob_seq_next(&wbs_seq)) >= 0) {
+        char path[160];
+        snprintf(path, sizeof path, "SYS:WBStartup/%s", wbs_e[i].name);
+        memset(&open_ctx, 0, sizeof open_ctx);
+        open_ctx.tag = ++wbs_tag ? wbs_tag : ++wbs_tag;
+        open_ctx.wait = wbs_e[i].wait;
+        starting_up = 1;                                    /* Tata asks nothing for these */
+        ob_open_object(path);
+        starting_up = 0;
+        ob_seq_opened(&wbs_seq, i, open_ctx.sent ? open_ctx.tag : 0);
+        memset(&open_ctx, 0, sizeof open_ctx);
+    }
+    if (i == OB_SEQ_DONE) {
+        FreeVec(wbs_e);
+        wbs_e = NULL;
+    }
+}
+
+static void wbstartup_answered(unsigned long tag, int ok, unsigned long id)
+{
+    if (wbs_e && ob_seq_answered(&wbs_seq, tag, ok, id)) wbstartup_step();
+}
+
+static void wbstartup_ended(unsigned long id)
+{
+    if (wbs_e && ob_seq_ended(&wbs_seq, id)) wbstartup_step();
 }
 
 static void run_wbstartup(void)
@@ -2182,7 +2126,7 @@ static void run_wbstartup(void)
     struct FileInfoBlock *fib;
     ob_start *e;
     int n = 0, i;
-    if (!l) return;
+    if (!l || wbs_e) { if (l) UnLock(l); return; }
     if (!(e = AllocVec(OB_START_MAX * sizeof *e, MEMF_ANY))) { UnLock(l); return; }
     if ((fib = AllocDosObject(DOS_FIB, NULL))) {
         if (Examine(l, fib))
@@ -2202,23 +2146,10 @@ static void run_wbstartup(void)
     }
     UnLock(l);
     qsort(e, n, sizeof e[0], ob_start_cmp);
-    starting_up = 1;
-    for (i = 0; i < n; i++) {
-        char path[160];
-        launch *before = launches, *mine;
-        int ticks;
-        snprintf(path, sizeof path, "SYS:WBStartup/%s", e[i].name);
-        ob_open_object(path);
-        if (launches == before || !e[i].wait) continue;     /* no program started (a drawer, a project refused), or DONOTWAIT */
-        mine = launches;                                    /* start_tool puts its launch first */
-        for (ticks = 0; ticks < e[i].wait * 10; ticks++) {  /* until it has ended (its WBStartup back), in tenths of a second */
-            launches_reap();
-            if (!launch_running(mine)) break;
-            Delay(5);
-        }
-    }
-    starting_up = 0;
-    FreeVec(e);
+    for (i = 0; i < n; i++) wbs_wait[i] = e[i].wait;
+    ob_seq_init(&wbs_seq, wbs_wait, n);
+    wbs_e = e;
+    wbstartup_step();
 }
 
 /* ---- drawer windows -------------------------------------------------------------------------- */
@@ -3694,13 +3625,11 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 break;
             case M_LOADWB:
             case M_QUIT:
-                if (running) {
+                {
                     /* their code is unloaded when they end, by us: as Workbench, we can't go before them.
                      * 0.1.19: they can be asked to quit (GFOpenMeters from SYS:WBStartup never ends by itself) */
                     char names[400], text[600];
-                    launches_reap();
-                    running_names(names, sizeof names);
-                    if (running) {
+                    if (running_names(names, sizeof names)) {
                         snprintf(text, sizeof text, "These programs started from GFOpenBench are still running:\n%s\n"
                                  "GFOpenBench can quit when they have ended.", names);
                         if (!ask("GFOpenBench", text, "Ask them to quit|Cancel")) break;
@@ -4491,7 +4420,7 @@ static int run(void)
     wb_pic_open();
     if (!IconBase) goto out;
     icon_ours = IconBase->lib_IdString && strstr((const char *)IconBase->lib_IdString, "GFOpenIcon") != NULL;
-    if (!(launch_port = CreateMsgPort())) {
+    if (!(launch_port = CreateMsgPort()) || !(launcher_up = ob_launch_start())) {
         no_signal("the programs it starts");
         goto out;
     }
@@ -4653,7 +4582,7 @@ static int run(void)
                 else resize_to_window();
             }
         }
-        launches_reap();
+        launch_answers();                               /* 0.1.57: the launcher's (ob_launch.h) */
         if (sigs & ob_drop_sigmask()) ob_drop_handle();   /* 0.1.26: copies done, AppMessages answered */
         if (sigs & ob_arexx_sigmask()) ob_arexx_handle(); /* 0.1.53: ARexx's commands */
         while ((lm = GetMsg(pub))) {
@@ -4661,9 +4590,15 @@ static int run(void)
             struct ob_msg *om = (struct ob_msg *)lm;
             if (lm->mn_Length >= sizeof *om && om->magic == OB_MSG_MAGIC) {
                 om->path[sizeof om->path - 1] = 0;
+                /* 0.1.57: a program to start is answered once the launcher has started it (launch_answers), as
+                 * before with whether it started */
+                memset(&open_ctx, 0, sizeof open_ctx);
+                open_ctx.om = om;
                 om->ok = ob_open_object(om->path);
+                if (open_ctx.sent) lm = NULL;
+                memset(&open_ctx, 0, sizeof open_ctx);
             }
-            ReplyMsg(lm);
+            if (lm) ReplyMsg(lm);
         }
         /* 0.1.39: the files that changed, from their messages (ob_notify.h); each does what its signal did */
         todo = ob_notify_todo(notify_take());
@@ -4804,16 +4739,29 @@ out:
     wb_notify_end();                            /* 0.1.54: the drawers' notifications (desktop_down closed them all) */
     wb_pic_close();
     if (DataTypesBase) { CloseLibrary(DataTypesBase); DataTypesBase = NULL; }
-    if (launch_port) {
-        /* tools still running keep their code until they end: they are asked to quit, then waited for */
-        if (running && !ask_running_to_quit(5) && run_shell)
+    if (launcher_up) {
+        /* tools still running keep their code until they end: they are asked to quit, then waited for; the
+         * launcher answers END once none is left, and is gone then (ob_launch.h) */
+        ob_lreq *r;
+        if (running_names(NULL, 0) && !ask_running_to_quit(5) && run_shell)
             PutStr((CONST_STRPTR)"GFOpenBench: waiting for the programs it started to end\n");
-        while (running) {
-            WaitPort(launch_port);
-            launches_reap();
+        if ((r = launcher_ask(OB_LR_END, 0))) FreeVec(r);
+        launcher_up = 0;
+    }
+    if (launch_port) {
+        struct Message *m;
+        while ((m = GetMsg(launch_port))) {         /* the last answers: a dock's message answered, nothing asked */
+            ob_lreq *r = (ob_lreq *)m;
+            if (r->kind == OB_LR_START && r->user) {
+                ((struct ob_msg *)r->user)->ok = r->ok;
+                ReplyMsg((struct Message *)r->user);
+            }
+            FreeVec(r);
         }
         DeleteMsgPort(launch_port);
+        launch_port = NULL;
     }
+    if (wbs_e) { FreeVec(wbs_e); wbs_e = NULL; }
     if (picture_sig >= 0) FreeSignal(picture_sig);
     if (idcmp) DeleteMsgPort(idcmp);
     extmem_close();                             /* 0.1.48 */

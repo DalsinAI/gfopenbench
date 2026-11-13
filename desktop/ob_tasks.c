@@ -216,3 +216,68 @@ void ob_reserve_end(ob_reserve *r, const ob_mem *m)
     if (r->block) m->free(m->user, r->block, r->size);
     r->block = 0;
 }
+
+/* ---- the launcher's WBStartup order ---- */
+void ob_seq_init(ob_seq *s, const int *wait, int n)
+{
+    zero(s, sizeof *s);
+    s->wait = wait;
+    s->n = n > 0 ? n : 0;
+}
+
+int ob_seq_next(ob_seq *s)
+{
+    if (s->waiting) return OB_SEQ_WAIT;
+    if (s->cur >= s->n) return OB_SEQ_DONE;
+    return s->cur++;
+}
+
+void ob_seq_opened(ob_seq *s, int at, unsigned long tag)
+{
+    if (!tag || at < 0 || at >= s->n || s->wait[at] <= 0) return;   /* nothing started, or DONOTWAIT: the next now */
+    s->waiting = 1;
+    s->tag = tag;
+    s->id = 0;
+}
+
+int ob_seq_answered(ob_seq *s, unsigned long tag, int ok, unsigned long id)
+{
+    if (!s->waiting || s->id || tag != s->tag) return 0;
+    if (!ok || !id) s->waiting = 0;                 /* it didn't start: the next */
+    else s->id = id;
+    return 1;
+}
+
+int ob_seq_ended(ob_seq *s, unsigned long id)
+{
+    if (!s->waiting || !id || id != s->id) return 0;
+    s->waiting = 0;
+    return 1;
+}
+
+int ob_names_format(char *out, int n, const char *const *names, int count)
+{
+    int k = 0, i;
+    if (n <= 0) return 0;
+    out[0] = 0;
+    for (i = 0; i < count && i < 8; i++) {
+        const char *p = names[i] ? names[i] : "";
+        if (k + 3 >= n) break;
+        out[k++] = ' ';
+        out[k++] = ' ';
+        while (*p && k + 1 < n - 1) out[k++] = *p == '%' ? '_' : *p, p++;
+        out[k++] = '\n';
+    }
+    if (count > 8) {
+        char tail[32];
+        int t = 0, m = count - 8, d = 1;
+        const char *a = "  and ", *b = " more\n";
+        while (*a) tail[t++] = *a++;
+        while (m / d >= 10) d *= 10;
+        for (; d; d /= 10) tail[t++] = (char)('0' + m / d % 10);
+        while (*b) tail[t++] = *b++;
+        for (i = 0; i < t && k < n - 1; i++) out[k++] = tail[i];
+    }
+    out[k] = 0;
+    return k;
+}
