@@ -205,6 +205,9 @@ void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size)
         if (r->block) {                     /* give it back, so the requester can open */
             m->free(m->user, r->block, r->size);
             r->block = 0;
+            r->low = 1;
+            /* the request may fit now the reserve is back: no requester then (Koenig, Team 1, #102 review) */
+            if ((p = m->alloc(m->user, size))) return p;
         }
         r->low = 1;
         if (!m->ask(m->user)) return 0;
