@@ -1861,19 +1861,17 @@ static int launcher_up;
 
 /* 0.1.57 (X4): the starts sent and not answered yet, so a launcher the task guard holds (it crashed) loses none:
  * those still on its port go to the next one, the one it had taken is answered "couldn't start" */
-#define OB_OUT_MAX 64
-static ob_lreq *outstanding[OB_OUT_MAX];
+static ob_out outstanding;                  /* ob_tasks.h */
 
-static void out_add(ob_lreq *r)
+/* 0 when all OB_OUT_MAX are out: the start isn't sent, and its caller is answered "couldn't start" */
+static int out_add(ob_lreq *r)
 {
-    int i;
-    for (i = 0; i < OB_OUT_MAX; i++) if (!outstanding[i]) { outstanding[i] = r; return; }
+    return ob_out_add(&outstanding, r);
 }
 
 static void out_del(ob_lreq *r)
 {
-    int i;
-    for (i = 0; i < OB_OUT_MAX; i++) if (outstanding[i] == r) outstanding[i] = NULL;
+    ob_out_del(&outstanding, r);
 }
 
 /* what the next start_tool is for: set around an ob_open_object by whoever needs its answer */
@@ -1969,7 +1967,7 @@ static int start_tool_args(const char *tool, const char *const *args, int n, LON
     r->user = open_ctx.om;
     if (open_ctx.fail) snprintf(r->fail, sizeof r->fail, "%s", open_ctx.fail);
     r->msg.mn_ReplyPort = launch_port;
-    out_add(r);
+    if (!out_add(r)) { FreeVec(r); return 0; }    /* 64 starts out already: this one "couldn't start" */
     ob_launch_send(r);
     open_ctx.sent = 1;
     return 1;
@@ -1992,8 +1990,14 @@ static ob_lreq *launcher_ask(int kind, int secs)
     r->secs = secs;
     r->msg.mn_ReplyPort = mp;
     ob_launch_send(r);
-    WaitPort(mp);
-    GetMsg(mp);
+    while (!GetMsg(mp)) {                       /* looked at every 100 ms: a launcher that crashes on quitting is */
+        struct Task *t = ob_launch_task();       /* held by the task guard and never answers */
+        if (!t || ob_task_held(t, NULL)) {
+            DeleteMsgPort(mp);                  /* the held task never runs again: nothing comes to mp */
+            return NULL;                        /* r stays with it */
+        }
+        Delay(5);
+    }
     DeleteMsgPort(mp);
     return r;
 }
@@ -2034,11 +2038,10 @@ static void launch_answers(void)
             out_del(r);
             /* X3: it couldn't start for want of memory: the user asked, and on Retry it goes to the launcher again,
                its dock or ARexx caller still waiting */
-            if (!r->ok && (r->err || r->largest) && launcher_up && low_retry(r->err, r->largest)) {   /* answered by the launcher */
-                r->ok = 0;
+            if (!r->ok && (r->err || r->largest) && launcher_up && low_retry(r->err, r->largest) && out_add(r)) {
+                r->ok = 0;                          /* answered by the launcher */
                 r->err = 0;
                 r->largest = 0;
-                out_add(r);
                 ob_launch_send(r);
                 continue;
             }
@@ -2060,18 +2063,32 @@ static void launch_answers(void)
 static ob_super super;
 static unsigned long launcher_sid, dock_sid, super_secs;
 
+/* a start the launcher answered whose answer launch_answers hasn't read: never answered twice */
+static int lreq_replied(void *r)
+{
+    return ((ob_lreq *)r)->msg.mn_Node.ln_Type == NT_REPLYMSG;
+}
+
 static void launcher_held(void)
 {
-    struct MsgPort *old = ob_launch_abandon();
+    struct MsgPort *old;
     struct Message *m;
     ob_lreq *again[OB_OUT_MAX];
-    int n = 0, i, act = ob_super_crashed(&super, launcher_sid, super_secs);
+    void *lost[OB_OUT_MAX];
+    int n = 0, nl, i, act;
+    launch_answers();                          /* what it answered before it crashed: answered as usual, once */
+    old = ob_launch_abandon();
+    act = ob_super_crashed(&super, launcher_sid, super_secs);
     launcher_up = 0;
     if (act == OB_ACT_RESTART && (launcher_up = ob_launch_start())) launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
     else launcher_sid = 0;
     Forbid();
-    while (old && (m = GetMsg(old)) && n < OB_OUT_MAX) again[n++] = (ob_lreq *)m;   /* not taken yet */
+    while (old && n < OB_OUT_MAX && (m = GetMsg(old))) again[n++] = (ob_lreq *)m;   /* not taken yet */
     Permit();
+    while (old && (m = GetMsg(old))) {        /* more than it can hold (never, with 64 starts out at most): answered */
+        ((ob_lreq *)m)->ok = 0;                 /* "couldn't start", read by launch_answers */
+        ReplyMsg(m);
+    }
     for (i = 0; i < n; i++) {
         if (launcher_up && again[i]->kind == OB_LR_START) ob_launch_send(again[i]);
         else {
@@ -2079,13 +2096,11 @@ static void launcher_held(void)
             ReplyMsg(&again[i]->msg);          /* to launch_port: answered as any other, "couldn't start" */
         }
     }
-    for (i = 0; i < OB_OUT_MAX; i++) {         /* the one it had taken: answered here, left to the held task */
-        ob_lreq *r = outstanding[i];
-        int k, queued = 0;
-        if (!r) continue;
-        for (k = 0; k < n; k++) queued |= again[k] == r;
-        if (queued) continue;
-        outstanding[i] = NULL;
+    /* the one it had taken: answered here, left to the held task (not one queued again, nor one answered whose
+     * reply is on launch_port: launch_answers answers that) */
+    nl = ob_out_lost(&outstanding, (void *const *)again, n, lreq_replied, lost, OB_OUT_MAX);
+    for (i = 0; i < nl; i++) {
+        ob_lreq *r = lost[i];
         if (r->user) {
             ((struct ob_msg *)r->user)->ok = 0;
             ReplyMsg((struct Message *)r->user);

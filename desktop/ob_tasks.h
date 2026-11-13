@@ -156,4 +156,13 @@ typedef struct ob_held {
 unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
 int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
 
+/* ---- the starts sent to the launcher and not answered yet (X4: a held launcher loses none) ---- */
+#define OB_OUT_MAX 64
+typedef struct ob_out { void *slot[OB_OUT_MAX]; } ob_out;
+int ob_out_add(ob_out *o, void *r);              /* 0 when all OB_OUT_MAX are taken: the caller answers it itself */
+void ob_out_del(ob_out *o, void *r);
+/* The launcher crashed: the starts it had taken, neither still queued on its port (queued, nq) nor answered
+ * already (answered(r): its reply is in, not yet read), taken off the list into lost (at most max). How many. */
+int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max);
+
 #endif
