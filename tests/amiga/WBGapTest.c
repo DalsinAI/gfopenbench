@@ -625,7 +625,18 @@ static int do_lowmem(int secs, const char *path)
     Forbid();
     if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) { PutMsg(ob, &m->m); sent = 1; }
     Permit();
-    Delay((ULONG)secs * 50);
+    /* hold it: whatever another task gives back meanwhile (more than 4 KiB in one piece) is taken too, every half
+       second (the second lab run: something freed enough while it waited, and the program loaded) */
+    for (i = 0; i < secs * 2; i++) {
+        ULONG big;
+        Delay(25);
+        while ((big = AvailMem(MEMF_ANY | MEMF_LARGEST)) > 4096 && (e = AllocMem(big & ~7UL, MEMF_ANY))) {
+            e->size = big & ~7UL;
+            e->next = list;
+            list = e;
+            got += e->size;
+        }
+    }
     seen = find_retry(&x, &y);
     while ((e = list)) {
         list = e->next;
