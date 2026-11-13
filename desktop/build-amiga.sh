@@ -12,14 +12,14 @@ GIT_BASE=${AMIGACHROME_GIT_BASE:-https://github.com/}
 mkdir -p "$DEPS"
 fetch() {   # fetch NAME [optional]
     if [ ! -d "$DEPS/$1/.git" ]; then
-        if ! git clone -q --depth 1 "${GIT_BASE}DalsinAI/$1" "$DEPS/$1"; then
+        if ! git clone -q --depth 1 ${3:+-b "$3"} "${GIT_BASE}DalsinAI/$1" "$DEPS/$1"; then
             [ "${2:-}" = optional ] && { echo "build-amiga.sh: $1 not fetched; built without it"; return 0; }
             echo "build-amiga.sh: couldn't fetch DalsinAI/$1" >&2; exit 1
         fi
     fi
     echo "build-amiga.sh: $1 at $(git -C "$DEPS/$1" rev-parse --short HEAD)"
 }
-fetch gfopengadtools
+fetch gfopengadtools "" team3/wb-tasksafe-20261113   # lab only: gfopengadtools #115
 fetch gfopenprefs
 fetch gfopenfilemanager
 fetch gfopentata optional
