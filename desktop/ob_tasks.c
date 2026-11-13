@@ -214,6 +214,25 @@ void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size)
     }
 }
 
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m)
+{
+    return refill(r, m);
+}
+
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory)
+{
+    if (!no_memory) return 0;
+    if (r->block) m->free(m->user, r->block, r->size);   /* so the requester can open */
+    r->block = 0;
+    r->low = 1;
+    return m->ask(m->user) != 0;
+}
+
+int ob_low(long err, unsigned long largest)
+{
+    return err == OB_NO_FREE_STORE || largest < OB_LOW_FLOOR;
+}
+
 void ob_reserve_end(ob_reserve *r, const ob_mem *m)
 {
     if (r->block) m->free(m->user, r->block, r->size);

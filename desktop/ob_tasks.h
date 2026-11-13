@@ -101,6 +101,15 @@ typedef struct ob_reserve {
 int ob_reserve_init(ob_reserve *r, const ob_mem *m, unsigned long size);   /* 0: couldn't, low from the start */
 void *ob_reserve_alloc(ob_reserve *r, const ob_mem *m, unsigned long size);
 void ob_reserve_end(ob_reserve *r, const ob_mem *m);
+/* The reserve taken back when memory allows (the desktop's tick): 1 when it is held */
+int ob_reserve_refill(ob_reserve *r, const ob_mem *m);
+/* Something other than ob_reserve_alloc failed (a program's LoadSeg, a drawer's window): no_memory says it was for
+ * want of memory (ob_low). Then the reserve is given back and the user asked: 1 Retry; 0 Cancel, or not memory */
+int ob_reserve_failed(ob_reserve *r, const ob_mem *m, int no_memory);
+/* A failure was for want of memory: dos's ERROR_NO_FREE_STORE, or less than OB_LOW_FLOOR bytes in one piece */
+#define OB_LOW_FLOOR 65536UL
+#define OB_NO_FREE_STORE 103
+int ob_low(long err, unsigned long largest);
 
 /* ---- the launcher's WBStartup order (ob_launch.h) ----
  * SYS:WBStartup is started one at a time, as Workbench starts it (ob_startup.h), without the desktop ever waiting:

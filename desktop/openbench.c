@@ -1886,6 +1886,61 @@ static int open_drawer(const char *path);
 
 #define parent_and_name ob_parent_and_name
 
+/* ---- low memory (Workbench build plan row 3, WBGapTest X3) ----------------------------------------------------
+ * 32 KiB is set aside at the start. When the desktop runs out (its own allocations, a drawer's window, a program's
+ * LoadSeg), the block is given back so the requester can open, and the user answers Retry or Cancel; the block is
+ * taken back on the 2-second tick as soon as memory allows (ob_reserve, ob_tasks.h). The desktop's task only: the
+ * built-ins and the dock allocate as before. */
+#define OB_RESERVE_BYTES 32768UL
+static ob_reserve reserve;
+static int asking_low;
+
+static void *lm_alloc(void *user, unsigned long n)
+{
+    (void)user;
+    return AllocVec((ULONG)n, MEMF_PUBLIC | MEMF_CLEAR);
+}
+
+static void lm_free(void *user, void *p, unsigned long n)
+{
+    (void)user;
+    (void)n;
+    FreeVec(p);
+}
+
+static int lm_ask(void *user)
+{
+    struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"GFOpenBench",
+        (UBYTE *)"There is not enough memory for this.\nClose a window or quit a program,\nthen choose Retry.",
+        (UBYTE *)"Retry|Cancel" };
+    int r;
+    (void)user;
+    if (asking_low || !root) return 0;          /* one requester at a time; none while the screen is being reset */
+    asking_low = 1;
+    r = EasyRequestArgs(root, &es, NULL, NULL);
+    asking_low = 0;
+    return r == 1;
+}
+
+static const ob_mem lowmem = { lm_alloc, lm_free, lm_ask, NULL };
+
+/* The desktop's AllocVec(n, MEMF_PUBLIC | MEMF_CLEAR), asking the user when there is no memory for it */
+static void *desk_alloc(ULONG n)
+{
+    return ob_reserve_alloc(&reserve, &lowmem, n);
+}
+
+/* Something failed with err (IoErr) and largest bytes in one piece then: when that was for want of memory, the
+ * low-memory requester; 1 when the user chose Retry */
+static int low_asked;                       /* how many times the requester has been shown */
+
+static int low_retry(LONG err, ULONG largest)
+{
+    int no_memory = ob_low(err, largest);
+    if (no_memory) low_asked++;
+    return ob_reserve_failed(&reserve, &lowmem, no_memory);
+}
+
 /* A tool started with a WBStartup message: arg 0 the tool, then args (a project; Shift-double-click's every
  * selected icon, WBGapTest I11), with the icon's stack and tool types (STACK, TOOLPRI: I12). 1 when the launcher has
  * been asked to start it; whether it did comes back on launch_port (launch_answers). The launcher starts it through
@@ -1896,7 +1951,7 @@ static int start_tool_args(const char *tool, const char *const *args, int n, LON
     int i;
     if (!launcher_up) return 0;
     if (strlen(tool) >= sizeof r->tool) return 0;
-    if (!(r = AllocVec(sizeof *r, MEMF_PUBLIC | MEMF_CLEAR))) return 0;
+    if (!(r = desk_alloc(sizeof *r))) return 0;
     r->kind = OB_LR_START;
     strcpy(r->tool, tool);
     for (i = 0; i < n; i++)
@@ -1974,6 +2029,16 @@ static void launch_answers(void)
         if (r->kind == OB_LR_ENDED) wbstartup_ended(r->id);
         else if (r->kind == OB_LR_START) {
             out_del(r);
+            /* X3: it couldn't start for want of memory: the user asked, and on Retry it goes to the launcher again,
+               its dock or ARexx caller still waiting */
+            if (!r->ok && (r->err || r->largest) && launcher_up && low_retry(r->err, r->largest)) {   /* answered by the launcher */
+                r->ok = 0;
+                r->err = 0;
+                r->largest = 0;
+                out_add(r);
+                ob_launch_send(r);
+                continue;
+            }
             if (r->user) {
                 ((struct ob_msg *)r->user)->ok = r->ok;
                 ReplyMsg((struct Message *)r->user);
@@ -2034,6 +2099,7 @@ static void supervise(void)
 {
     struct Task *t;
     super_secs += 2;
+    ob_reserve_refill(&reserve, &lowmem);          /* X3: the low-memory reserve back as soon as memory allows */
     if (launcher_up && (t = ob_launch_task()) && ob_task_held(t, NULL)) launcher_held();
     ob_builtin_held();
     Forbid();
@@ -2192,7 +2258,21 @@ static int old_prefs_open(const char *path)
     return start_tool(OPENPREFS_APP, project, 32768);
 }
 
+static int open_object_once(const char *path);
+
+/* X3: an icon or file opened; when that failed for want of memory (its icon, its lock, its first bytes couldn't be
+ * read) and nothing on the way asked already, the low-memory requester, and Retry opens it again */
 static int ob_open_object(const char *path)
+{
+    for (;;) {
+        int asked = low_asked, ok;
+        SetIoErr(0);
+        if ((ok = open_object_once(path))) return ok;
+        if (low_asked != asked || !low_retry(IoErr(), AvailMem(MEMF_ANY | MEMF_LARGEST)) || !root) return 0;
+    }
+}
+
+static int open_object_once(const char *path)
 {
     struct DiskObject *o;
     int ok = 0;
@@ -2372,9 +2452,20 @@ static int open_drawer(const char *path)
         ActivateWindow(w);
         return 1;
     }
-    if (ndrawers >= MAX_WINDOWS || !(d = wb_drawer_open(&look, path))) {
+    if (ndrawers >= MAX_WINDOWS) {
         DisplayBeep(look.scr);
         return 0;
+    }
+    for (;;) {
+        ULONG largest;
+        SetIoErr(0);
+        if ((d = wb_drawer_open(&look, path))) break;
+        largest = AvailMem(MEMF_ANY | MEMF_LARGEST);
+        if (!low_retry(IoErr(), largest)) {        /* X3: for want of memory, the user asked: Retry opens it again */
+            DisplayBeep(look.scr);
+            return 0;
+        }
+        if (!root) return 0;
     }
     snprintf(drawer_paths[ndrawers], sizeof drawer_paths[0], "%s", path);
     drawers[ndrawers++] = d;
@@ -5156,6 +5247,7 @@ static int run(void)
         goto out;
     }
     ob_super_init(&super);                         /* 0.1.57: supervision (X4) */
+    ob_reserve_init(&reserve, &lowmem, OB_RESERVE_BYTES);   /* low memory (X3): low from the start when it can't */
     launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
     if ((picture_sig = AllocSignal(-1)) < 0) {
         no_signal("the root picture");
@@ -5470,6 +5562,7 @@ out:
     stop_dock();
     ob_wb_stop();                               /* 0.1.56: no longer the Workbench; AppMessages answered */
     ob_drop_stop();                             /* 0.1.26: its copies run our code; AppMessages answered */
+    ob_reserve_end(&reserve, &lowmem);
     if (timer) {
         AbortIO((struct IORequest *)tr);
         WaitIO((struct IORequest *)tr);

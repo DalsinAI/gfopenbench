@@ -115,7 +115,7 @@ static unsigned long start_tool(const ob_lreq *r)
     BPTR seg;
     struct Process *p;
     int n = 1;
-    if (!L) return 0;
+    if (!L) { SetIoErr(ERROR_NO_FREE_STORE); return 0; }
     if (r->nargs) ob_unpack(r->args, sizeof r->args, 1, &project, 1);   /* by itself: the first argument only, as 0.1.55 */
     if (!(L->args[0].wa_Lock = ob_parent_and_name(tool, L->names[0], sizeof L->names[0]))) { FreeVec(L); return 0; }
     L->args[0].wa_Name = (STRPTR)L->names[0];
@@ -347,8 +347,11 @@ static void launcher_entry(void)
             case OB_LR_START:
                 r->tool[sizeof r->tool - 1] = 0;
                 x4_test(r->tool);
+                SetIoErr(0);
                 r->id = OLBase ? ol_start(r) : start_tool(r);
                 r->ok = r->id != 0;
+                r->err = r->ok ? 0 : IoErr();
+                r->largest = r->ok ? 0 : AvailMem(MEMF_ANY | MEMF_LARGEST);   /* X3: was it for want of memory */
                 ReplyMsg(m);
                 break;
             case OB_LR_QUIT:

@@ -29,6 +29,7 @@ Else
   SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapRexx.rexx OPENBENCH >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapX4.rexx >>RAM:wbgap-results
+  SYS:Rexxc/rx SYS:T/WBGap/WBGapX3.rexx >>RAM:wbgap-results
   WBGapTest LAYOUT >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapLayout.rexx >>RAM:wbgap-results
 EndIf

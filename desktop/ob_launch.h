@@ -48,6 +48,8 @@ typedef struct ob_lreq {
     unsigned long id;
     int left;
     char names[400];
+    long err;                   /* START, not ok: dos's IoErr then (ERROR_NO_FREE_STORE for want of memory) */
+    unsigned long largest;      /* START, not ok: the largest piece of memory free then (ob_low, WBGapTest X3) */
     /* the desktop's own, carried through */
     unsigned long tag;
     void *user;
