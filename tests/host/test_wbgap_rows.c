@@ -28,7 +28,7 @@ static const char *const printed_ids[] = {"A6b", "A8a", "A8b", "C2a", "C2b", "R1
 
 /* rows for the 13 Nov decisions */
 static const char *const decision_ids[] = {
-    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "X2a", "X2b", "P4b", "P6r",
+    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "I12c", "X2a", "X2b", "P4b", "P6r",
 };
 
 static void list_shape(void)
@@ -166,6 +166,7 @@ static void print_all(void)
     wbgap_report_line(&r, "FAIL C2b Left-Amiga-N didn't bring Workbench to the front");
     wbgap_report_line(&r, "PASS I12a");
     wbgap_report_line(&r, "PASS I12b");
+    wbgap_report_line(&r, "PASS I12c");
     wbgap_report_line(&r, "PASS M19");
     wbgap_report_line(&r, "FAIL M23 Delete missing");
     wbgap_report_line(&r, "SKIP R1 no rx");

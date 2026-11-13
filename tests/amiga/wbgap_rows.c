@@ -76,6 +76,7 @@ static const struct wbgap_row rows[] = {
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
+    {"I12c", "I12", A, "STARTUP CHECK", "STACK= alone, the icon's stack field the default, gives that stack; GFOS (3.2.3 reads the field)"},
     {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
     {"I14", NULL, A, NULL, "files with no icon shown (Show All Files)"},
     {"I15", NULL, L, NULL, "a disk's status window with a pie chart, no gauge (13 Nov)"},

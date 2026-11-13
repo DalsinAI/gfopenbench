@@ -18,7 +18,7 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
- *                               from WBStartup with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *                               from WBStartup, and I12c: WBGapG with STACK= alone, its stack field the default) with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
  *                               OpenWorkbenchObjectA with two projects as arguments, its icon's stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
@@ -77,6 +77,7 @@ static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row,
 
 /* the desktop is GFOpenBench: its OPENBENCH ARexx port (0.1.53 on), or (MENUS) a menu titled GFOpenBench */
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack);
+static void check_stack_alone(const char *file, unsigned long want);
 static unsigned long stack_wanted(void);
 static unsigned long icon_stack(const char *path);
 static int gfos_menu_seen;
@@ -740,6 +741,12 @@ static int do_startup(const char *what)
             snprintf(st, sizeof st, "STACK=%lu", want);
             ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
         } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
+        if (exists("SYS:WBStartup/WBGapG")) {   /* I12c: STACK= alone, the icon's own field left at the default */
+            static char sg[24];
+            static STRPTR tg[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb2", (STRPTR)sg, (STRPTR)"DONOTWAIT", NULL};
+            snprintf(sg, sizeof sg, "STACK=%lu", stack_wanted());
+            ok = ok && put_icon("SYS:WBStartup/WBGapG", WBTOOL, tg);
+        } else printf("INFO no SYS:WBStartup/WBGapG: I12c not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
         printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
         return ok ? 0 : 20;
@@ -769,6 +776,7 @@ static int do_startup(const char *what)
             else fail("S2d", "not by date added E, C, D");
         }
         check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
+        check_stack_alone("RAM:wbgap-launchwb2", icon_stack("SYS:WBStartup/WBGapG"));
         check_loadwb();
         return fails ? 5 : 0;
     }
@@ -799,6 +807,25 @@ static unsigned long icon_stack(const char *path)
 
 /* the line a start with LAUNCHREC wrote: I12a stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
  * 0 if there was none (each row SKIPped) */
+/* I12c: a tool whose icon asks for its stack by STACK= alone (its stack field the default) gets it. On 3.2.3,
+ * which takes the field, the result is for reference only. */
+static void check_stack_alone(const char *file, unsigned long want)
+{
+    char buf[200], why[96];
+    long stack = 0, n;
+    BPTR fh = Open((CONST_STRPTR)file, MODE_OLDFILE);
+    if (!want) { skip("I12c", "no STACK= read back from WBGapG's icon"); return; }
+    if (!fh) { snprintf(why, sizeof why, "%s not written: WBGapG didn't start", file); skip("I12c", why); return; }
+    n = Read(fh, buf, sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    Close(fh);
+    sscanf(buf, "launch stack %ld", &stack);
+    printf("INFO I12c STACK= alone: stack seen %ld, wanted %lu\n", stack, want);
+    if ((unsigned long)stack >= want) pass("I12c");
+    else if (!is_gfos()) skip("I12c", "reference: 3.2.3 takes the icon's stack field, not STACK= alone");
+    else { snprintf(why, sizeof why, "STACK=%lu alone not given (%ld)", want, stack); fail("I12c", why); }
+}
+
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
 {
     char buf[400];
@@ -852,6 +879,7 @@ static int do_launch(void)
     write_file("RAM:WBGap/p2", "p2\n");
     put_icon("RAM:WBGap/p2", WBPROJECT, NULL);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-launch");
+    printf("INFO largest free block before the launch: %lu bytes\n", (unsigned long)AvailMem(MEMF_LARGEST));
     dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
     ok = dir && OpenWorkbenchObject((STRPTR)"RAM:WBGap/LaunchT", WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p1",
                                     WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p2", TAG_DONE);
