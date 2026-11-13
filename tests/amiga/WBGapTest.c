@@ -18,9 +18,9 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
- *                               from WBStartup with STACK= (1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *                               from WBStartup with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
- *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK= (1 MB over the default stack and 1 MB) and
+ *                               OpenWorkbenchObjectA with two projects as arguments, its icon's stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
@@ -351,20 +351,25 @@ static int write_file(const char *path, const char *text)
     return 1;
 }
 
-static int put_icon(const char *path, LONG type, STRPTR *tooltypes)
+static int put_icon_stack(const char *path, LONG type, STRPTR *tooltypes, LONG stack)
 {
     struct DiskObject *d = GetDefDiskObject(type);
     STRPTR *old;
+    LONG oldstack;
     int ok;
     if (!d) return 0;
     old = d->do_ToolTypes;
+    oldstack = d->do_StackSize;
     if (tooltypes) d->do_ToolTypes = tooltypes;
+    if (stack) d->do_StackSize = stack;
     d->do_CurrentX = d->do_CurrentY = NO_ICON_POSITION;
     ok = PutDiskObject((CONST_STRPTR)path, d);
     d->do_ToolTypes = old;
+    d->do_StackSize = oldstack;
     FreeDiskObject(d);
     return ok;
 }
+static int put_icon(const char *path, LONG type, STRPTR *tooltypes) { return put_icon_stack(path, type, tooltypes, 0); }
 
 static int do_setup(void)
 {
@@ -731,8 +736,9 @@ static int do_startup(const char *what)
             static char st[24];
             static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)st, (STRPTR)"TOOLPRI=-3",
                                   (STRPTR)"DONOTWAIT", NULL};
-            snprintf(st, sizeof st, "STACK=%lu", stack_wanted());
-            ok = ok && put_icon("SYS:WBStartup/WBGapF", WBTOOL, tf);
+            unsigned long want = stack_wanted();
+            snprintf(st, sizeof st, "STACK=%lu", want);
+            ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
         } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
         printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
@@ -769,7 +775,7 @@ static int do_startup(const char *what)
 }
 
 /* ---- launching (row 6's launcher) ---- */
-/* the STACK= the launch tests ask for: 1 MB over the Workbench's default stack and over 1 MB, so neither the
+/* the stack the launch tests ask for, in the icon's stack field (3.2.3 starts a tool with that) and as STACK=: 1 MB over the Workbench's default stack and over 1 MB, so neither the
  * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
 static unsigned long stack_wanted(void)
 {
@@ -791,7 +797,7 @@ static unsigned long icon_stack(const char *path)
     return n;
 }
 
-/* the line a start with LAUNCHREC wrote: I12a STACK= (1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
+/* the line a start with LAUNCHREC wrote: I12a stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
  * 0 if there was none (each row SKIPped) */
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
 {
@@ -836,7 +842,7 @@ static int do_launch(void)
         if (pd && NameFromLock(pd, (STRPTR)self, sizeof self - 12)) AddPart((STRPTR)self, (CONST_STRPTR)"WBGapTest", sizeof self);
         snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGap/LaunchT QUIET", self);
     }
-    if (run(cmd) != 0 || !put_icon("RAM:WBGap/LaunchT", WBTOOL, tt)) {
+    if (run(cmd) != 0 || !put_icon_stack("RAM:WBGap/LaunchT", WBTOOL, tt, (LONG)want)) {
         fail("I11", "RAM:WBGap/LaunchT not made"); skip("I12a", "no LaunchT"); skip("I12b", "no LaunchT"); return 20;
     }
     write_file("RAM:WBGap/p1", "p1\n");

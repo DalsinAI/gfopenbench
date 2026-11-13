@@ -70,7 +70,7 @@ static const struct wbgap_row rows[] = {
     {"I10", NULL, A, NULL, "double-click opens or runs"},
     {"I11", NULL, A, "LAUNCH", "several icons passed as arguments (Shift-double-click, as 3.2.3; needs A6)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
-    {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "STACK= gives the tool that stack"},
+    {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
     {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
     {"I14", NULL, A, NULL, "files with no icon shown (Show All Files)"},
