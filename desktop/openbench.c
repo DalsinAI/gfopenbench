@@ -1887,9 +1887,13 @@ static void *desk_alloc(ULONG n)
 
 /* Something failed with err (IoErr) and largest bytes in one piece then: when that was for want of memory, the
  * low-memory requester; 1 when the user chose Retry */
+static int low_asked;                       /* how many times the requester has been shown */
+
 static int low_retry(LONG err, ULONG largest)
 {
-    return ob_reserve_failed(&reserve, &lowmem, ob_low(err, largest));
+    int no_memory = ob_low(err, largest);
+    if (no_memory) low_asked++;
+    return ob_reserve_failed(&reserve, &lowmem, no_memory);
 }
 
 /* A tool started with a WBStartup message: arg 0 the tool, then args (a project; Shift-double-click's every
@@ -2209,7 +2213,21 @@ static int old_prefs_open(const char *path)
     return start_tool(OPENPREFS_APP, project, 32768);
 }
 
+static int open_object_once(const char *path);
+
+/* X3: an icon or file opened; when that failed for want of memory (its icon, its lock, its first bytes couldn't be
+ * read) and nothing on the way asked already, the low-memory requester, and Retry opens it again */
 static int ob_open_object(const char *path)
+{
+    for (;;) {
+        int asked = low_asked, ok;
+        SetIoErr(0);
+        if ((ok = open_object_once(path))) return ok;
+        if (low_asked != asked || !low_retry(IoErr(), AvailMem(MEMF_ANY | MEMF_LARGEST)) || !root) return 0;
+    }
+}
+
+static int open_object_once(const char *path)
 {
     struct DiskObject *o;
     int ok = 0;
