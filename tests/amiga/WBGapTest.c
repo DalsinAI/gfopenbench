@@ -877,7 +877,13 @@ static int do_menudrive(void)
     } else if (still_there(s, w) && w->Title && !strstr((const char *)w->Title, "WBGap")) {
         pass("M9");   /* GFOpenBench's windows go back and forward: the parent in the same window */
         printf("INFO M9 the same window now shows \"%s\"\n", (const char *)w->Title);
-    } else fail("M9", "Open Parent: no window came, and the window still shows RAM:WBGap");
+    } else {
+        struct Window *act = IntuitionBase->ActiveWindow;   /* RAM:'s window open already: to the front, active */
+        if (act && act != w && (act->Flags & WFLG_WBENCHWINDOW) && act->Title && !strstr((const char *)act->Title, "WBGap")) {
+            pass("M9");
+            printf("INFO M9 \"%s\", open already, made active\n", (const char *)act->Title);
+        } else fail("M9", "Open Parent: no window came or became active, and the window still shows RAM:WBGap");
+    }
 
     /* M10 Close, last: the drawer's window goes; opened again for what comes after */
     if ((r = pick(w, "window:close")) <= 0) not_picked("M10", r);
