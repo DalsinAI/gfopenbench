@@ -818,8 +818,10 @@ static int check_launchrec(const char *file, int args_too, unsigned long want_st
     Close(fh);
     printf("INFO %s: %s", file, buf);
     sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
+    printf("INFO I12a stack seen %ld, wanted %lu\n", stack, want_stack);
     if (args_too) { if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
-    if ((unsigned long)stack >= want_stack) pass("I12a");
+    if (!want_stack) skip("I12a", "no stack asked for (the icon's STACK= unread)");
+    else if ((unsigned long)stack >= want_stack) pass("I12a");
     else { char why[64]; snprintf(why, sizeof why, "STACK=%lu not given (%ld)", want_stack, stack); fail("I12a", why); }
     if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
     return 1;
