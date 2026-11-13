@@ -622,6 +622,11 @@ static int do_lowmem(int secs, const char *path)
         FreeMem(e, e->size);
     }
     printf("INFO X3 largest free piece now %lu bytes\n", (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
+    {   /* can a program load now at all: it mustn't, for the check to mean anything */
+        BPTR seg = LoadSeg((CONST_STRPTR)path);
+        printf("INFO X3 LoadSeg of %s here: %s\n", path, seg ? "loaded (memory not low enough)" : "failed, as it should");
+        if (seg) UnLoadSeg(seg);
+    }
     Forbid();
     if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) { PutMsg(ob, &m->m); sent = 1; }
     Permit();
