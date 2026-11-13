@@ -15,6 +15,7 @@ DragTest OPEN RAM:WBGap
 Wait 2
 WBGapTest MENUS DUMP >RAM:wbgap-menus
 WBGapTest MENUS >RAM:wbgap-results
+WBGapTest MENUDRIVE >>RAM:wbgap-results
 WBGapTest API >>RAM:wbgap-results
 WBGapTest NOTIFY >>RAM:wbgap-results
 If NOT EXISTS SYS:Rexxc/rx
