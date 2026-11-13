@@ -5603,6 +5603,15 @@ static int run(void)
         SendIO((struct IORequest *)tr);
     }
 
+    {
+        BPTR f = Open((CONST_STRPTR)"RAM:sup.log", MODE_READWRITE);
+        if (f) {
+            Seek(f, 0, OFFSET_END);
+            FPrintf(f, (CONST_STRPTR)"timer %ld tport %lx sigalloc %08lx\n", (LONG)timer, (ULONG)tport,
+                    (ULONG)FindTask(NULL)->tc_SigAlloc);
+            Close(f);
+        }
+    }
     /* the drawers' thumbnails (0.2); none: pictures show their icons. 0.1.39: it fails with no datatypes.library 44
      * too, so a free signal is looked at first */
     if (!wb_thumb_start() && DataTypesBase) {
