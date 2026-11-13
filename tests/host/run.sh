@@ -13,6 +13,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$H
 # wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
   "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
+# wbgap_index: the ACFS index's "::wb" lines as WBGapIndex reads them (tests/amiga/wbgap_index.c; build row 8's rows)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
+  "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
+"$OUT/test_wbgap_index"
 "$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 

@@ -28,7 +28,7 @@ static const char *const printed_ids[] = {"A6b", "A8a", "A8b", "C2a", "C2b", "R1
 
 /* rows for the 13 Nov decisions */
 static const char *const decision_ids[] = {
-    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "X2a", "X2b", "P4b", "P6r",
+    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "X2a", "X2b", "P4b", "P6r",
 };
 
 static void list_shape(void)
@@ -130,6 +130,9 @@ static void wildcard(void)
     CHECK(r.state[m2] == WBGAP_PASS, "M* leaves a row that has a line");
     CHECK(r.state[m19] == WBGAP_FAIL && !strcmp(r.why[m19], "no Workbench screen"), "M* fails M19, which had none");
     CHECK(r.state[a3] == WBGAP_NONE, "M* leaves the A rows");
+    CHECK(wbgap_report_line(&r, "FAIL A* setup") == 1 && r.state[a3] == WBGAP_FAIL, "A* fails A3 (API)");
+    CHECK(r.state[wbgap_find("A8b")] == WBGAP_FAIL, "and A8b, API's too");
+    CHECK(r.state[wbgap_find("A10a")] == WBGAP_NONE, "A* leaves A10a, STARTUP CHECK's");
     CHECK(r.state[wbgap_find("M16t")] == WBGAP_NONE, "M* leaves M16t, which MENUS doesn't check");
     CHECK(wbgap_report_line(&r, "FAIL Q* nothing") == -1, "a wildcard that matches no row");
 }

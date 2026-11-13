@@ -11,6 +11,7 @@
 #define MENUS "MENUS"
 #define API "API"
 #define REXX "WBGapRexx.rexx"
+#define INDEX "WBGapIndex"
 
 /* in the document's order; a part ("A8a") straight after its row. Rows added for the 13 Nov decisions say "(13 Nov)". */
 static const struct wbgap_row rows[] = {
@@ -30,8 +31,9 @@ static const struct wbgap_row rows[] = {
     {"M13", NULL, A, MENUS, "Window > Clean Up"},
     {"M14", NULL, A, MENUS, "Window > Snapshot > Window/All"},
     {"M15", NULL, A, MENUS, "Window > Show > All Files"},
+    {"M15t", "M15", A, INDEX, "SHOW= kept in the drawer's icon and the ACFS index (13 Nov)"},
     {"M16", NULL, A, MENUS, "Window > View By"},
-    {"M16t", "M16", L, NULL, "the drawer keeps its view as SORT= in its icon (13 Nov)"},
+    {"M16t", "M16", A, INDEX, "the drawer keeps its view as SORT= in its icon, copied to the ACFS index on change (13 Nov)"},
     {"M17", NULL, A, MENUS, "Icons > Open"},
     {"M18", NULL, A, MENUS, "Icons > Copy"},
     {"M18p", "M18", L, NULL, "Copy's progress bar on the source drawer or drive (13 Nov)"},
@@ -40,7 +42,8 @@ static const struct wbgap_row rows[] = {
     {"M21", NULL, A, MENUS, "Icons > Snapshot / Unsnapshot"},
     {"M22", NULL, A, MENUS, "Icons > Leave Out / Put Away"},
     {"M23", NULL, A, MENUS, "Icons > Delete"},
-    {"M23r", "M23", A, NULL, "a deleted file recovers from the trash until the host reclaims it (13 Nov)"},
+    {"M23r", "M23", A, INDEX, "a deleted file recovers from the trash until the host reclaims it (13 Nov)"},
+    {"M23s", "M23", A, INDEX, "how long the host keeps trashed bytes, a boot-screen setting (13 Nov)"},
     {"M24", NULL, A, MENUS, "Icons > Format Disk; in GFOS a separate Format application (13 Nov)"},
     {"M25", NULL, A, MENUS, "Icons > Empty Trash"},
     {"M26", NULL, A, MENUS, "Tools > ResetWB; in GFOS Refresh OpenBench (13 Nov)"},
@@ -51,11 +54,12 @@ static const struct wbgap_row rows[] = {
     {"M30", NULL, A, MENUS, "Window > Clear selection"},
     {"M31", NULL, A, MENUS, "Window > Resize to fit"},
     {"M32", NULL, A, MENUS, "Window > Sort order > Reverse"},
-    {"M32t", "M32", L, NULL, "reverse kept as SORT=<key>,REVERSE; a column header toggles it (13 Nov)"},
+    {"M32t", "M32", A, INDEX, "reverse kept as SORT=<key>,REVERSE (13 Nov)"},
+    {"M32h", "M32", L, NULL, "a GFOpenFiles column header toggles REVERSE (13 Nov)"},
     {"M33", NULL, A, MENUS, "Window > Find"},
     {"M33r", "M33", L, NULL, "Find's results as icons in icon view, a list in list view (13 Nov)"},
     {"M34", NULL, A, MENUS, "Auto-arrange icons"},
-    {"M34t", "M34", L, NULL, "Auto-arrange kept per drawer as ARRANGE= (13 Nov)"},
+    {"M34t", "M34", A, INDEX, "Auto-arrange kept per drawer as ARRANGE=, (ARRANGE=) when off (13 Nov)"},
     {"M35", NULL, A, MENUS, "Icons > Eject, any disk (13 Nov)"},
     /* 2. Icons */
     {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
@@ -111,6 +115,7 @@ static const struct wbgap_row rows[] = {
     {"S1", NULL, A, "STARTUP CHECK", "everything in SYS:WBStartup started"},
     {"S2", NULL, A, "STARTUP CHECK", "STARTPRI order"},
     {"S2d", "S2", A, "STARTUP CHECK", "no STARTPRI: oldest date added first, then name; GFOS (13 Nov)"},
+    {"S2i", "S2", A, INDEX, "the ACFS index keeps the date added: moved out and back is added again (13 Nov)"},
     {"S3", NULL, A, "STARTUP CHECK", "DONOTWAIT and WAIT honoured"},
     /* 7. Disks */
     {"D1", NULL, A, NULL, "disk in or out: its icon comes or goes"},
@@ -148,8 +153,8 @@ static const struct wbgap_row rows[] = {
     /* 12. Robustness */
     {"X1", NULL, A, "BIG", "a drawer of 1000 files opens in 10 s"},
     {"X2", NULL, A, NULL, "long names and deep paths (13 Nov: GFOS and compat modes)"},
-    {"X2a", "X2", A, NULL, "GFOS mode: a name and path past 3.2.3's limits"},
-    {"X2b", "X2", A, NULL, "compat mode: the compat name ACFS offers"},
+    {"X2a", "X2", A, INDEX, "GFOS mode: a 200-character name on an ACFS drive"},
+    {"X2b", "X2", A, INDEX, "compat mode: the compat name ACFS offers, 107 characters at most"},
     {"X3", NULL, H, NULL, "low memory: a requester from the reserve pool (13 Nov)"},
     {"X4", NULL, H, NULL, "a crashed drawer task or AppWindow owner: the desktop stays up (13 Nov)"},
     /* 13. Layout (Dale, 13 Nov 06:43): on 3.2.3, reference only */
@@ -214,9 +219,15 @@ int wbgap_report_line(struct wbgap_report *r, const char *line)
     why = id + n;
     while (*why == ' ') why++;
     for (wl = strlen(why); wl && (why[wl - 1] == '\n' || why[wl - 1] == '\r' || why[wl - 1] == ' '); wl--) {}
-    if (key[n - 1] == '*') {   /* "FAIL M* why": the checks didn't run, for every checked M row with no line yet */
-        for (i = 0; i < NROWS; i++)
-            if (rows[i].mode && !strncmp(rows[i].id, key, n - 1) && rows[i].id[n - 1] >= '0' && rows[i].id[n - 1] <= '9') {
+    if (key[n - 1] == '*') {   /* "FAIL M* why": the mode's checks didn't run, for each of its M rows with no line yet;
+                                 * the mode is the first M row's that has one (M1's MENUS, A3's API) */
+        const char *mode = NULL;
+        for (i = 0; i < NROWS && !mode; i++)
+            if (rows[i].mode && !strncmp(rows[i].id, key, n - 1) && rows[i].id[n - 1] >= '0' && rows[i].id[n - 1] <= '9')
+                mode = rows[i].mode;
+        for (i = 0; mode && i < NROWS; i++)
+            if (rows[i].mode && !strcmp(rows[i].mode, mode) && !strncmp(rows[i].id, key, n - 1) &&
+                rows[i].id[n - 1] >= '0' && rows[i].id[n - 1] <= '9') {
                 hit = 1;
                 if (r->state[i] == WBGAP_NONE) set(r, i, state, why, wl);
             }

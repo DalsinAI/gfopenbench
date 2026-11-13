@@ -34,6 +34,9 @@ EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
 WBGapTest LAUNCH >>RAM:wbgap-results
+If EXISTS WBGapIndex
+  WBGapIndex >>RAM:wbgap-results
+EndIf
 Copy WBGapTest SYS:WBStartup/WBGapA QUIET
 Copy WBGapTest SYS:WBStartup/WBGapB QUIET
 Copy WBGapTest SYS:WBStartup/WBGapC QUIET
