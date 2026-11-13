@@ -44,6 +44,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_vols.c" \
   "$HERE/tests/host/test_ob_vols.c" -o "$OUT/test_ob_vols"
+# ob_eject: which way Icons > Eject takes a disk, floppy, PCMCIA card or not removable (GFOpenBench 0.1.57, row M35)
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_eject.c" \
+  "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
+"$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
