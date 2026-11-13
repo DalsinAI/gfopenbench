@@ -177,11 +177,76 @@ static void test_reserve(void)
     ob_reserve_end(&r, &m);
 }
 
+
+/* WBStartup through the launcher: the same order and waiting as before (ob_startup.h), the desktop never blocked */
+static void test_seq(void)
+{
+    static const int wait[5] = {60, 0, 10, 60, 5};   /* b is DONOTWAIT */
+    ob_seq s;
+    ob_seq_init(&s, wait, 5);
+    CHECK("seq a first", ob_seq_next(&s) == 0);
+    ob_seq_opened(&s, 0, 11);                        /* a's start asked for */
+    CHECK("seq waits for a's answer", ob_seq_next(&s) == OB_SEQ_WAIT);
+    CHECK("other answers ignored", ob_seq_answered(&s, 99, 1, 7) == 0 && ob_seq_next(&s) == OB_SEQ_WAIT);
+    CHECK("a started", ob_seq_answered(&s, 11, 1, 500) == 1);
+    CHECK("seq waits for a's end", ob_seq_next(&s) == OB_SEQ_WAIT);
+    CHECK("another program's end ignored", ob_seq_ended(&s, 501) == 0 && ob_seq_next(&s) == OB_SEQ_WAIT);
+    CHECK("a ended (or its WAIT is over)", ob_seq_ended(&s, 500) == 1);
+    CHECK("then b", ob_seq_next(&s) == 1);
+    ob_seq_opened(&s, 1, 12);                        /* DONOTWAIT: started, not waited for */
+    CHECK("b not waited for: c", ob_seq_next(&s) == 2);
+    ob_seq_opened(&s, 2, 0);                         /* c started nothing (a drawer, refused) */
+    CHECK("c nothing: d", ob_seq_next(&s) == 3);
+    ob_seq_opened(&s, 3, 13);
+    CHECK("d failed to start: e", ob_seq_answered(&s, 13, 0, 0) == 1 && ob_seq_next(&s) == 4);
+    ob_seq_opened(&s, 4, 14);
+    CHECK("late answer for b ignored", ob_seq_answered(&s, 12, 1, 600) == 0);
+    ob_seq_answered(&s, 14, 1, 700);
+    CHECK("e waited for", ob_seq_next(&s) == OB_SEQ_WAIT);
+    ob_seq_ended(&s, 700);
+    CHECK("done", ob_seq_next(&s) == OB_SEQ_DONE && ob_seq_next(&s) == OB_SEQ_DONE);
+    ob_seq_init(&s, wait, 0);
+    CHECK("empty drawer done", ob_seq_next(&s) == OB_SEQ_DONE);
+}
+
+static void test_names(void)
+{
+    const char *names[10] = {"GFOpenMeters", "100%", "c", "d", "e", "f", "g", "h", "i", "j"};
+    char out[400], small[12];
+    ob_names_format(out, sizeof out, names, 2);
+    CHECK("names", !strcmp(out, "  GFOpenMeters\n  100_\n"));
+    ob_names_format(out, sizeof out, names, 10);
+    CHECK("names and more", strstr(out, "  h\n  and 2 more\n") && !strstr(out, "  i\n"));
+    ob_names_format(out, sizeof out, names, 0);
+    CHECK("no names", out[0] == 0);
+    CHECK("short buffer ends", ob_names_format(small, sizeof small, names, 10) < (int)sizeof small && strlen(small) < sizeof small);
+}
+
+static void test_pack(void)
+{
+    char buf[16];
+    const char *out[4];
+    int n = 0;
+    memset(buf, 'x', sizeof buf);
+    CHECK("pack a", ob_pack(buf, sizeof buf, &n, "SYS:a") && n == 1);
+    CHECK("pack empty", ob_pack(buf, sizeof buf, &n, "") && n == 2);
+    CHECK("pack b", ob_pack(buf, sizeof buf, &n, "RAM:b") && n == 3);
+    CHECK("too long refused", !ob_pack(buf, sizeof buf, &n, "DH0:long") && n == 3);
+    CHECK("unpack", ob_unpack(buf, sizeof buf, n, out, 4) == 3 && !strcmp(out[0], "SYS:a") && !strcmp(out[1], "")
+          && !strcmp(out[2], "RAM:b"));
+    CHECK("unpack max", ob_unpack(buf, sizeof buf, n, out, 2) == 2);
+    memset(buf, 'y', sizeof buf);
+    CHECK("no NUL: nothing", ob_unpack(buf, sizeof buf, 1, out, 4) == 0);
+}
+
 int main(void)
 {
     test_super();
     test_jobq();
     test_reserve();
+    test_seq();
+    test_names();
+    test_pack();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

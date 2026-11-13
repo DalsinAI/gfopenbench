@@ -178,6 +178,11 @@ DROP_OBJS="$DROP_OBJS $TMP/ob_wb.o $TMP/ob_wbplan.o"
 # shellcheck disable=SC2086
 "$CC" $FLAGS -DOF_AMIGA -I"$E" -c -o "$TMP/ob_arexx.o" "$HERE/ob_arexx.c"
 DROP_OBJS="$DROP_OBJS $TMP/ob_rexx.o $TMP/ob_arexx.o"
+# The Workbench task model (build plan row 3): ob_tasks.c (its bookkeeping, plain C) and ob_launch.c (the launcher,
+# the process that starts programs so the desktop never waits)
+"$CC" $FLAGS -c -o "$TMP/ob_tasks.o" "$HERE/ob_tasks.c"
+"$CC" $FLAGS -I"$HERE/../launcher" -c -o "$TMP/ob_launch.o" "$HERE/ob_launch.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_tasks.o $TMP/ob_launch.o"
 # wb_dir, as it is (0.1.23 to 0.1.31 renamed its wb_dir_read and wb_entry_icon for ROM:Prefs's editors; the ROM has
 # no ROM: since the no-ROM-volume design, 24 October 2026)
 # shellcheck disable=SC2086
@@ -197,8 +202,12 @@ else
     FIND_SRC="$W/wb_find_none.c"
     echo "GFOpenBench: no amicradle-guest at $GUEST (set GUEST): drawers built without the search of every drive"
 fi
+# The launcher's rules (0.1.56; Workbench build plan row 6), plain C (tests/host): the order of SYS:WBStartup,
+# Shift-double-click and LoadWB's switches. The launches themselves are gfopenlaunch.library's (build.sh, launcher/)
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
+"$CC" $FLAGS -c -o "$TMP/ol_core.o" "$HERE/../launcher/ol_core.c"
+# shellcheck disable=SC2086
+"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
     $BUILTIN_OBJS $DROP_OBJS \
     "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" "$W/wb_keys.c" "$W/wb_sel.c" "$W/wb_tt.c" $FIND_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga

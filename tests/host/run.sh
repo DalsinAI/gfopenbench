@@ -84,6 +84,13 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/hos
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_startup.c" -o "$OUT/test_ob_startup"
 "$OUT/test_ob_startup"
 
+# ol_core: the launcher's rules, gfopenlaunch.library's and GFOpenBench's (Workbench build plan row 6; S2, S2d, S3,
+# I11, I12, A10)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/launcher" "$HERE/launcher/ol_core.c" \
+  "$HERE/tests/host/test_ol_core.c" -o "$OUT/test_ol_core"
+"$OUT/test_ol_core"
+
 # GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
 # shellcheck disable=SC2086
 cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/benchmark/dhry_1.c" "$HERE/benchmark/dhry_2.c" \
