@@ -9,6 +9,7 @@
 #include <dos/dostags.h>
 #include <dos/var.h>
 #include <libraries/gadtools.h>
+#include <clib/alib_protos.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
@@ -85,6 +86,7 @@ struct ob_dt {
 
 static ob_dt_env env;
 static struct MsgPort *callport, *evport, *qreply, *tport;   /* calls and events apart: ob_dt_wait_open */
+static BYTE dsig = -1;                  /* the one signal the desktop's four ports share */
 static struct timerequest *tr;
 static int timer_open;
 static ob_dt *live[DT_MAX];
@@ -416,13 +418,27 @@ static void unlink_dt(ob_dt *t)
     if (i >= 0) live[i] = live[--nlive];
 }
 
+/* A port of the desktop's on signal dsig: the desktop's signals are nearly all taken (its ARexx ports came after) */
+static struct MsgPort *shared_port(void)
+{
+    struct MsgPort *p = AllocVec(sizeof *p, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!p) return NULL;
+    p->mp_Node.ln_Type = NT_MSGPORT;
+    p->mp_Flags = PA_SIGNAL;
+    p->mp_SigBit = (UBYTE)dsig;
+    p->mp_SigTask = FindTask(NULL);
+    NewList(&p->mp_MsgList);
+    return p;
+}
+
 int ob_dt_init(const ob_dt_env *e)
 {
     env = *e;
-    callport = CreateMsgPort();
-    evport = CreateMsgPort();
-    qreply = CreateMsgPort();
-    tport = CreateMsgPort();
+    if ((dsig = AllocSignal(-1)) < 0) return 0;
+    callport = shared_port();
+    evport = shared_port();
+    qreply = shared_port();
+    tport = shared_port();
     tr = tport ? (struct timerequest *)CreateIORequest(tport, sizeof *tr) : NULL;
     timer_open = tr && !OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)tr, 0);
     qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
@@ -439,18 +455,20 @@ void ob_dt_end(void)
     timer_open = 0;
     if (tr) DeleteIORequest((struct IORequest *)tr);
     tr = NULL;
-    if (tport) DeleteMsgPort(tport);
-    if (qreply) DeleteMsgPort(qreply);
-    if (callport) DeleteMsgPort(callport);
-    if (evport) DeleteMsgPort(evport);
+    if (tport) FreeVec(tport);
+    if (qreply) FreeVec(qreply);
+    if (callport) FreeVec(callport);
+    if (evport) FreeVec(evport);
     tport = qreply = callport = evport = NULL;
+    if (dsig >= 0) FreeSignal(dsig);
+    dsig = -1;
     if (qbuf) FreeVec(qbuf);
     qbuf = NULL;
 }
 
 ULONG ob_dt_sigmask(void)
 {
-    return callport && evport ? (1UL << callport->mp_SigBit) | (1UL << evport->mp_SigBit) : 0;
+    return callport && evport ? 1UL << dsig : 0;
 }
 
 void ob_dt_set_gen(unsigned long gen)
@@ -565,18 +583,19 @@ void ob_dt_find(ob_dt *t, const char *words)
 }
 
 /* half a second of waiting on mask, or less when it comes; 1 when it came */
-static int wait_half(ULONG mask)
+/* the desktop's ports share one signal: 1 when something came before the half second was over, 0 when it was */
+static int wait_half(void)
 {
-    ULONG tm = 1UL << tport->mp_SigBit, got;
+    int over;
     tr->tr_node.io_Command = TR_ADDREQUEST;
     tr->tr_time.tv_secs = 0;
     tr->tr_time.tv_micro = 500000;
     SendIO((struct IORequest *)tr);
-    got = Wait(mask | tm);
-    if (!CheckIO((struct IORequest *)tr)) AbortIO((struct IORequest *)tr);
+    Wait(1UL << dsig);
+    over = CheckIO((struct IORequest *)tr) != NULL;
+    if (!over) AbortIO((struct IORequest *)tr);
     WaitIO((struct IORequest *)tr);
-    SetSignal(0, tm);
-    return (got & mask) != 0;
+    return !over;
 }
 
 static int held(const ob_dt *t)
@@ -609,7 +628,7 @@ int ob_dt_at(ob_dt *t, WORD sx, WORD sy, char *out, int n)
     PutMsg(t->qport, &q->h.m);
     Permit();
     while (!GetMsg(qreply)) {
-        if (wait_half(1UL << qreply->mp_SigBit)) continue;
+        if (wait_half()) continue;
         if (held(t)) {                  /* crashed with the question on its port: the question stays with it */
             qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
             return WB_AT_NONE;
@@ -627,7 +646,7 @@ void ob_dt_close_all(void)
     while (nlive) {
         ob_dt_service();
         if (!nlive) break;
-        if (wait_half(ob_dt_sigmask())) continue;
+        if (wait_half()) continue;
         for (i = 0; i < nlive; i++)
             if (held(live[i])) {
                 ob_dt_abandon(live[i]);
@@ -643,7 +662,7 @@ int ob_dt_wait_open(ob_dt *t, int secs)
     while (live_at(t) >= 0 && !t->win) {
         take_events();
         if (live_at(t) < 0 || t->win) break;
-        if (!wait_half(1UL << evport->mp_SigBit) && (--halves <= 0 || held(t))) break;
+        if (!wait_half() && (--halves <= 0 || held(t))) break;
     }
     return live_at(t) >= 0 && t->win != NULL;
 }
