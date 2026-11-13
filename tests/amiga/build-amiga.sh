@@ -14,5 +14,5 @@ for t in DragTest WBGapTest; do
   # shellcheck disable=SC2086
   "$CC" $COMMON -o "$OUT/$t" "$HERE/$t.c"
 done
-cp "$HERE/WBGapTest.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$OUT/"
+cp "$HERE/WBGapTest.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$HERE/WBGapF3.rexx" "$OUT/"
 ls -l "$OUT"
