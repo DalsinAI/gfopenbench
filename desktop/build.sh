@@ -115,6 +115,9 @@ BUILTIN_DEFS="$BUILTIN_DEFS -DOB_HAVE_OPENUP_SETUP"
 # tick, plain C (tests/host)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ob_vols.o" "$HERE/ob_vols.c"
+# Icons > Eject for any disk (0.1.58, row M35): which way a disk is ejected, plain C (tests/host)
+# shellcheck disable=SC2086
+"$CC" $FLAGS -c -o "$TMP/ob_eject.o" "$HERE/ob_eject.c"
 # A disk's .backdrop (0.1.41): Icons > Leave Out's line added and Put Away's taken out, plain C (tests/host). Its
 # drawers' half is gfopengadtools' wb_drawer.c with wb_look's leave_out (gfopengadtools main with Leave Out, 25 October
 # 2026, or later)
@@ -180,9 +183,9 @@ else
     echo "GFOpenBench: no amicradle-guest at $GUEST (set GUEST): drawers built without the search of every drive"
 fi
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
+"$CC" $FLAGS $FIND_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
     $BUILTIN_OBJS $DROP_OBJS \
-    "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" $FIND_SRC \
+    "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" "$W/wb_keys.c" "$W/wb_sel.c" "$W/wb_tt.c" $FIND_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga
 rm -rf "$TMP"
 echo "$OUT/GFOpenBench ($(wc -c < "$OUT/GFOpenBench") bytes)"
