@@ -4,9 +4,10 @@
 # BltTemplate, Text, Move, Draw, SetAPen, SetBPen, SetDrMd, ScrollRaster,
 # EraseRect and the blit variants) outside GFOpenLayout's own sources. Calls
 # already in the tree only warn; all are listed in one comment on the PR.
-# Exception: "LAYOUT-EXCEPTION: <reason>" in the PR description, and a Team 3
-# comment "LAYOUT-EXCEPTION: APPROVE <sha8>" for the current head (that comment
-# re-runs this check). Paths GFOpenLayout owns, or listed in
+# Exception: "LAYOUT-EXCEPTION: <reason>" in the PR description, and a PR comment
+# "LAYOUT-EXCEPTION: APPROVE <sha8>" with "Reviewer: <name> (Team 3)" for the
+# current head (that comment re-runs this check). Team 3 writes it in
+# amicradle-teams and Team 5 copies it onto the PR with the note's path. Paths GFOpenLayout owns, or listed in
 # .layout-guard-allow (one glob per line), are not checked.
 name: Layout guard
 on:
@@ -45,6 +46,8 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq '.[] | select(.body | contains("<!-- layout-guard -->") | not) | .body + "\n\u001e"' > "$RUNNER_TEMP/comments.txt" || true
           python3 -I .github/layout-guard/layout_guard.py --self-test || exit 1
+          # the split the script reads: each comment, then a line holding only 0x1E (jq's \u001e escape)
+          [ "$(printf '[{"body":"a"}]' | jq -r '.[] | .body + "\n\u001e"' | od -An -tx1 | tr -d ' \n')" = 610a1e0a ] || { echo "jq comment split broken"; exit 1; }
           python3 -I .github/layout-guard/layout_guard.py "$BASE" "$HEAD" \
             --body "$RUNNER_TEMP/body.txt" --comments "$RUNNER_TEMP/comments.txt" \
             --report "$RUNNER_TEMP/report.md"

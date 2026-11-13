@@ -5,8 +5,12 @@
 A pull request fails if a line it adds calls a graphics.library drawing
 function outside GFOpenLayout's own sources. Calls already in the tree only
 warn, and are listed in one comment on the PR. An exception needs a line
-"LAYOUT-EXCEPTION: <reason>" in the PR body and a comment from Team 3 reading
-"LAYOUT-EXCEPTION: APPROVE <sha8>" for the PR's current head.
+"LAYOUT-EXCEPTION: <reason>" in the PR body and a PR comment reading
+"LAYOUT-EXCEPTION: APPROVE <sha8>" for the PR's current head with a
+"Reviewer: <name> (Team 3)" line. Team 3 doesn't post on GitHub: it writes the
+approval in amicradle-teams (teams/team5/inbox/), and Team 5 copies it onto the
+PR with the note's path, as for REVIEW notes. The comment's team is self-declared
+(every team posts as SacredTrees), so the merger checks the note exists.
 
 usage: layout_guard.py BASE_SHA HEAD_SHA [--body FILE] [--comments FILE]
                        [--report FILE]
@@ -24,7 +28,11 @@ import sys
 CALLS = ("RectFill", "BltBitMap", "BltBitMapRastPort", "BltMaskBitMapRastPort",
          "BltTemplate", "ClipBlit", "Text", "Move", "Draw", "SetAPen", "SetBPen",
          "SetDrMd", "ScrollRaster", "EraseRect")
-NAMES = "|".join(CALLS)
+# drawing calls that only warn, even when new (Team 3's review, 07:06): the fail list is Dale's
+WARN_CALLS = ("WritePixel", "PolyDraw", "SetRast", "SetABPenDrMd", "SetRPAttrsA", "AreaMove",
+              "AreaDraw", "AreaEnd", "DrawEllipse", "AreaEllipse", "BltClear", "DrawImage",
+              "DrawBorder", "PrintIText")
+NAMES = "|".join(CALLS + WARN_CALLS)
 # a C call: the name not preceded by an identifier char, '.', '->' or '::'
 C_CALL = re.compile(r"(?<![A-Za-z0-9_.>:])(%s)\s*\(" % NAMES)
 # 68k assembly: jsr _LVOSetAPen(a6), or a library offset macro
@@ -144,7 +152,7 @@ def split_comments(text):
     return [c for c in (text or "").split("\n\x1e\n") if c.strip()]
 
 
-def report(new, old, reason, approved, head):
+def report(new, warn_new, old, reason, approved, head):
     r = ["<!-- layout-guard -->", "**Layout guard** (head `%s`): wave-1 drawing goes "
          "through GFOpenLayout, not straight to graphics.library." % head[:8], ""]
     if new:
@@ -160,7 +168,13 @@ def report(new, old, reason, approved, head):
                      "missing), or put `LAYOUT-EXCEPTION: <reason>` in the PR "
                      "description for Team 3 to approve.")
     else:
-        r.append("No new drawing calls.")
+        r.append("No new drawing calls that fail the check.")
+    if warn_new:
+        r += ["", "New calls on the warning list (they don't fail the check; GFOpenLayout should "
+              "still do them) (%d):" % len(warn_new)]
+        r += ["- `%s:%d` %s()" % h for h in warn_new]
+    r += ["", "_A call counts as new when its file has more calls of that name than the base; "
+          "a call moved from one file to another counts as new in the second file._"]
     if old:
         r += ["", "<details><summary>Calls already in the tree, warning only (%d)"
               "</summary>\n" % len(old)]
@@ -198,7 +212,10 @@ def self_test():
     assert exception(body, ["LAYOUT-EXCEPTION: APPROVE 01234567\nReviewer: X (Team 3)"], h)[1] is True
     assert exception(body, ["LAYOUT-EXCEPTION: APPROVE 89abcdef\nReviewer: X (Team 3)"], h)[1] is False
     assert exception("no line", ["LAYOUT-EXCEPTION: APPROVE 01234567 (Team 3)"], h) == (None, False)
-    print("layout_guard self-test: 25 checks passed")
+    assert t("a.c", "  WritePixel(rp, 1, 1);") == ["WritePixel"]
+    assert t("a.c", "  DrawImage(rp, im, 0, 0);") == ["DrawImage"]
+    assert split_comments("a\n\x1e\nb\nc\n\x1e\n") == ["a", "b\nc"]
+    print("layout_guard self-test: 28 checks passed")
 
 
 def main():
@@ -225,12 +242,18 @@ def main():
     before = Counter((p, name) for p, _, name in scan(tree_lines(base, {p for p, _, _ in added}), allow))
     after = Counter((p, name) for p, _, name in scan(tree_lines(head, {p for p, _, _ in added}), allow))
     extra = {k: after[k] - before[k] for k in after if after[k] > before[k]}
-    new = []
+    new, warn_new = [], []
     for p, n, name in added:
+        if name in WARN_CALLS:
+            if extra.get((p, name), 0) > 0:
+                warn_new.append((p, n, name))
+                extra[(p, name)] -= 1
+            continue
         if extra.get((p, name), 0) > 0:
             new.append((p, n, name))
             extra[(p, name)] -= 1
     newset = {(p, n) for p, n, _ in new}
+    newset |= {(p, n) for p, n, _ in warn_new}
     old = [h for h in scan(tree_lines(head), allow) if (h[0], h[1]) not in newset]
     body = open(a.body).read() if a.body and os.path.exists(a.body) else ""
     comments = split_comments(open(a.comments).read()) if a.comments and os.path.exists(a.comments) else []
@@ -242,12 +265,14 @@ def main():
     if old:
         print("::warning::%d drawing call(s) already in the tree outside GFOpenLayout "
               "(warning only; listed in the PR comment)" % len(old))
+    for p, n, name in warn_new:
+        print("::warning file=%s,line=%d::new %s() call outside GFOpenLayout (warning list)" % (p, n, name))
     for p, n, name in new:
         kind = "warning" if (reason and approved) else "error"
         print("::%s file=%s,line=%d::new %s() call outside GFOpenLayout" % (kind, p, n, name))
     if a.report:
         with open(a.report, "w") as f:
-            f.write(report(new, old, reason, approved, head))
+            f.write(report(new, warn_new, old, reason, approved, head))
     print("layout guard: %d new call(s), %d already in the tree, exception: %s"
           % (len(new), len(old), "approved" if approved else ("asked" if reason else "none")))
     return 1 if new and not (reason and approved) else 0
