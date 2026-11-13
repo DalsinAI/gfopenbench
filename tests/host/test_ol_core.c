@@ -96,12 +96,19 @@ static void test_opts(void)
     ol_opts_read(&o, small, 0, 8192);
     CHECK("I12a: Workbench's default at the least", o.stack == 8192);
     ol_opts_read(&o, huge, 4096, 8192);
-    CHECK("STACK kept to 1 MB, keys case-blind", o.stack == OL_STACK_MAX);
+    CHECK("STACK kept to 16 MB, keys case-blind", o.stack == OL_STACK_MAX);
     CHECK("TOOLPRI kept to 127", o.pri == 127);
     ol_opts_read(&o, off, 4096, 8192);
     CHECK("tool types in brackets are off", o.stack == 8192 && o.pri == 0);
     ol_opts_read(&o, neg, 4096, 8192);
     CHECK("TOOLPRI kept to -128; a STACK below 0 is ignored", o.pri == -128 && o.stack == 8192);
+    {   /* I12c: WBGapG, STACK= alone, the icon's own field the default */
+        static const char *const alone[] = {"STACK=2097152", "DONOTWAIT", 0};
+        ol_opts_read(&o, alone, 4096, 8192);
+        CHECK("I12c: STACK=2097152 alone gives 2 MB over the icon's default field", o.stack == 2097152L);
+        ol_opts_read(&o, alone, 0, 8192);
+        CHECK("I12c: STACK=2097152 alone gives 2 MB with no field at all", o.stack == 2097152L);
+    }
     ol_opts_read(&o, 0, 2L * 1024 * 1024, 8192);
     CHECK("I12a: a 2 MB icon stack stays 2 MB (3.2.3 takes the icon's own as it is)", o.stack == 2L * 1024 * 1024);
     ol_opts_read(&o, big, 2L * 1024 * 1024, 8192);

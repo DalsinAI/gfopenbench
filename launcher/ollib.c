@@ -36,15 +36,15 @@
 #define REG(r, decl) register decl __asm(#r)
 
 #define VERSION 1
-#define REVISION 0
+#define REVISION 1
 
 /* First in the file: run as a program, the library returns at once. */
 __asm("\t.text\n\t.globl _ol_start\n_ol_start:\n\tmoveq #-1,d0\n\trts\n");
 
 static const char lib_name[] = OL_LIBNAME;
-static const char lib_id[] = "gfopenlaunch.library 1.0 (13.11.2026) GFOpenBench's launcher\r\n";
+static const char lib_id[] = "gfopenlaunch.library 1.1 (13.11.2026) GFOpenBench's launcher\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: gfopenlaunch.library 1.0 (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+    "$VER: gfopenlaunch.library 1.1 (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 static const char reaper_name[] = "GFOpenBench launcher";
 
 struct ExecBase *SysBase;
