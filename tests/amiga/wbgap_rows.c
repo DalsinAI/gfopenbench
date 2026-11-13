@@ -72,7 +72,7 @@ static const struct wbgap_row rows[] = {
     {"I8", NULL, A, NULL, "drag onto an AppIcon"},
     {"I9", NULL, A, NULL, "drag onto an AppWindow"},
     {"I10", NULL, A, NULL, "double-click opens or runs"},
-    {"I11", NULL, A, "LAUNCH", "several icons passed as arguments (Shift-double-click, as 3.2.3; needs A6)"},
+    {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
@@ -284,4 +284,27 @@ int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx)
     snprintf(line, sizeof line, "INFO rows %d: %d pass, %d fail, %d skip (%d not run)", NROWS, npass, nfail, nskip, notrun);
     out(ctx, line);
     return nfail;
+}
+
+int wbgap_launch_args(const char *rec, const char *want)
+{
+    long stack, args, words = 0;
+    int pri, used = 0;
+    const char *p, *w = want;
+    if (sscanf(rec, "launch stack %ld pri %d args %ld%n", &stack, &pri, &args, &used) != 3 || !used) return 0;
+    p = rec + used;
+    for (;;) {
+        size_t n, m;
+        while (*p == ' ') p++;
+        while (*w == ' ') w++;
+        if (!*w) break;
+        for (n = 0; p[n] && p[n] != ' ' && p[n] != '\n' && p[n] != '\r'; n++) {}
+        for (m = 0; w[m] && w[m] != ' '; m++) {}
+        if (n != m || strncmp(p, w, n)) return 0;
+        p += n;
+        w += m;
+        words++;
+    }
+    while (*p == ' ' || *p == '\n' || *p == '\r') p++;
+    return !*p && args == words;
 }

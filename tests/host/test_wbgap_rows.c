@@ -68,6 +68,36 @@ static void every_id(void)
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
+    CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
+}
+
+/* the launch record LaunchT writes, as LAUNCH and LAUNCHDESK read it for I11 */
+static void launch_args(void)
+{
+    const char *want = "LaunchT p1 p2";
+    CHECK(wbgap_launch_args("launch stack 2097152 pri -3 args 3 LaunchT p1 p2\n", want), "the three, in order");
+    CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p2", want), "no line's end");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p2 p1\n", want), "out of order");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 2 LaunchT p1\n", want), "one missing");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 4 LaunchT p1 p2 p3\n", want), "one too many");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 2 LaunchT p1 p2\n", want), "a count that doesn't match");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p22\n", want), "a longer name isn't the name");
+    CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p\n", want), "a shorter one neither");
+    CHECK(!wbgap_launch_args("", want) && !wbgap_launch_args("start WBGapA\n", want), "not a launch record");
+    CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 1 LaunchT\n", "LaunchT"), "the tool alone");
+}
+
+/* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
+static void i11_lines(void)
+{
+    static struct wbgap_report r;
+    wbgap_report_init(&r);
+    CHECK(wbgap_report_line(&r, "INFO I11 OpenWorkbenchObjectA on a tool FALSE (IoErr 103): A6's, see LAUNCHDESK") == 0,
+          "LAUNCH's INFO line sets nothing");
+    CHECK(r.state[wbgap_find("I11")] == WBGAP_NONE, "I11 still has no line");
+    CHECK(wbgap_report_line(&r, "SKIP I11 not left out on the desktop (RAM:.backdrop): p1") == 1 &&
+          r.state[wbgap_find("I11")] == WBGAP_SKIP, "WBGapDesk.rexx's SKIP");
+    CHECK(wbgap_report_line(&r, "PASS I11") == 1 && r.state[wbgap_find("I11")] == WBGAP_PASS, "then LAUNCHDESK CHECK's PASS");
 }
 
 /* with the document: every "| ID |" at the start of a table row is in the list */
@@ -215,6 +245,8 @@ int main(int argc, char **argv)
     if (argc > 1) from_doc(argv[1]);
     lines();
     wildcard();
+    launch_args();
+    i11_lines();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);

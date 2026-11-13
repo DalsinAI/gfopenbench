@@ -23,5 +23,5 @@ if [ -n "${AMICRADLE_GUEST:-}" ]; then
 else
   echo "WBGapIndex not built: set AMICRADLE_GUEST to an amicradle-guest checkout"
 fi
-cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$OUT/"
+cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$HERE/WBGapDesk.rexx" "$OUT/"
 ls -l "$OUT"
