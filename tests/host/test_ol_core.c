@@ -102,6 +102,8 @@ static void test_opts(void)
     CHECK("tool types in brackets are off", o.stack == 8192 && o.pri == 0);
     ol_opts_read(&o, neg, 4096, 8192);
     CHECK("TOOLPRI kept to -128; a STACK below 0 is ignored", o.pri == -128 && o.stack == 8192);
+    ol_opts_read(&o, 0, 99999999L, 8192);
+    CHECK("the icon's own stack kept to 1 MB too", o.stack == OL_STACK_MAX);
     ol_opts_read(&o, 0, 30000, 8192);
     CHECK("no tool types: the icon's stack, priority 0", o.stack == 30000 && o.pri == 0);
 }

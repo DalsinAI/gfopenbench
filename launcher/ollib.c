@@ -55,7 +55,8 @@ struct OLBase {
     struct Library lib;
     UWORD pad;
     BPTR seglist;
-    struct SignalSemaphore lock;    /* runs, running, next_id, port */
+    struct SignalSemaphore lock;    /* runs, running, next_id */
+    struct SignalSemaphore start;   /* starting the reaper: one at a time, without holding lock */
     struct MinList runs;            /* every program started and not yet ended */
     LONG running;
     ULONG next_id;
@@ -144,7 +145,8 @@ static LONG reaper_entry(void)
     }
 }
 
-/* The reaper's port, the reaper started when it isn't there (call with the lock held). NULL when it can't be. */
+/* The reaper's port, the reaper started when it isn't there (call with start held, not lock: the wait for the
+ * reaper's port, up to two seconds, then holds up no other call). NULL when it can't be. */
 static struct MsgPort *reaper_port(struct OLBase *b)
 {
     int i;
@@ -251,9 +253,11 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
         run_free_args(r);
         return 0;
     }
-    ObtainSemaphore(&b->lock);
-    if (!(port = reaper_port(b))) {
-        ReleaseSemaphore(&b->lock);
+    ObtainSemaphore(&b->start);
+    port = reaper_port(b);
+    ReleaseSemaphore(&b->start);
+    if (port) ObtainSemaphore(&b->lock);
+    if (!port) {
         if (r->resident) {
             Forbid();
             if (r->resident->seg_UC > 0) r->resident->seg_UC--;
@@ -396,6 +400,7 @@ static struct Library *lib_init(REG(d0, struct OLBase *b), REG(a0, BPTR seg), RE
         return NULL;
     }
     InitSemaphore(&b->lock);
+    InitSemaphore(&b->start);
     list_init(&b->runs);
     Base = b;
     return &b->lib;

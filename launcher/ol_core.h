@@ -56,7 +56,7 @@ typedef struct ol_opts {
 } ol_opts;
 
 /* What a launch gets: the most of the icon's stack, its STACK tool type and Workbench's default stack (STACK
- * kept to OL_STACK_MAX); TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
+ * each kept to OL_STACK_MAX); TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
 void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_stack);
 
 /* ---- I11: Shift-double-click ---- */
