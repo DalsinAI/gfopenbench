@@ -49,6 +49,12 @@ if command -v python3 >/dev/null; then
   python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/GFOpenBench-Icons" >/dev/null
   rm -f "$OUT/GFOpenBench-Icons/"*.want "$OUT/GFOpenBench-Icons/manifest.txt" "$OUT/GFOpenBench-Icons/deflate.bin"
 fi
+# The launcher module (Workbench build plan row 6): gfopenlaunch.library, which GFOpenBench 0.1.56 opens to start
+# programs. It ships as its own file in gfosmodules/ (Libs/), loaded when first opened.
+# shellcheck disable=SC2086
+"$CC" $LIB -Wextra -I"$HERE/launcher" -o "$OUT/gfopenlaunch.library" "$HERE/launcher/ollib.c" "$HERE/launcher/ol_core.c" -lgcc
+und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenlaunch.library" || true)
+[ -z "$und" ] || { echo "undefined in gfopenlaunch.library: $und" >&2; exit 1; }
 # Step L1 (docs/design/Design-Open-Workbench-Library.md): workbench.library's
 # own lists, not switched on: gfopenbench.library (workbench.library's table
 # under a test name) and WorkbenchABITest, which calls it and the system's
@@ -66,7 +72,7 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
 # WBGapTest: the Workbench gap rows (amicradle-teams designs/OPENBENCH-GAPS-20261112.md), with DragTest
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c"
+"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c" "$HERE/tests/amiga/wbgap_menu.c"
 cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapCheck.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$HERE/tests/amiga/WBGapLayout.rexx" "$HERE/tests/amiga/WBGapDesk.rexx" "$OUT/"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/wbspy" "$HERE/tools/wbspy.c" "$HERE/tools/spyfmt.c"

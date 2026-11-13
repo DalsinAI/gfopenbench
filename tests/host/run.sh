@@ -13,6 +13,10 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$H
 # wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
   "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
+# wbgap_menu: the mouse's path to a menu item for WBGapTest MENUDRIVE (Workbench build row 7)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_menu.c" \
+  "$HERE/tests/host/test_wbgap_menu.c" -o "$OUT/test_wbgap_menu"
+"$OUT/test_wbgap_menu"
 # wbgap_index: the ACFS index's "::wb" lines as WBGapIndex reads them (tests/amiga/wbgap_index.c; build row 8's rows)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
   "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
@@ -57,6 +61,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
   "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
 "$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
+# ob_stack: the Information window's stack field, a whole number of bytes (gap N6)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_stack.c" \
+  "$HERE/tests/host/test_ob_stack.c" -o "$OUT/test_ob_stack"
+"$OUT/test_ob_stack"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_backdrop.c" \
@@ -78,6 +87,13 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/hos
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_startup.c" -o "$OUT/test_ob_startup"
 "$OUT/test_ob_startup"
+
+# ol_core: the launcher's rules, gfopenlaunch.library's and GFOpenBench's (Workbench build plan row 6; S2, S2d, S3,
+# I11, I12, A10)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/launcher" "$HERE/launcher/ol_core.c" \
+  "$HERE/tests/host/test_ol_core.c" -o "$OUT/test_ol_core"
+"$OUT/test_ol_core"
 
 # GFOpenBenchmark's portable kernels: Dhrystone 2.1's own checks, LINPACK's residual, the FPU loops
 # shellcheck disable=SC2086
