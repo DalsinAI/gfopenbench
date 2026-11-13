@@ -32,6 +32,25 @@ int ob_wbp_hook_answer(long r)
     }
 }
 
+int ob_wbp_join(const char *dir, const char *name, char *out, int n)
+{
+    size_t dl, nl;
+    int sep;
+    if (n <= 0) return 0;
+    out[0] = 0;
+    if (!dir) dir = "";
+    if (!name) name = "";
+    dl = strlen(dir);
+    nl = strlen(name);
+    if (!dl && nl) return 0;
+    sep = nl && dir[dl - 1] != ':' && dir[dl - 1] != '/';
+    if (dl + (size_t)sep + nl >= (size_t)n) return 0;
+    memcpy(out, dir, dl);
+    if (sep) out[dl] = '/';
+    memcpy(out + dl + (size_t)sep, name, nl + 1);
+    return 1;
+}
+
 static int add(ob_wbp_row *out, int k, int max, int index, int level)
 {
     if (k < max) {

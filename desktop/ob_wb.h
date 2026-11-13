@@ -48,6 +48,8 @@ struct OWBAppObject {
 #define OWBREQ_VISIBLE  3
 #define OWBREQ_SELECT   4
 #define OWBREQ_WHICH    5
+#define OWBREQ_UPDATE   6               /* UpdateWorkbench: or_Name in or_Lock's drawer, or_Y the action */
+#define OWBREQ_INFO     7               /* WBInfo: or_Name in or_Lock's drawer, on or_Screen */
 
 struct OWBRequest {
     struct Message or_Msg;
@@ -59,6 +61,8 @@ struct OWBRequest {
     LONG or_X, or_Y;
     LONG or_Result;
     LONG or_IoErr;
+    BPTR or_Lock;
+    struct Screen *or_Screen;
 };
 
 /* What GFOpenBench does for the calls programs make. */
@@ -71,6 +75,10 @@ typedef struct ob_wb_env {
     wb_drawer *(*drawer)(const char *path);
     /* AppIcons (OWB_NOTE_APPICONS) or AppMenuItems (OWB_NOTE_MENUS) came or went. */
     void (*changed)(ULONG notes);
+    /* UpdateWorkbench: the drawer windows showing dir read again now ("" : the disks on the desktop). */
+    void (*reread)(const char *dir);
+    /* WBInfo: path's Information window. 1 when it is open. */
+    int (*info)(const char *path);
 } ob_wb_env;
 
 /* A program's AppIcon, as the desktop shows it */

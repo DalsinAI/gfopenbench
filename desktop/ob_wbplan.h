@@ -17,6 +17,11 @@ const char *ob_wbp_split(const char *path, char *dir, int n);
 #define OB_WBP_STOP     3
 int ob_wbp_hook_answer(long r);
 
+/* UpdateWorkbench's and WBInfo's object: name in the drawer dir (as NameFromLock gives it), as one path in out (at
+ * most n - 1 characters): "Work:" + "x" is "Work:x", "Work:a" + "x" is "Work:a/x", "Work:a/" + "x" is "Work:a/x",
+ * any dir + "" is dir. 1, or 0 when it doesn't fit (out then "") or dir is empty with a name. */
+int ob_wbp_join(const char *dir, const char *name, char *out, int n);
+
 /* A program's AppMenuItem as the menus are laid out from it (ob_wb_menu's; role OWB_MENU_*: item 0, parent 1,
  * title 2) */
 typedef struct ob_wbp_menu {
