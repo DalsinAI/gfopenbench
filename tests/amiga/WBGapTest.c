@@ -14,7 +14,7 @@
  *                               inside must change by itself within 5 seconds, with no Update
  *   WBGapTest MENUDRIVE         rows M2, M6, M8, M9, M10, M12, M15, M16, M30 driven: each item picked with the
  *                               mouse in RAM:WBGap's window (DragTest DRAG RIGHT), and what it did read back
- *   WBGapTest SCREENS           rows C1, C2, C4: a screen of our own in front; its depth gadget clicked;
+ *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
@@ -57,6 +57,7 @@
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
 #include <graphics/gfx.h>
+#include <graphics/modeid.h>
 #include <workbench/workbench.h>
 #include <workbench/startup.h>
 #include <proto/exec.h>
@@ -598,6 +599,48 @@ static int do_api(void)
 /* ---- screens ---- */
 static int run(const char *cmd) { return SystemTags((CONST_STRPTR)cmd, TAG_DONE); }
 
+/* a square of a screen's own pixels, as one number: what the screen holds, never the pointer if that is a sprite */
+static ULONG screen_box_sum(struct Screen *s, int cx, int cy, int half)
+{
+    struct RastPort *rp = &s->RastPort;
+    int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
+    ULONG sum = 0;
+    int x, y;
+    for (y = cy - half; y < cy + half; y++)
+        for (x = cx - half; x < cx + half; x++)
+            sum = sum * 31 + (deep ? rgb_pixel(rp, x, y) : (ULONG)ReadPixel(rp, x, y));
+    return sum;
+}
+
+/* P4: Intuition's pointer, as 3.2.3 (P4a: it goes where it is moved); on RTG a sprite layer (P4b): with the pointer
+ * over a square of the Workbench screen, the screen's own pixels there are what they are with it away */
+static void do_pointer(struct Screen *wb)
+{
+    char cmd[320];
+    int cx = wb->Width / 2, cy = wb->Height / 2, half = 12;
+    ULONG id = GetVPModeID(&wb->ViewPort), away1, over, away2;
+    ScreenToFront(wb);
+    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
+    run(cmd);
+    Delay(25);
+    away1 = screen_box_sum(wb, cx, cy, half);
+    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, cx - 4, cy - 4);
+    run(cmd);
+    Delay(25);
+    if (wb->MouseX >= cx - 5 && wb->MouseX <= cx - 3 && wb->MouseY >= cy - 5 && wb->MouseY <= cy - 3) pass("P4a");
+    else { char why[64]; snprintf(why, sizeof why, "moved to %d,%d, the screen says %d,%d", cx - 4, cy - 4, wb->MouseX, wb->MouseY); fail("P4a", why); }
+    over = screen_box_sum(wb, cx, cy, half);
+    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
+    run(cmd);
+    Delay(25);
+    away2 = screen_box_sum(wb, cx, cy, half);
+    printf("INFO P4 mode $%08lx, box %08lx / %08lx / %08lx\n", (unsigned long)id, (unsigned long)away1, (unsigned long)over, (unsigned long)away2);
+    if (id == INVALID_ID || (id & 0xFFFF1000UL) < 0x00100000UL) skip("P4b", "Workbench is not on an RTG mode (the chipset's sprites)");
+    else if (away1 != away2) skip("P4b", "the screen changed under the square by itself; run again");
+    else if (over != away1) fail("P4b", "the pointer is drawn into the screen's pixels, not a sprite layer");
+    else pass("P4b");
+}
+
 static int do_screens(void)
 {
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench"), *s;
@@ -605,6 +648,7 @@ static int do_screens(void)
     char cmd[320];
     int x = -1, y = -1;
     if (wb) pass("C4"); else { fail("C4", "LockPubScreen(Workbench) NULL"); return 20; }
+    do_pointer(wb);
     s = OpenScreenTags(NULL, SA_LikeWorkbench, TRUE, SA_Title, (ULONG)"WBGapScreen", SA_ShowTitle, TRUE, TAG_DONE);
     if (!s) { fail("C1", "no test screen"); skip("C2", "no test screen"); UnlockPubScreen(NULL, wb); return 10; }
     ScreenToFront(s);
