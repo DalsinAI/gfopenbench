@@ -6,9 +6,9 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, A6-A8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
- *                               ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
+ *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
  *                               then a file with an icon made and an icon changed from here: the window's
  *                               inside must change by itself within 5 seconds, with no Update
@@ -18,7 +18,7 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
- *                               from WBStartup with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *                               from WBStartup, and I12c: WBGapG with STACK= alone, its stack field the default) with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
  *                               OpenWorkbenchObjectA with two projects as arguments, its icon's stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
@@ -81,6 +81,7 @@ static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row,
 
 /* the desktop is GFOpenBench: its OPENBENCH ARexx port (0.1.53 on), or (MENUS) a menu titled GFOpenBench */
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack);
+static void check_stack_alone(const char *file, unsigned long want);
 static unsigned long stack_wanted(void);
 static unsigned long icon_stack(const char *path);
 static int gfos_menu_seen;
@@ -478,6 +479,34 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
+ * Workbench's windows */
+static int tools_item_within(const char *item, int want, int ticks)
+{
+    char spec[64];
+    snprintf(spec, sizeof spec, "tools:%s", item);
+    for (;;) {
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *w;
+        ULONG lock;
+        int found;
+        nnames = 0;
+        if (wb) {
+            lock = LockIBase(0);
+            for (w = wb->FirstWindow; w; w = w->NextWindow)
+                if ((w->Flags & WFLG_WBENCHWINDOW) && w->MenuStrip) walk_strip(w->MenuStrip, 0);
+            UnlockIBase(lock);
+            UnlockPubScreen(NULL, wb);
+        }
+        found = has(spec);
+        nnames = 0;
+        if (found == want) return 1;
+        if (ticks <= 0) return 0;
+        Delay(5);
+        ticks -= 5;
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -492,18 +521,59 @@ static int do_api(void)
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
-    if (mi) { pass("A4"); RemoveAppMenuItem(mi); } else printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
+    if (mi) {
+        pass("A4");
+        /* M27: the item shows in the Tools menu of the Workbench's windows within 2 s, and goes when removed */
+        if (tools_item_within("wbgapitem", 1, 100)) {
+            RemoveAppMenuItem(mi);
+            if (tools_item_within("wbgapitem", 0, 100)) pass("M27"); else fail("M27", "Tools/WBGapItem still shown 2 s after RemoveAppMenuItem");
+        } else { RemoveAppMenuItem(mi); fail("M27", "Tools/WBGapItem not in the Workbench windows' menus 2 s after AddAppMenuItemA"); }
+    } else { printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()); fails++; fail("M27", "no AppMenuItem (A4)"); }
     ok = OpenWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6"); else printf("FAIL A6 OpenWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     Delay(50);
-    {   /* UpdateWorkbench gives no answer; IoErr says (103 where no Workbench takes it) */
-        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+    {   /* UpdateWorkbench (A7): a file and icon made, then UpdateWorkbench; the drawer's window must show it at once,
+         * sooner than the 200 ms GFOpenBench's own notify waits, and IoErr stays as it was */
+        BPTR dir;
+        struct Window *w = NULL;
+        ULONG before = 0;
+        int t;
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2");
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2.info");
+        for (t = 0; t < 30 && !(w = find_window("WBGap")); t++) Delay(10);
+        if (w) { Delay(100); before = inside_sum(w); }
+        write_file("RAM:WBGap/new2", "new\n");
+        put_icon("RAM:WBGap/new2", WBPROJECT, NULL);
+        dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
         SetIoErr(0);
         UpdateWorkbench((CONST_STRPTR)"new2", dir, UPDATEWB_ObjectAdded);
+        printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
+        if (IoErr() != 0) fail("A7", "UpdateWorkbench set IoErr");
+        else if (!w) fail("A7", "RAM:WBGap's window isn't open");
+        else {
+            Delay(5);
+            if (inside_sum(w) != before) pass("A7");
+            else fail("A7", "the drawer didn't show the new icon 100 ms after UpdateWorkbench");
+        }
         if (dir) UnLock(dir);
     }
-    printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
-    if (IoErr() == 0) pass("A7"); else fail("A7", "UpdateWorkbench set IoErr");
+    {   /* WBInfo (A9; N8: a program's WBInfo opens it): TRUE, and its window comes; then closed (Ctrl-C) */
+        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *iw = NULL;
+        ULONG r;
+        int t;
+        r = dir ? WBInfo(dir, (CONST_STRPTR)"a", wb) : 0;
+        for (t = 0; r && t < 30 && !(iw = find_window("Information: a")); t++) Delay(10);
+        if (r && iw) { pass("A9"); pass("N8"); }
+        else {
+            printf("FAIL A9 WBInfo %s, %s (IoErr %ld)\n", r ? "TRUE" : "FALSE", iw ? "window open" : "no window", (long)IoErr()), fails++;
+            printf("FAIL N8 WBInfo from a program opened no Information window\n"), fails++;
+        }
+        if (iw && iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+        if (wb) UnlockPubScreen(NULL, wb);
+        if (dir) UnLock(dir);
+    }
     ok = MakeWorkbenchObjectVisibleA((STRPTR)"RAM:WBGap/a", NULL);
     if (ok) pass("A8a"); else printf("FAIL A8a MakeWorkbenchObjectVisibleA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     memset(&hook, 0, sizeof hook);
@@ -744,6 +814,12 @@ static int do_startup(const char *what)
             snprintf(st, sizeof st, "STACK=%lu", want);
             ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
         } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
+        if (exists("SYS:WBStartup/WBGapG")) {   /* I12c: STACK= alone, the icon's own field left at the default */
+            static char sg[24];
+            static STRPTR tg[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb2", (STRPTR)sg, (STRPTR)"DONOTWAIT", NULL};
+            snprintf(sg, sizeof sg, "STACK=%lu", stack_wanted());
+            ok = ok && put_icon("SYS:WBStartup/WBGapG", WBTOOL, tg);
+        } else printf("INFO no SYS:WBStartup/WBGapG: I12c not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
         printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
         return ok ? 0 : 20;
@@ -773,6 +849,7 @@ static int do_startup(const char *what)
             else fail("S2d", "not by date added E, C, D");
         }
         check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
+        check_stack_alone("RAM:wbgap-launchwb2", icon_stack("SYS:WBStartup/WBGapG"));
         check_loadwb();
         return fails ? 5 : 0;
     }
@@ -803,6 +880,25 @@ static unsigned long icon_stack(const char *path)
 
 /* the line a start with LAUNCHREC wrote: I12a stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
  * 0 if there was none (each row SKIPped) */
+/* I12c: a tool whose icon asks for its stack by STACK= alone (its stack field the default) gets it. On 3.2.3,
+ * which takes the field, the result is for reference only. */
+static void check_stack_alone(const char *file, unsigned long want)
+{
+    char buf[200], why[96];
+    long stack = 0, n;
+    BPTR fh = Open((CONST_STRPTR)file, MODE_OLDFILE);
+    if (!want) { skip("I12c", "no STACK= read back from WBGapG's icon"); return; }
+    if (!fh) { snprintf(why, sizeof why, "%s not written: WBGapG didn't start", file); skip("I12c", why); return; }
+    n = Read(fh, buf, sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    Close(fh);
+    sscanf(buf, "launch stack %ld", &stack);
+    printf("INFO I12c STACK= alone: stack seen %ld, wanted %lu\n", stack, want);
+    if ((unsigned long)stack >= want) pass("I12c");
+    else if (!is_gfos()) skip("I12c", "reference: 3.2.3 takes the icon's stack field, not STACK= alone");
+    else { snprintf(why, sizeof why, "STACK=%lu alone not given (%ld)", want, stack); fail("I12c", why); }
+}
+
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
 {
     char buf[400];
@@ -856,6 +952,7 @@ static int do_launch(void)
     write_file("RAM:WBGap/p2", "p2\n");
     put_icon("RAM:WBGap/p2", WBPROJECT, NULL);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-launch");
+    printf("INFO largest free block before the launch: %lu bytes\n", (unsigned long)AvailMem(MEMF_LARGEST));
     dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
     ok = dir && OpenWorkbenchObject((STRPTR)"RAM:WBGap/LaunchT", WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p1",
                                     WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p2", TAG_DONE);
