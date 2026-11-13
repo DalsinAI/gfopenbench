@@ -2534,7 +2534,7 @@ static int usb_drive(const char *volume, char *drive, int size)
 /* 0.1.57: a PCMCIA card ejected: its drive kept inhibited (no volume, so nothing can write to it) until the card goes
  * (a disk event), one comes in, or a minute passes (30 of the 2-second ticks), then let go, so it mounts again when
  * it's back (Team 2's review of #105) */
-static char card_held[34];
+static char card_held[96];                 /* as big as usb_eject_selected's cmd */
 static int card_ticks;
 
 static void card_release(void)
