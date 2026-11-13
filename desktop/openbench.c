@@ -302,7 +302,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.59"
+#define OPENBENCH_VERSION "0.1.60"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -2323,7 +2323,18 @@ static int open_object_once(const char *path)
     case WBPROJECT: {
         char tool[300];
         const char *one = path;
-        if (find_tool(path, (const char *)o->do_DefaultTool, tool, sizeof tool) && tata_lets(tool, 0) && tata_lets(path, 1))
+        if (!find_tool(path, (const char *)o->do_DefaultTool, tool, sizeof tool)) {
+            /* as 3.2.3: a project whose default tool isn't there (or that has none) says so; not while SYS:WBStartup
+             * starts, which never waits on a requester */
+            if (!starting_up) {
+                char text[200], *c;
+                const char *dt = o->do_DefaultTool && *o->do_DefaultTool ? (const char *)o->do_DefaultTool : NULL;
+                if (dt) snprintf(text, sizeof text, "Unable to open your tool\n'%s'", dt);
+                else snprintf(text, sizeof text, "'%s' has no default tool", (const char *)FilePart((CONST_STRPTR)path));
+                for (c = text; *c; c++) if (*c == '%') *c = '_';    /* the requester's text is a format */
+                ask("GFOpenBench", text, "OK");
+            }
+        } else if (tata_lets(tool, 0) && tata_lets(path, 1))
             ok = start_tool_args(tool, &one, 1, o->do_StackSize, (const char *const *)o->do_ToolTypes);
         break;
     }

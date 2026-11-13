@@ -102,6 +102,12 @@ static void test_opts(void)
     CHECK("tool types in brackets are off", o.stack == 8192 && o.pri == 0);
     ol_opts_read(&o, neg, 4096, 8192);
     CHECK("TOOLPRI kept to -128; a STACK below 0 is ignored", o.pri == -128 && o.stack == 8192);
+    ol_opts_read(&o, 0, 2L * 1024 * 1024, 8192);
+    CHECK("I12a: a 2 MB icon stack stays 2 MB (3.2.3 takes the icon's own as it is)", o.stack == 2L * 1024 * 1024);
+    ol_opts_read(&o, big, 2L * 1024 * 1024, 8192);
+    CHECK("I12a: STACK=65536 never lowers a 2 MB icon stack", o.stack == 2L * 1024 * 1024);
+    ol_opts_read(&o, 0, 99999999L, 8192);
+    CHECK("a corrupt icon stack (over 64 MB) is ignored: Workbench's default", o.stack == 8192);
     ol_opts_read(&o, 0, 30000, 8192);
     CHECK("no tool types: the icon's stack, priority 0", o.stack == 30000 && o.pri == 0);
 }
@@ -161,12 +167,58 @@ static void test_switches(void)
     CHECK("A10: a buffer of nothing", ol_switch_words(OL_SW_ALL, buf, 0) == 0);
 }
 
+/* the reaper's port: a fake library whose reaper ends (and a new one starts) between fetch and lock */
+typedef struct fake { int ports[4], np, at, locked, ends_before_lock, fetches, unlocks; } fake;
+static void *f_fetch(void *c)
+{
+    fake *f = c;
+    f->fetches++;
+    return f->at < f->np ? &f->ports[f->at] : 0;
+}
+static void f_lock(void *c)
+{
+    fake *f = c;
+    if (f->ends_before_lock > 0) { f->ends_before_lock--; f->at++; }   /* the reaper ends in the gap */
+    f->locked = 1;
+}
+static void f_unlock(void *c) { fake *f = c; f->locked = 0; f->unlocks++; }
+static void *f_current(void *c) { fake *f = c; return f->at < f->np ? &f->ports[f->at] : 0; }
+
+static void test_port(void)
+{
+    static const ol_port_ops ops = { f_fetch, f_lock, f_unlock, f_current };
+    fake f;
+    void *p;
+    memset(&f, 0, sizeof f);
+    f.np = 1;
+    p = ol_port_locked(&ops, &f, 3);
+    CHECK("port: the reaper's, lock held", p == &f.ports[0] && f.locked && f.fetches == 1);
+    memset(&f, 0, sizeof f);
+    f.np = 2;
+    f.ends_before_lock = 1;
+    p = ol_port_locked(&ops, &f, 3);
+    CHECK("port: the reaper ended between fetch and lock: lock let go, the new reaper's port", p == &f.ports[1] && f.locked && f.fetches == 2 && f.unlocks == 1);
+    memset(&f, 0, sizeof f);
+    f.np = 1;
+    f.ends_before_lock = 1;
+    p = ol_port_locked(&ops, &f, 3);
+    CHECK("port: the reaper gone and none to be had: NULL, lock not held", !p && !f.locked && f.unlocks == 1);
+    memset(&f, 0, sizeof f);
+    f.np = 4;
+    f.ends_before_lock = 9;
+    p = ol_port_locked(&ops, &f, 3);
+    CHECK("port: given up after tries, lock not held", !p && !f.locked && f.fetches == 3 && f.unlocks == 3);
+    memset(&f, 0, sizeof f);
+    CHECK("port: no reaper at all: NULL, never locked", !ol_port_locked(&ops, &f, 3) && !f.locked && !f.unlocks);
+}
+
 int main(void)
 {
     test_startup();
     test_opts();
     test_shift();
     test_switches();
+    test_port();
     if (fails) printf("FAIL ol_core: %d of %d\n", fails, checks);
     else printf("ok   ol_core: all %d cases pass\n", checks);
     return fails != 0;

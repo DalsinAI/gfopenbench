@@ -47,4 +47,17 @@ typedef void (*wbgap_out)(void *ctx, const char *line);
  * Returns the number of FAIL lines. */
 int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx);
 
+/* a launch record, "launch stack S pri P args N name1 name2 ...", as LaunchT writes it (LAUNCHREC): 1 if it holds
+ * exactly the names of want (blank-separated), in that order, and N is their count; 0 otherwise */
+int wbgap_launch_args(const char *rec, const char *want);
+
+/* LAUNCHDESK and RAM:.backdrop. SETUP's plan from what it read: n bytes (-1, no file) into a buffer of cap,
+ * and whether the three lines are in it already */
+enum { WBGAP_BD_TOOLONG, WBGAP_BD_MADE, WBGAP_BD_SAVED, WBGAP_BD_HAD };
+int wbgap_backdrop_setup(long n, long cap, int has_lines);
+/* DONE's from the markers SETUP left: wbgap-backdrop-was there, put it back; else wbgap-backdrop-made there,
+ * delete .backdrop; else leave .backdrop as it is */
+enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
+int wbgap_backdrop_done(int have_was, int have_made);
+
 #endif
