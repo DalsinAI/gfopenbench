@@ -1,8 +1,9 @@
 ; WBGapTest.script: amicradle-teams designs/OPENBENCH-GAPS-20261112.md's automatic rows, in a lab, on
 ; GFOpenBench and on OS 3.2.3's Workbench alike. Needs WBGapTest, WBGapRexx.rexx and DragTest in SYS:T/WBGap
 ; (from build.sh's out dir). It prints PASS, FAIL, SKIP and INFO lines, and saves them to RAM:wbgap-results.
+; RAM:wbgap-report is the same as one PASS, FAIL or SKIP line per gap id (WBGapTest REPORT).
 ; Then: WBGapTest STARTUP SETUP has been run here, so the WBStartup rows need a reboot and
-; "SYS:T/WBGap/WBGapTest STARTUP CHECK" after it.
+; "Execute SYS:T/WBGap/WBGapCheck.script" after it, which gives the whole report.
 ; MIT, Copyright (c) 2026 AmiCradle Team.
 FailAt 21
 CD SYS:T/WBGap
@@ -26,9 +27,13 @@ Else
 EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
+WBGapTest LAUNCH >>RAM:wbgap-results
 Copy WBGapTest SYS:WBStartup/WBGapA QUIET
 Copy WBGapTest SYS:WBStartup/WBGapB QUIET
 Copy WBGapTest SYS:WBStartup/WBGapC QUIET
+Copy WBGapTest SYS:WBStartup/WBGapD QUIET
+Copy WBGapTest SYS:WBStartup/WBGapE QUIET
 WBGapTest STARTUP SETUP >>RAM:wbgap-results
-Type RAM:wbgap-results
-Copy RAM:wbgap-results RAM:wbgap-menus SYS:T/WBGap/ QUIET
+WBGapTest REPORT RAM:wbgap-results >RAM:wbgap-report
+Type RAM:wbgap-report
+Copy RAM:wbgap-results RAM:wbgap-menus RAM:wbgap-report SYS:T/WBGap/ QUIET

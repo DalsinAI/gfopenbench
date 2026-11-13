@@ -1,0 +1,217 @@
+/* wbgap_rows' host test: WBGapTest's list of gap ids (every row of amicradle-teams designs/OPENBENCH-GAPS-20261112.md
+ * plus the 13 Nov decisions' rows) and its report, one PASS, FAIL or SKIP line per id whatever the modes printed.
+ *   test_wbgap_rows [OPENBENCH-GAPS-20261112.md]   with the file, also every "| ID |" row in it is in the list
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "wbgap_rows.h"
+
+static int failures, checks;
+
+#define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); \
+    printf(__VA_ARGS__); printf("\n"); } } while (0)
+
+/* the ids in the gaps document's tables, 12 Nov 2026 */
+static const char *const doc_ids[] = {
+    "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11", "M12", "M13", "M14", "M15", "M16", "M17",
+    "M18", "M19", "M20", "M21", "M22", "M23", "M24", "M25", "M26", "M27", "M28", "M29", "M30", "M31", "M32", "M33",
+    "M34", "M35", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I11", "I12", "I13", "I14", "I15",
+    "I16", "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9",
+    "A10", "R1", "R2", "S1", "S2", "S3", "D1", "D2", "D3", "D4", "D5", "D6", "C1", "C2", "C3", "C4", "C5", "C6",
+    "W1", "W2", "W3", "F1", "F2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "X1", "X2", "X3", "X4",
+};
+
+/* the lines WBGapTest and WBGapRexx printed before this list existed: each must be a row */
+static const char *const printed_ids[] = {"A6b", "A8a", "A8b", "C2a", "C2b", "R1b", "R2b"};
+
+/* rows for the 13 Nov decisions */
+static const char *const decision_ids[] = {
+    "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "X2a", "X2b", "P4b", "P6r",
+};
+
+static void list_shape(void)
+{
+    int n = wbgap_row_count(), i, j;
+    CHECK(n > 100 && n <= WBGAP_MAXROWS, "%d rows (room for %d)", n, WBGAP_MAXROWS);
+    for (i = 0; i < n; i++) {
+        const struct wbgap_row *r = wbgap_row(i);
+        CHECK(r && r->id && r->id[0] && strlen(r->id) < 8 && !strchr(r->id, ' '), "row %d has an id", i);
+        CHECK(r->what && r->what[0], "%s says what it is", r->id);
+        CHECK(r->how == WBGAP_AUTO || r->how == WBGAP_LOOK || r->how == WBGAP_HAND, "%s: how", r->id);
+        if (r->mode) CHECK(r->how == WBGAP_AUTO && r->mode[0], "%s names a mode, so it is automatic", r->id);
+        for (j = i + 1; j < n; j++) CHECK(strcmp(r->id, wbgap_row(j)->id), "%s is in the list twice", r->id);
+        if (r->parent) {
+            int p = wbgap_find(r->parent);
+            CHECK(p >= 0, "%s: its parent %s is a row", r->id, r->parent);
+            CHECK(!strncmp(r->id, r->parent, strlen(r->parent)), "%s starts with its parent's id %s", r->id, r->parent);
+            CHECK(p >= 0 && p < i, "%s comes after its parent", r->id);
+            CHECK(p < 0 || !wbgap_row(p)->parent, "%s: one level of parts only", r->id);
+        }
+    }
+    CHECK(wbgap_row(-1) == NULL && wbgap_row(n) == NULL, "out of range gives NULL");
+    CHECK(wbgap_find("nope") == -1 && wbgap_find("") == -1 && wbgap_find(NULL) == -1, "an unknown id is -1");
+    CHECK(wbgap_find("m19") == -1, "ids are matched as written");
+}
+
+static void every_id(void)
+{
+    size_t i;
+    for (i = 0; i < sizeof doc_ids / sizeof doc_ids[0]; i++) CHECK(wbgap_find(doc_ids[i]) >= 0, "%s is a row", doc_ids[i]);
+    for (i = 0; i < sizeof printed_ids / sizeof printed_ids[0]; i++)
+        CHECK(wbgap_find(printed_ids[i]) >= 0, "%s (already printed) is a row", printed_ids[i]);
+    for (i = 0; i < sizeof decision_ids / sizeof decision_ids[0]; i++)
+        CHECK(wbgap_find(decision_ids[i]) >= 0, "%s (13 Nov decision) is a row", decision_ids[i]);
+    CHECK(wbgap_has_parts(wbgap_find("A8")) && wbgap_has_parts(wbgap_find("I12")) && wbgap_has_parts(wbgap_find("C2")),
+          "A8, C2 and I12 are made of parts");
+    CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
+    CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
+          "I11 and I12a are checked by WBGapTest (row 6's launcher)");
+}
+
+/* with the document: every "| ID |" at the start of a table row is in the list */
+static void from_doc(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    char line[1024];
+    int seen = 0;
+    CHECK(f != NULL, "%s opens", path);
+    if (!f) return;
+    while (fgets(line, sizeof line, f)) {
+        char id[16];
+        int k = 0;
+        const char *p = line;
+        if (*p++ != '|') continue;
+        while (*p == ' ') p++;
+        if (*p < 'A' || *p > 'Z' || p[1] < '0' || p[1] > '9') continue;
+        while ((*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'z')) { if (k < 15) id[k++] = *p; p++; }
+        id[k] = 0;
+        if (*p != ' ' && *p != '|') continue;
+        seen++;
+        CHECK(wbgap_find(id) >= 0, "%s (in %s) is a row", id, path);
+    }
+    fclose(f);
+    CHECK(seen >= 100, "%d rows read from %s", seen, path);
+}
+
+static void lines(void)
+{
+    struct wbgap_report r;
+    int m19 = wbgap_find("M19"), m2 = wbgap_find("M2"), a3 = wbgap_find("A3");
+    wbgap_report_init(&r);
+    CHECK(wbgap_report_line(&r, "INFO workbench.library 45.1\n") == 0, "INFO is no result");
+    CHECK(wbgap_report_line(&r, "MENU Workbench / Backdrop") == 0, "MENU is no result");
+    CHECK(wbgap_report_line(&r, "") == 0 && wbgap_report_line(&r, "PASS") == 0 && wbgap_report_line(&r, "PASSM2") == 0,
+          "a blank line, a bare word, no space");
+    CHECK(wbgap_report_line(&r, "PASS M19\n") == 1 && r.state[m19] == WBGAP_PASS, "PASS M19");
+    CHECK(wbgap_report_line(&r, "SKIP M19 no window\r\n") == 1 && r.state[m19] == WBGAP_PASS, "a later SKIP doesn't undo a PASS");
+    CHECK(wbgap_report_line(&r, "FAIL M19 the requester didn't open") == 1 && r.state[m19] == WBGAP_FAIL, "FAIL wins over PASS");
+    CHECK(!strcmp(r.why[m19], "the requester didn't open"), "its reason: \"%s\"", r.why[m19]);
+    CHECK(wbgap_report_line(&r, "PASS M19") == 1 && r.state[m19] == WBGAP_FAIL, "a later PASS doesn't undo a FAIL");
+    CHECK(wbgap_report_line(&r, "PASS Z99") == -1 && r.unknown == 1, "an id that isn't a row");
+    CHECK(wbgap_report_line(&r, "  PASS M2") == 1 && r.state[m2] == WBGAP_PASS, "leading spaces");
+    {
+        char longl[400];
+        memset(longl, 'x', sizeof longl);
+        memcpy(longl, "FAIL A3 ", 8);
+        longl[sizeof longl - 1] = 0;
+        CHECK(wbgap_report_line(&r, longl) == 1 && strlen(r.why[a3]) == WBGAP_WHY - 1, "a long reason is cut, not overrun");
+    }
+}
+
+static void wildcard(void)
+{
+    struct wbgap_report r;
+    int m2 = wbgap_find("M2"), m19 = wbgap_find("M19"), a3 = wbgap_find("A3");
+    wbgap_report_init(&r);
+    wbgap_report_line(&r, "PASS M2");
+    CHECK(wbgap_report_line(&r, "FAIL M* no Workbench screen") == 1, "FAIL M* is a result");
+    CHECK(r.state[m2] == WBGAP_PASS, "M* leaves a row that has a line");
+    CHECK(r.state[m19] == WBGAP_FAIL && !strcmp(r.why[m19], "no Workbench screen"), "M* fails M19, which had none");
+    CHECK(r.state[a3] == WBGAP_NONE, "M* leaves the A rows");
+    CHECK(r.state[wbgap_find("M16t")] == WBGAP_NONE, "M* leaves M16t, which MENUS doesn't check");
+    CHECK(wbgap_report_line(&r, "FAIL Q* nothing") == -1, "a wildcard that matches no row");
+}
+
+/* print, captured */
+static char got[WBGAP_MAXROWS + 4][160];
+static int ngot;
+static void cap(void *ctx, const char *line)
+{
+    (void)ctx;
+    if (ngot < (int)(sizeof got / sizeof got[0])) snprintf(got[ngot], sizeof got[0], "%s", line);
+    ngot++;
+}
+static const char *line_of(const char *id)
+{
+    int i;
+    size_t n = strlen(id);
+    for (i = 0; i < ngot && i < (int)(sizeof got / sizeof got[0]); i++)
+        if (!strncmp(got[i] + 5, id, n) && (got[i][5 + n] == ' ' || got[i][5 + n] == 0)) return got[i];
+    return "";
+}
+
+static void print_all(void)
+{
+    struct wbgap_report r;
+    int n = wbgap_row_count(), i, fails;
+    wbgap_report_init(&r);
+    wbgap_report_line(&r, "PASS A8a");
+    wbgap_report_line(&r, "PASS A8b");
+    wbgap_report_line(&r, "PASS C2a");
+    wbgap_report_line(&r, "FAIL C2b Left-Amiga-N didn't bring Workbench to the front");
+    wbgap_report_line(&r, "PASS I12a");
+    wbgap_report_line(&r, "PASS I12b");
+    wbgap_report_line(&r, "PASS M19");
+    wbgap_report_line(&r, "FAIL M23 Delete missing");
+    wbgap_report_line(&r, "SKIP R1 no rx");
+    ngot = 0;
+    fails = wbgap_report_print(&r, cap, NULL);
+    CHECK(ngot == n + 1, "%d lines for %d rows and the count", ngot, n);
+    for (i = 0; i < n && i < ngot; i++) {
+        const char *id = wbgap_row(i)->id;
+        size_t k = strlen(id);
+        CHECK((!strncmp(got[i], "PASS ", 5) || !strncmp(got[i], "FAIL ", 5) || !strncmp(got[i], "SKIP ", 5)) &&
+              !strncmp(got[i] + 5, id, k) && (got[i][5 + k] == 0 || got[i][5 + k] == ' '),
+              "line %d is %s's: \"%s\"", i, id, got[i]);
+    }
+    CHECK(!strncmp(got[n], "INFO rows ", 10), "the count last: \"%s\"", got[n]);
+    CHECK(!strcmp(line_of("M19"), "PASS M19"), "M19: \"%s\"", line_of("M19"));
+    CHECK(!strcmp(line_of("M23"), "FAIL M23 Delete missing"), "M23: \"%s\"", line_of("M23"));
+    CHECK(!strcmp(line_of("R1"), "SKIP R1 no rx"), "R1: \"%s\"", line_of("R1"));
+    CHECK(!strncmp(line_of("A8"), "SKIP A8 ", 8) && strstr(line_of("A8"), "A8c"), "A8 waits on A8c: \"%s\"", line_of("A8"));
+    CHECK(!strncmp(line_of("C2"), "FAIL C2 ", 8) && strstr(line_of("C2"), "C2b"), "C2 fails by C2b: \"%s\"", line_of("C2"));
+    CHECK(!strcmp(line_of("I12"), "PASS I12"), "I12 passes by its parts: \"%s\"", line_of("I12"));
+    CHECK(!strncmp(line_of("I1"), "SKIP I1 look", 12), "a look row with no line: \"%s\"", line_of("I1"));
+    CHECK(!strncmp(line_of("X3"), "SKIP X3 hand", 12), "a hand row: \"%s\"", line_of("X3"));
+    CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
+    CHECK(!strncmp(line_of("N2"), "SKIP N2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N2"));
+    CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
+    CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
+}
+
+static void print_empty(void)
+{
+    struct wbgap_report r;
+    int i, skips = 0;
+    wbgap_report_init(&r);
+    ngot = 0;
+    CHECK(wbgap_report_print(&r, cap, NULL) == 0, "nothing run: no FAIL");
+    for (i = 0; i < ngot - 1; i++) skips += !strncmp(got[i], "SKIP ", 5);
+    CHECK(!strcmp(line_of("S2"), "SKIP S2 not run: STARTUP CHECK"), "S2 has a check of its own, not run: \"%s\"", line_of("S2"));
+    CHECK(skips == wbgap_row_count(), "nothing run: every row a SKIP (%d of %d)", skips, wbgap_row_count());
+}
+
+int main(int argc, char **argv)
+{
+    list_shape();
+    every_id();
+    if (argc > 1) from_doc(argv[1]);
+    lines();
+    wildcard();
+    print_all();
+    print_empty();
+    printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);
+    return failures != 0;
+}

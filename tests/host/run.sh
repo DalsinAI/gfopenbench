@@ -10,6 +10,10 @@ HERE=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=${TMPDIR:-/tmp}/openbench-host-tests
 mkdir -p "$OUT"
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$HERE/tests/host/test_spyfmt.c" -o "$OUT/test_spyfmt"
+# wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
+  "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
+"$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 
 # icon_core, with the address and undefined-behaviour checkers where the
