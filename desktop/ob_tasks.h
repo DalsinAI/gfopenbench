@@ -216,4 +216,14 @@ void ob_out_del(ob_out *o, void *r);
  * already (answered(r): its reply is in, not yet read), taken off the list into lost (at most max). How many. */
 int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r), void **lost, int max);
 
+/* ---- ARexx's icon places in a drawer window (window.icons.<kind>.N.left/.top) ----
+ * The drawer's task laid its icons out; it hands each over (ob_dt_each's fn) and ob_place_take keeps the place of
+ * the one named (any case): 2 (leave its selection) for the others, -1 (stop) once found. */
+typedef struct ob_place {
+    const char *name;                   /* the icon asked for */
+    int found;
+    long x, y;                          /* its picture's place in the window */
+} ob_place;
+int ob_place_take(void *ctx, const char *name, int type, int selected, short x, short y);
+
 #endif

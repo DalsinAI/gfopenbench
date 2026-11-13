@@ -556,3 +556,25 @@ int ob_out_lost(ob_out *o, void *const *queued, int nq, int (*answered)(void *r)
     }
     return n;
 }
+
+/* ---- ARexx's icon places in a drawer window ---- */
+static int same_name(const char *a, const char *b)
+{
+    for (;; a++, b++) {
+        int x = *a >= 'A' && *a <= 'Z' ? *a + 32 : *a, y = *b >= 'A' && *b <= 'Z' ? *b + 32 : *b;
+        if (x != y) return 0;
+        if (!x) return 1;
+    }
+}
+
+int ob_place_take(void *ctx, const char *name, int type, int selected, short x, short y)
+{
+    ob_place *p = ctx;
+    (void)type;
+    (void)selected;
+    if (!p || !p->name || !name || !same_name(p->name, name)) return 2;
+    p->found = 1;
+    p->x = x;
+    p->y = y;
+    return -1;
+}
