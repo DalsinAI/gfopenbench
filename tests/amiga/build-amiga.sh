@@ -13,7 +13,7 @@ if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/nu
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c"
+"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c"
 # WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout)
 if [ -n "${AMICRADLE_GUEST:-}" ]; then
   OIX="$AMICRADLE_GUEST/tools/openindex"

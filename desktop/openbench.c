@@ -293,6 +293,9 @@
 #include "wb_grid.h"
 #include "wb_keys.h"
 #include "wb_sel.h"
+#ifdef WB_GFOPENFILES
+#include "wb_lview.h"                       /* the drawers' list view through gfopenfiles.library (row 2) */
+#endif
 #include "wb_tt.h"
 #include "ob_eject.h"
 #include "ogt_theme.h"
@@ -5783,6 +5786,9 @@ out:
     wb_notify_end();                            /* 0.1.54: the drawers' notifications (desktop_down closed them all) */
     ob_dt_end();                                /* row 3: the drawers' tasks are all gone (desktop_down) */
     wb_pic_close();
+#ifdef WB_GFOPENFILES
+    wb_lv_close();
+#endif
     if (DataTypesBase) { CloseLibrary(DataTypesBase); DataTypesBase = NULL; }
     if (launcher_up) {
         /* tools still running keep their code until they end: they are asked to quit, then waited for; the

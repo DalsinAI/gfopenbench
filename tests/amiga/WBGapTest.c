@@ -12,6 +12,8 @@
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
  *                               then a file with an icon made and an icon changed from here: the window's
  *                               inside must change by itself within 5 seconds, with no Update
+ *   WBGapTest MENUDRIVE         rows M2, M6, M8, M9, M10, M12, M15, M16, M30 driven: each item picked with the
+ *                               mouse in RAM:WBGap's window (DragTest DRAG RIGHT), and what it did read back
  *   WBGapTest SCREENS           rows C1, C2, C4: a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
@@ -60,6 +62,7 @@
 #include <proto/icon.h>
 #include <proto/wb.h>
 
+#include "wbgap_menu.h"
 #include "wbgap_rows.h"
 
 extern struct IntuitionBase *IntuitionBase;
@@ -631,6 +634,344 @@ static int do_screens(void)
     return fails ? 5 : 0;
 }
 
+/* ---- the M rows driven: each item picked with the mouse, as a hand picks it, and what it did looked at ----
+ * In RAM:WBGap's drawer window (the script opens it). The pointer goes title, item (and sub-item) with the right
+ * button held (wbgap_menu_path, DragTest DRAG RIGHT); what changed is read: the window's pixels, a window that
+ * comes or goes, a drawer made. Only reads and input events: nothing is drawn here. */
+#define MAXWINS 48
+
+static struct Window *drawer_window(void)
+{
+    struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+    struct Window *w, *found = NULL;
+    ULONG lock;
+    if (!wb) return NULL;
+    lock = LockIBase(0);
+    for (w = wb->FirstWindow; w && !found; w = w->NextWindow)
+        if ((w->Flags & WFLG_WBENCHWINDOW) && w->MenuStrip && w->Title && strstr((const char *)w->Title, "WBGap") &&
+            !strstr((const char *)w->Title, "WBGapL") && !strstr((const char *)w->Title, "WBGapI"))
+            found = w;
+    UnlockIBase(lock);
+    UnlockPubScreen(NULL, wb);
+    return found;
+}
+
+static int windows_now(struct Screen *s, struct Window **out, int n)
+{
+    struct Window *w;
+    int k = 0;
+    ULONG lock = LockIBase(0);
+    for (w = s->FirstWindow; w && k < n; w = w->NextWindow) out[k++] = w;
+    UnlockIBase(lock);
+    return k;
+}
+
+/* a window on s that wasn't in was[0..n), within secs */
+static struct Window *new_window(struct Screen *s, struct Window **was, int n, int secs)
+{
+    struct Window *now[MAXWINS];
+    int t, k, j;
+    for (t = 0; t < secs * 10 || t == 0; t++) {
+        int m = windows_now(s, now, MAXWINS);
+        for (k = 0; k < m; k++) {
+            for (j = 0; j < n && was[j] != now[k]; j++) {}
+            if (j == n) return now[k];
+        }
+        if (secs) Delay(5);
+    }
+    return NULL;
+}
+
+static int still_there(struct Screen *s, struct Window *w)
+{
+    struct Window *now[MAXWINS];
+    int m = windows_now(s, now, MAXWINS), k;
+    for (k = 0; k < m; k++) if (now[k] == w) return 1;
+    return 0;
+}
+
+/* the item spec names ("menu1|menu2:item|item/sub") in the strip: its boxes; 0 if not there, -1 if disabled */
+static int find_item(struct Menu *strip, const char *spec, struct wbgap_box *mb, struct wbgap_box *ib, struct wbgap_box *sb, int *has_sub)
+{
+    char menus[80], items[160], *c, tmp[160], *alt;
+    struct Menu *m;
+    c = strchr(spec, ':');
+    snprintf(menus, sizeof menus, "%.*s", (int)(c - spec), spec);
+    snprintf(items, sizeof items, "%s", c + 1);
+    for (m = strip; m; m = m->NextMenu) {
+        char mn[24];
+        struct MenuItem *it, *sub;
+        norm(mn, (const char *)m->MenuName, sizeof mn);
+        if (menus[0] != '*') {
+            char mt[80], *a;
+            int ok = 0;
+            strcpy(mt, menus);
+            for (a = strtok(mt, "|"); a && !ok; a = strtok(NULL, "|")) ok = !strcmp(a, mn);
+            if (!ok) continue;
+        }
+        strcpy(tmp, items);
+        for (alt = tmp; alt; ) {
+            char *bar = strchr(alt, '|'), *slash, want[40], wsub[40];
+            if (bar) *bar = 0;
+            slash = strchr(alt, '/');
+            snprintf(want, sizeof want, "%.*s", slash ? (int)(slash - alt) : (int)strlen(alt), alt);
+            snprintf(wsub, sizeof wsub, "%s", slash ? slash + 1 : "");
+            for (it = m->FirstItem; it; it = it->NextItem) {
+                char t[40];
+                if (!item_text(it)) continue;
+                norm(t, item_text(it), sizeof t);
+                if (strcmp(t, want)) continue;
+                mb->left = m->LeftEdge, mb->top = 0, mb->width = m->Width, mb->height = m->Height;
+                ib->left = it->LeftEdge, ib->top = it->TopEdge, ib->width = it->Width, ib->height = it->Height;
+                *has_sub = 0;
+                if (!wsub[0]) return (it->Flags & ITEMENABLED) && (m->Flags & MENUENABLED) ? 1 : -1;
+                for (sub = it->SubItem; sub; sub = sub->NextItem) {
+                    char st[40];
+                    if (!item_text(sub)) continue;
+                    norm(st, item_text(sub), sizeof st);
+                    if (strcmp(st, wsub)) continue;
+                    sb->left = sub->LeftEdge, sb->top = sub->TopEdge, sb->width = sub->Width, sb->height = sub->Height;
+                    *has_sub = 1;
+                    return (sub->Flags & ITEMENABLED) && (it->Flags & ITEMENABLED) ? 1 : -1;
+                }
+            }
+            alt = bar ? bar + 1 : NULL;
+        }
+    }
+    return 0;
+}
+
+/* the item picked in w's menus with the mouse: 1 when picked, 0 not there, -1 disabled */
+static int pick(struct Window *w, const char *spec)
+{
+    struct wbgap_box mb, ib, sb;
+    int xy[2 * WBGAP_MENU_MAXPTS], n, k, has_sub = 0, found;
+    char cmd[400];
+    ULONG lock;
+    ActivateWindow(w);
+    WindowToFront(w);
+    Delay(25);
+    lock = LockIBase(0);
+    found = w->MenuStrip ? find_item(w->MenuStrip, spec, &mb, &ib, &sb, &has_sub) : 0;
+    UnlockIBase(lock);
+    if (found <= 0) return found;
+    if (!(n = wbgap_menu_path(w->WScreen->BarHeight, &mb, &ib, has_sub ? &sb : NULL, xy))) return 0;
+    k = snprintf(cmd, sizeof cmd, "%s DRAG", dragtest);
+    for (found = 0; found < n; found++) k += snprintf(cmd + k, sizeof cmd - k, " %d %d", xy[2 * found], xy[2 * found + 1]);
+    snprintf(cmd + k, sizeof cmd - k, " RIGHT STEPS 6 HOLD 10");
+    printf("INFO picked %s: %s\n", spec, cmd + strlen(dragtest) + 1);
+    run(cmd);
+    Delay(25);
+    return 1;
+}
+
+/* picked in w's menus, or where w's haven't got it, in another Workbench window's (GFOpenBench keeps its own
+ * menu on the desktop's window) */
+static int pick_any(struct Window *w, const char *spec)
+{
+    struct Window *o, *other = NULL;
+    struct wbgap_box mb, ib, sb;
+    int r = pick(w, spec), hs, f = 0;
+    ULONG lock;
+    if (r != 0) return r;
+    lock = LockIBase(0);
+    for (o = w->WScreen->FirstWindow; o && !other; o = o->NextWindow)
+        if (o != w && (o->Flags & WFLG_WBENCHWINDOW) && o->MenuStrip && (f = find_item(o->MenuStrip, spec, &mb, &ib, &sb, &hs)) != 0)
+            other = o;
+    UnlockIBase(lock);
+    if (!other) return 0;
+    if (f < 0) return -1;
+    printf("INFO %s from the menus of \"%s\"\n", spec, other->Title ? (const char *)other->Title : "(no title)");
+    return pick(other, spec);
+}
+
+/* a requester's button clicked: the leftmost (0) or rightmost (1) of the gadgets lowest in it */
+static int click_button(struct Window *w, int right)
+{
+    struct Gadget *g, *best = NULL;
+    LONG bx = 0, by = -1, x, y;
+    char cmd[300];
+    ULONG lock = LockIBase(0);
+    for (g = w->FirstGadget; g; g = g->NextGadget) {
+        if ((g->GadgetType & GTYP_SYSGADGET) || (g->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET) continue;
+        x = ((g->Flags & GFLG_RELRIGHT) ? w->Width - 1 + g->LeftEdge : g->LeftEdge) + g->Width / 2;
+        y = ((g->Flags & GFLG_RELBOTTOM) ? w->Height - 1 + g->TopEdge : g->TopEdge) + g->Height / 2;
+        if (y > by + 2 || (y >= by - 2 && (right ? x > bx : x < bx))) best = g, bx = x, by = y;
+    }
+    if (best) bx += w->LeftEdge, by += w->TopEdge;
+    UnlockIBase(lock);
+    if (!best) return 0;
+    snprintf(cmd, sizeof cmd, "%s CLICK %ld %ld", dragtest, (long)bx, (long)by);
+    run(cmd);
+    Delay(25);
+    return 1;
+}
+
+static void key(int code)
+{
+    char cmd[300];
+    snprintf(cmd, sizeof cmd, "%s KEY 0x%x", dragtest, code);
+    run(cmd);
+    Delay(15);
+}
+
+/* waits up to secs for w's inside to read as sum again */
+static int back_to(struct Window *w, ULONG sum, int secs)
+{
+    int t;
+    for (t = 0; t < secs * 5; t++) {
+        if (inside_sum(w) == sum) return 1;
+        Delay(10);
+    }
+    return 0;
+}
+
+static int dirs_in(const char *path, char names_out[][32], int n)
+{
+    BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
+    struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+    int k = 0;
+    if (l && fib && Examine(l, fib))
+        while (ExNext(l, fib))
+            if (fib->fib_DirEntryType > 0 && k < n) snprintf(names_out[k++], 32, "%.31s", fib->fib_FileName);
+    if (fib) FreeDosObject(DOS_FIB, fib);
+    if (l) UnLock(l);
+    return k;
+}
+
+static void not_picked(const char *row, int r)
+{
+    skip(row, r < 0 ? "its item is disabled here" : "its item isn't in the Workbench windows' menus (MENUS says)");
+}
+
+static int do_menudrive(void)
+{
+    struct Window *w = drawer_window(), *was[MAXWINS], *nw;
+    struct Screen *s;
+    ULONG before;
+    int r, nwas, k, n0, n1;
+    static char d0[32][32], d1[32][32];
+    if (!w) {
+        int how;
+        open_drawer("RAM:WBGap", "WBGap", 5, &how);
+        w = drawer_window();
+    }
+    if (!w) { fail("M*", "RAM:WBGap's drawer window isn't open (WBGapTest SETUP, DragTest OPEN RAM:WBGap)"); return 20; }
+    s = w->WScreen;
+    printf("INFO desktop: %s\n", is_gfos() ? "GFOpenBench (GFOS rows)" : "not GFOpenBench (3.2.3 rows)");
+
+    /* M12 Select Contents, then M30 Clear Selection: the window back as it was */
+    before = inside_sum(w);
+    if ((r = pick(w, "*:select contents|select all")) <= 0) not_picked("M12", r);
+    else if (changes_within(w, before, 3)) {
+        pass("M12");
+        if ((r = pick(w, "window:clear selection")) <= 0) not_picked("M30", r);
+        else if (back_to(w, before, 3)) pass("M30");
+        else fail("M30", "Clear Selection: the window didn't go back to nothing selected");
+    } else {
+        fail("M12", "Select Contents: nothing in the window changed");
+        skip("M30", "nothing selected to clear (M12)");
+    }
+    pick(w, "window:clear selection");
+
+    /* M15 Show > All Files: RAM:WBGap/noicon, a file with no icon, comes; then Only Icons */
+    write_file("RAM:WBGap/noicon", "WBGapTest M15\n");
+    Delay(50);
+    before = inside_sum(w);
+    if ((r = pick(w, "*:show/all files|show all files")) <= 0) not_picked("M15", r);
+    else if (changes_within(w, before, 3)) pass("M15");
+    else fail("M15", "Show All Files: nothing in the window changed (RAM:WBGap/noicon has no icon)");
+    pick(w, "*:show/only icons|show only icons");
+    Delay(25);
+
+    /* M16 View By > Name: the window as a list; then by icon again */
+    before = inside_sum(w);
+    if ((r = pick(w, "*:view by/name|as a list")) <= 0) not_picked("M16", r);
+    else if (changes_within(w, before, 3)) pass("M16");
+    else fail("M16", "View By Name: nothing in the window changed");
+    pick(w, "*:view by/icon|as icons");
+    Delay(25);
+
+    /* M6 About: a window comes; its button closes it */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick_any(w, "workbench|gfopenbench:about")) <= 0) not_picked("M6", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M6");
+        click_button(nw, 0);
+        if (still_there(s, nw)) key(0x45);
+    } else fail("M6", "About: no window came");
+
+    /* M2 Execute Command: its requester comes; Cancel */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick_any(w, "workbench|gfopenbench:execute command")) <= 0) not_picked("M2", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M2");
+        click_button(nw, 1);
+        if (still_there(s, nw)) key(0x45);
+    } else fail("M2", "Execute Command: no requester came");
+
+    /* M8 New Drawer: its requester, Return takes the name it offers, a drawer is made */
+    n0 = dirs_in("RAM:WBGap", d0, 32);
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick(w, "window:new drawer")) <= 0) not_picked("M8", r);
+    else {
+        int t, made = -1;
+        nw = NULL;
+        for (t = 0; t < 30 && made < 0; t++) {   /* a requester for its name, or (no requester) the drawer at once */
+            int j, i;
+            if (!nw && (nw = new_window(s, was, nwas, 0))) {
+                printf("INFO M8 a requester came: Return takes the name it offers\n");
+                key(0x44);   /* Return */
+            }
+            Delay(5);
+            n1 = dirs_in("RAM:WBGap", d1, 32);
+            for (i = 0; i < n1 && made < 0; i++) {
+                for (j = 0; j < n0 && strcmp(d0[j], d1[i]); j++) {}
+                if (j == n0) made = i;
+            }
+        }
+        if (made >= 0) {
+            char p[64];
+            pass("M8");
+            printf("INFO M8 made RAM:WBGap/%s%s\n", d1[made], nw ? "" : " (no requester)");
+            snprintf(p, sizeof p, "RAM:WBGap/%s.info", d1[made]);
+            DeleteFile((CONST_STRPTR)p);
+            snprintf(p, sizeof p, "RAM:WBGap/%s", d1[made]);
+            DeleteFile((CONST_STRPTR)p);
+        } else fail("M8", nw ? "New Drawer: Return in its requester made no drawer" : "New Drawer: no requester, no drawer made");
+        if (nw && still_there(s, nw)) click_button(nw, 1);   /* Cancel */
+    }
+
+    /* M9 Open Parent: RAM:'s window comes */
+    nwas = windows_now(s, was, MAXWINS);
+    if ((r = pick(w, "window:open parent")) <= 0) not_picked("M9", r);
+    else if ((nw = new_window(s, was, nwas, 3))) {
+        pass("M9");
+        printf("INFO M9 \"%s\" came\n", nw->Title ? (const char *)nw->Title : "(no title)");
+    } else if (still_there(s, w) && w->Title && !strstr((const char *)w->Title, "WBGap")) {
+        pass("M9");   /* GFOpenBench's windows go back and forward: the parent in the same window */
+        printf("INFO M9 the same window now shows \"%s\"\n", (const char *)w->Title);
+    } else {
+        struct Window *act = IntuitionBase->ActiveWindow;   /* RAM:'s window open already: to the front, active */
+        if (act && act != w && (act->Flags & WFLG_WBENCHWINDOW) && act->Title && !strstr((const char *)act->Title, "WBGap")) {
+            pass("M9");
+            printf("INFO M9 \"%s\", open already, made active\n", (const char *)act->Title);
+        } else fail("M9", "Open Parent: no window came or became active, and the window still shows RAM:WBGap");
+    }
+
+    /* M10 Close, last: the drawer's window goes; opened again for what comes after */
+    if ((r = pick(w, "window:close")) <= 0) not_picked("M10", r);
+    else {
+        for (k = 0; k < 30 && still_there(s, w); k++) Delay(5);
+        if (!still_there(s, w)) pass("M10"); else fail("M10", "Close: the drawer's window stayed");
+    }
+    {
+        int how;
+        if (!drawer_window()) open_drawer("RAM:WBGap", "WBGap", 5, &how);
+    }
+    return fails ? 5 : 0;
+}
+
 /* ---- 1000 files ---- */
 static int do_big(void)
 {
@@ -1140,12 +1481,13 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
     else if (!stricmp(argv[1], "API")) rc = do_api();
+    else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
