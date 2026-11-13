@@ -611,14 +611,17 @@ static int do_lowmem(int secs, const char *path)
         list = e;
         got += n;
     }
-    /* 48 KiB back for the system and ARexx, in pieces of 4 KiB at most: no program's code fits in one */
-    for (pp = &list; *pp && kept < 49152;) {
+    /* 48 KiB back for the system, in pieces of 4 KiB at most: no program's code fits in one. Every other piece only,
+       so that no two freed pieces lie side by side and join into a bigger one (the first lab run: they did, and the
+       program loaded) */
+    for (pp = &list, i = 0; *pp && kept < 49152;) {
         e = *pp;
-        if (e->size > 4096) { pp = &e->next; continue; }
+        if (e->size > 4096 || (i++ & 1)) { pp = &e->next; continue; }
         *pp = e->next;
         kept += e->size;
         FreeMem(e, e->size);
     }
+    printf("INFO X3 largest free piece now %lu bytes\n", (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
     Forbid();
     if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) { PutMsg(ob, &m->m); sent = 1; }
     Permit();
