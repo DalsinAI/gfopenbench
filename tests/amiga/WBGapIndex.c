@@ -2,7 +2,8 @@
  * "::wb" questions on acscsi.device's ACSCMD_SEARCH, as amicradle-guest's GFOpenIndex asks them (oix_acfs.c).
  * One line per row, as WBGapTest's: "PASS <row>", "FAIL <row> <why>" or "SKIP <row> <why>".
  *
- *   WBGapIndex [VOLUME]     on the ACFS volume VOLUME (no colon; default Work, else the first ACFS volume),
+ *   WBGapIndex [VOLUME]     on the ACFS volume VOLUME (no colon; default Work, and only Work: a lab's
+ *                           other ACFS units can be shared host paths),
  *                           in the drawer VOLUME:WBGapIdx (made here, emptied first):
  *     M16t  a drawer icon's SORT= is copied to the index, and again when the icon changes
  *     M32t  SORT=NAME,REVERSE kept whole
@@ -269,9 +270,14 @@ int main(int argc, char **argv)
     LONG i;
     if (!(IconBase = OpenLibrary("icon.library", 44))) { skip_all("no icon.library 44"); return 20; }
     if (!oixa_refresh(0, 0)) { skip_all("no ACFS volume"); CloseLibrary(IconBase); return 0; }
+    /* Work: unless a VOLUME is given, and never another: a lab's other ACFS units can be shared host paths, and
+     * this writes, renames, trashes and deletes files */
     i = oixa_find(argc > 1 ? argv[1] : "Work");
-    if (i < 0) i = argc > 1 ? -1 : 0;
-    if (i < 0) { skip_all("that volume isn't ACFS"); CloseLibrary(IconBase); return 10; }
+    if (i < 0) {
+        skip_all(argc > 1 ? "that volume isn't ACFS" : "Work: isn't ACFS; give VOLUME");
+        CloseLibrary(IconBase);
+        return 10;
+    }
     unit = (ULONG)i;
     snprintf(vol, sizeof vol, "%s", oixa_name(unit));
     printf("INFO WBGapIndex on %s: (ACFS volume %ld of %ld)\n", vol, (long)i + 1, (long)oixa_count());
