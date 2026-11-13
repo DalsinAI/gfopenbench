@@ -281,6 +281,7 @@
 #include "ob_launch.h"
 #include "ob_tasks.h"
 #include "ob_guard.h"
+#include "ob_dtask.h"
 #include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
@@ -354,7 +355,7 @@ static const char fallback_theme[] =
     "group.line #8794a2\nmenu #f3f5f7\nmenu.text #1c242d\nmenu.line #cdd4db\nicon.text #0f1720\n"
     "track #cbd2da\nframe.active #5e6b79\n";
 
-static wb_drawer *drawers[MAX_WINDOWS];
+static ob_dt *drawers[MAX_WINDOWS];          /* row 3: each drawer window a task of its own (ob_dtask.h) */
 static int ndrawers;
 static wb_look look;
 static ogt_theme theme;
@@ -1387,6 +1388,7 @@ typedef struct leftout {
     UBYTE permanent;                        /* named in its disk's .backdrop */
 } leftout;
 static leftout louts[MAX_LEFTOUT];
+static unsigned long louts_gen;                /* row 3: up by one at each change (ob_dt_set_gen) */
 static int nlouts;
 static int reread_pending;                  /* the drawers read again once this round of messages is done */
 
@@ -1411,6 +1413,7 @@ static void lout_drop(int i)
 {
     memmove(&louts[i], &louts[i + 1], (size_t)(nlouts - i - 1) * sizeof louts[0]);
     nlouts--;
+    louts_gen++;
 }
 
 /* ---- a file written whole or not at all (1 Nov 2026) ----------------------------------------------------------
@@ -1541,6 +1544,7 @@ static void backdrop_icon(void *ctx, const char *rest)
     else if (nlouts < MAX_LEFTOUT) {
         snprintf(louts[nlouts].path, sizeof louts[0].path, "%s", path);
         louts[nlouts++].permanent = 1;
+        louts_gen++;
     }
 }
 
@@ -1935,6 +1939,7 @@ static void *desk_alloc(ULONG n)
  * low-memory requester; 1 when the user chose Retry */
 static int low_asked;                       /* how many times the requester has been shown */
 
+static void supervise_drawers(void);
 static int low_retry(LONG err, ULONG largest)
 {
     int no_memory = ob_low(err, largest);
@@ -2120,6 +2125,7 @@ static void supervise(void)
     ob_reserve_refill(&reserve, &lowmem);          /* X3: the low-memory reserve back as soon as memory allows */
     if (launcher_up && (t = ob_launch_task()) && ob_task_held(t, NULL)) launcher_held();
     ob_builtin_held();
+    supervise_drawers();                    /* row 3: a crashed drawer's task */
     Forbid();
     t = dock_task();
     if (t && ob_task_held(t, NULL)) {
@@ -2455,12 +2461,12 @@ static int drawer_open_at(const char *path)
     BPTR l, l2;
     int i, at = -1;
     for (i = 0; i < ndrawers && at < 0; i++)
-        if (!ci_cmp(wb_drawer_path(drawers[i]), path)) at = i;
+        if (!ci_cmp(ob_dt_path(drawers[i]), path)) at = i;
     if (at >= 0 || !ndrawers) return at;
     me->pr_WindowPtr = (APTR)-1;
     if ((l = Lock((CONST_STRPTR)path, ACCESS_READ))) {
         for (i = 0; i < ndrawers && at < 0; i++)
-            if ((l2 = Lock((CONST_STRPTR)wb_drawer_path(drawers[i]), ACCESS_READ))) {
+            if ((l2 = Lock((CONST_STRPTR)ob_dt_path(drawers[i]), ACCESS_READ))) {
                 if (SameLock(l, l2) == LOCK_SAME) at = i;
                 UnLock(l2);
             }
@@ -2470,50 +2476,85 @@ static int drawer_open_at(const char *path)
     return at;
 }
 
-static int open_drawer(const char *path)
+/* Row 3: the drawer's window opens in a task of its own, and the desktop goes on (OB_DTE_OPENED or OB_DTE_FAILED
+ * follow, drawer_event). sid: the supervisor's id it keeps after a crash, 0 a new one; box: where, NULL as its icon
+ * says. 1 when its task started (or it was open already). */
+static int open_drawer_as(const char *path, const struct IBox *box, unsigned long sid)
 {
-    wb_drawer *d;
+    ob_dt *t;
     int at;
     if (!root) return 0;                            /* the Workbench screen is being reset */
     if ((at = drawer_open_at(path)) >= 0) {         /* 0.1.44: open already: that window, to the front and active */
-        struct Window *w = wb_drawer_window(drawers[at]);
-        WindowToFront(w);
-        ActivateWindow(w);
+        struct Window *w = ob_dt_window(drawers[at]);
+        if (w) {
+            WindowToFront(w);
+            ActivateWindow(w);
+        }
         return 1;
     }
     if (ndrawers >= MAX_WINDOWS) {
         DisplayBeep(look.scr);
         return 0;
     }
-    for (;;) {
-        ULONG largest;
-        SetIoErr(0);
-        if ((d = wb_drawer_open(&look, path))) break;
-        largest = AvailMem(MEMF_ANY | MEMF_LARGEST);
-        if (!low_retry(IoErr(), largest)) {        /* X3: for want of memory, the user asked: Retry opens it again */
+    while (!(t = ob_dt_open(path, box))) {
+        /* X3: no memory for its task: the user asked, Retry starts it again */
+        if (!low_retry(ERROR_NO_FREE_STORE, AvailMem(MEMF_ANY | MEMF_LARGEST)) || !root) {
             DisplayBeep(look.scr);
             return 0;
         }
-        if (!root) return 0;
     }
+    if (!sid) sid = ob_super_add(&super, OB_T_DRAWER, NULL);
+    ob_dt_set_user(t, sid);
     snprintf(drawer_paths[ndrawers], sizeof drawer_paths[0], "%s", path);
-    drawers[ndrawers++] = d;
+    drawers[ndrawers++] = t;
     return 1;
+}
+
+static int open_drawer(const char *path)
+{
+    return open_drawer_as(path, NULL, 0);
+}
+
+/* drawers[i] is gone from the desktop's list (its task ends by itself, or has ended) */
+static void drawer_gone(int i)
+{
+    drawers[i] = drawers[--ndrawers];
+    memcpy(drawer_paths[i], drawer_paths[ndrawers], sizeof drawer_paths[0]);
 }
 
 static void close_index(int i)
 {
-    wb_drawer_close(drawers[i]);
-    drawers[i] = drawers[--ndrawers];
-    memcpy(drawer_paths[i], drawer_paths[ndrawers], sizeof drawer_paths[0]);
+    unsigned long sid = ob_dt_user(drawers[i]);
+    ob_dt_close(drawers[i]);
+    if (sid) ob_super_ended(&super, sid);
+    drawer_gone(i);
 }
+
+static int drawer_index(const ob_dt *t)
+{
+    int i;
+    for (i = 0; i < ndrawers; i++)
+        if (drawers[i] == t) return i;
+    return -1;
+}
+
+static int drawer_of_window(const struct Window *w)
+{
+    int i;
+    for (i = 0; w && i < ndrawers; i++)
+        if (ob_dt_window(drawers[i]) == w) return i;
+    return -1;
+}
+
+static int drawers_down;                            /* desktop_down closing every drawer: their places are kept */
 
 static void titles_everywhere(void)
 {
     int i;
     if (root) SetWindowTitles(root, (CONST_STRPTR)~0, (CONST_STRPTR)screen_title);
     for (i = 0; i < ndrawers; i++)
-        SetWindowTitles(wb_drawer_window(drawers[i]), (CONST_STRPTR)~0, (CONST_STRPTR)screen_title);
+        if (ob_dt_window(drawers[i]))
+            SetWindowTitles(ob_dt_window(drawers[i]), (CONST_STRPTR)~0, (CONST_STRPTR)screen_title);
 }
 
 /* 0.1.44: words held in the screen's title until the next click, as OS 3.2.3 shows an error that asks nothing (a
@@ -2536,7 +2577,8 @@ static void say_title(const char *text)
     title_held = 1;
     if (root) SetWindowTitles(root, (CONST_STRPTR)~0, (CONST_STRPTR)held_title);
     for (i = 0; i < ndrawers; i++)
-        SetWindowTitles(wb_drawer_window(drawers[i]), (CONST_STRPTR)~0, (CONST_STRPTR)held_title);
+        if (ob_dt_window(drawers[i]))
+            SetWindowTitles(ob_dt_window(drawers[i]), (CONST_STRPTR)~0, (CONST_STRPTR)held_title);
 }
 
 static void title_release(void)
@@ -2544,6 +2586,114 @@ static void title_release(void)
     if (!title_held) return;
     title_held = 0;
     if (root) titles_everywhere();
+}
+
+/* ---- row 3: the drawers' tasks (ob_dtask.h) ---- */
+
+static void mark_ours(void);
+
+static unsigned long share_gen(void)
+{
+    return (louts_gen << 16) ^ snaps.gen;
+}
+
+/* ob_dtask's pack: everything about drawer dir that leftout_hidden and drawer_snapped would answer, at once */
+static void drawer_pack(const char *dir, ob_dpack *p)
+{
+    char full[256], vol[OB_SNAP_VOL], rest[OB_SNAP_PATH];
+    const char *nm;
+    int i;
+    if (!nlouts && !snaps.n) return;
+    if (!full_name(dir, full, sizeof full)) snprintf(full, sizeof full, "%s", dir);
+    for (i = 0; i < nlouts; i++)
+        if ((nm = ob_name_in(louts[i].path, full))) ob_dpack_hide(p, nm);
+    if (snaps.n && ob_snap_split(full, vol, sizeof vol, rest, sizeof rest))
+        for (i = 0; i < snaps.n; i++) {
+            const ob_snap_ent *e = &snaps.e[i];
+            if (e->path[0] && ob_same_name(e->vol, vol) && (nm = ob_name_in(e->path, rest)))
+                ob_dpack_snap(p, nm, e->where, e->x, e->y, e->gx, e->gy);
+        }
+}
+
+static void drawer_event(ob_dt *t, int kind, long err, unsigned long largest)
+{
+    int i = drawer_index(t);
+    struct Window *w = ob_dt_window(t);
+    char path[sizeof drawer_paths[0]];
+    unsigned long sid;
+    switch (kind) {
+    case OB_DTE_OPENED:
+        if (w) SetWindowTitles(w, (CONST_STRPTR)~0, (CONST_STRPTR)title_now());
+        mark_ours();
+        break;
+    case OB_DTE_ACTIVE:
+        if (w) SetWindowTitles(w, (CONST_STRPTR)~0, (CONST_STRPTR)title_now());
+        break;
+    case OB_DTE_CLICK:                      /* 0.1.44: words held in the title go at the next click */
+        if (title_held) title_release();
+        break;
+    case OB_DTE_FOUND:                      /* 0.1.49: the search's hits, in every drawer showing them */
+        for (i = 0; i < ndrawers; i++)
+            if (drawers[i] != t) ob_dt_note(drawers[i], OB_DT_FIND_UPDATE);
+        break;
+    case OB_DTE_FAILED:
+        if (i < 0 || drawers_down) break;
+        snprintf(path, sizeof path, "%s", ob_dt_path(t));
+        sid = ob_dt_user(t);
+        drawer_gone(i);
+        /* X3: for want of memory, the user asked: Retry opens it again */
+        if (root && ob_low(err, largest) && low_retry(err, largest) && root) open_drawer_as(path, NULL, sid);
+        else {
+            if (sid) ob_super_ended(&super, sid);
+            if (look.scr) DisplayBeep(look.scr);
+        }
+        break;
+    case OB_DTE_CLOSED:                     /* closed by its own window's close gadget (or menu) */
+        if (i < 0 || drawers_down) break;
+        if ((sid = ob_dt_user(t))) ob_super_ended(&super, sid);
+        drawer_gone(i);
+        break;
+    }
+}
+
+static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen };
+
+/* WBGapF3, in a lab only (ENV:GFOpenBench/X4Test set): what the supervisor saw of each drawer task, a line each in
+ * T:GFOpenBench-X4.log, which WBGapF3.rexx shows when it fails */
+static void x4_log(struct Task *tk, const char *path, int held)
+{
+    char v[4], line[240];
+    BPTR f;
+    if (!tk || GetVar((CONST_STRPTR)"GFOpenBench/X4Test", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) < 0) return;
+    ob_task_describe(tk, line, sizeof line);
+    if (!(f = Open((CONST_STRPTR)"T:GFOpenBench-X4.log", MODE_READWRITE))) return;
+    Seek(f, 0, OFFSET_END);
+    FPrintf(f, (CONST_STRPTR)"%lu s %s: %s; seen held %ld\n", super_secs, (ULONG)path, (ULONG)line, (LONG)held);
+    Close(f);
+}
+
+/* X4 for the drawers: one held by the task guard is closed from here and opened again, as ob_super_crashed says */
+static void supervise_drawers(void)
+{
+    int i;
+    for (i = 0; i < ndrawers; i++) {
+        struct Task *tk = ob_dt_task(drawers[i]);
+        char path[sizeof drawer_paths[0]];
+        unsigned long sid;
+        int h, act;
+        Forbid();
+        h = tk && ob_task_held(tk, NULL);
+        Permit();
+        x4_log(tk, ob_dt_path(drawers[i]), h);
+        if (!h) continue;
+        snprintf(path, sizeof path, "%s", ob_dt_path(drawers[i]));
+        sid = ob_dt_user(drawers[i]);
+        act = sid ? ob_super_crashed(&super, sid, super_secs) : OB_ACT_RESTART;
+        ob_dt_abandon(drawers[i]);
+        drawer_gone(i);
+        if (act == OB_ACT_RESTART && root) open_drawer_as(path, NULL, sid);
+        return;                             /* one a tick */
+    }
 }
 
 /* ---- menus ---------------------------------------------------------------------------------- */
@@ -2924,14 +3074,12 @@ static char find_words[64];
 
 static void find_everywhere(void)
 {
-    wb_drawer *d = NULL;
+    ob_dt *d = NULL;
     if (!ob_pick_string(look.scr, "Find", "Find on every drive:", "Find", find_words, sizeof find_words)) return;
     if (ndrawers) d = drawers[0];
     else if (open_drawer("SYS:") && ndrawers) d = drawers[ndrawers - 1];
     if (!d) { DisplayBeep(look.scr); return; }
-    WindowToFront(wb_drawer_window(d));
-    ActivateWindow(wb_drawer_window(d));
-    if (!wb_drawer_find(d, find_words)) DisplayBeep(look.scr);
+    ob_dt_find(d, find_words);                      /* row 3: its task brings its window to the front and looks */
 }
 
 /* 0.1.58: GFOpenBench's own icon (PROGDIR:GFOpenBench.info, the Workbench icon of Dale's 13 November 2026 design),
@@ -3111,7 +3259,7 @@ static void redraw_all(void)
     int i;
     EraseRect(root->RPort, 0, 0, ROOT_W - 1, ROOT_H - 1);
     draw_icons();
-    for (i = 0; i < ndrawers; i++) wb_drawer_redraw(drawers[i]);
+    for (i = 0; i < ndrawers; i++) ob_dt_note(drawers[i], OB_DT_REDRAW);
 }
 
 static void select_only(dicon *keep)
@@ -3313,6 +3461,7 @@ static int leave_out(const char *const *paths, int n, WORD sx, WORD sy)
         if (lout_find(full) >= 0 || nlouts == MAX_LEFTOUT) continue;
         snprintf(louts[nlouts].path, sizeof louts[0].path, "%s", full);
         louts[nlouts++].permanent = 0;
+        louts_gen++;
         memcpy(added_path[added++], full, sizeof full);
     }
     if (!added || !root) return added > 0;
@@ -3704,6 +3853,7 @@ static int drawer_leave_out(const char *dir, const char *const *names, int n, wb
         }
         if (k < 0) {
             k = nlouts++;
+            louts_gen++;
             snprintf(louts[k].path, sizeof louts[0].path, "%s", full);
         }
         louts[k].permanent = 1;
@@ -3897,6 +4047,7 @@ static void desk_rename(void)
         /* ob_drop_rename's leftouts_check has taken the old one away (and its .backdrop line): the new name comes back */
         if (lout_find(full) < 0 && nlouts < MAX_LEFTOUT) {
             k = nlouts++;
+            louts_gen++;
             snprintf(louts[k].path, sizeof louts[0].path, "%s", full);
             louts[k].permanent = (UBYTE)(permanent && !backdrop_change(full, 1));
         }
@@ -3918,8 +4069,26 @@ static void desk_delete(void)
     else ob_drop_delete(paths, n, root);
 }
 
-static const ob_drop_env drop_env = { &look.scr, &root, drawers, &ndrawers, desk_icon_at, leave_out, leftouts_check,
-                                       say_title, appicon_drop };
+/* ob_drop's env (row 3): what a drawer window has at a place, asked of the drawer's task */
+static int drop_drawer_at(struct Window *w, WORD sx, WORD sy, char *out, int n, char *dir, int dn, wb_drawer **who)
+{
+    int i = drawer_of_window(w);
+    if (i < 0) return -1;
+    snprintf(dir, (size_t)dn, "%s", ob_dt_path(drawers[i]));
+    *who = ob_dt_drawer(drawers[i]);
+    return ob_dt_at(drawers[i], sx, sy, out, n);
+}
+
+static void drop_reread(const char *path, wb_drawer *except)
+{
+    int i;
+    for (i = 0; i < ndrawers; i++)
+        if (ob_dt_drawer(drawers[i]) != except && !ci_cmp(ob_dt_path(drawers[i]), path))
+            ob_dt_note(drawers[i], OB_DT_REREAD);
+}
+
+static const ob_drop_env drop_env = { &look.scr, &root, drop_drawer_at, drop_reread, desk_icon_at, leave_out,
+                                       leftouts_check, say_title, appicon_drop };
 
 static void drag_img_close(void)
 {
@@ -4407,7 +4576,15 @@ static void desktop_down(void)
     drag_img_close();                           /* 0.1.26: a disk icon's drag ends with the desktop */
     dragging = pressed_on = NULL;
     ob_info_quit_all();                         /* the Information windows (they close without saving) */
-    while (ndrawers) close_index(ndrawers - 1); /* close_index keeps drawer_paths[] beyond ndrawers */
+    /* row 3: every drawer's task told to close and waited for (the screen closes next); drawer_paths[] is kept */
+    drawers_down = 1;
+    ob_dt_close_all();
+    while (ndrawers) {
+        unsigned long sid = ob_dt_user(drawers[ndrawers - 1]);
+        if (sid) ob_super_ended(&super, sid);
+        ndrawers--;
+    }
+    drawers_down = 0;
     drop_picture();
     strip_close();
     if (root) {
@@ -4668,7 +4845,8 @@ static int openlook_running(void)
 static int task_ours(struct Task *t)
 {
     return t && (t == main_task || t == dock_task() ||
-                 (t->tc_Node.ln_Name && !strcmp(t->tc_Node.ln_Name, "GFOpenBench Information")));
+                 (t->tc_Node.ln_Name && (!strcmp(t->tc_Node.ln_Name, "GFOpenBench Information") ||
+                                         !strcmp(t->tc_Node.ln_Name, "GFOpenBench drawer"))));
 }
 
 /* 1 when task t has registered for GFOpenLook's close notice. Under Forbid. */
@@ -4761,7 +4939,11 @@ static void go_down(void)
     int i;
     nreopen = ndrawers;
     for (i = 0; i < ndrawers; i++) {
-        struct Window *w = wb_drawer_window(drawers[i]);
+        struct Window *w = ob_dt_window(drawers[i]);
+        if (!w) {                                   /* still opening: where its icon says */
+            drawer_box[i].w = 0;
+            continue;
+        }
         drawer_box[i].x = w->LeftEdge; drawer_box[i].y = w->TopEdge;
         drawer_box[i].w = w->Width; drawer_box[i].h = w->Height;
     }
@@ -4779,15 +4961,20 @@ static int go_up(void)
         char path[sizeof drawer_paths[0]];
         WORD x = drawer_box[i].x, y = drawer_box[i].y, w = drawer_box[i].w, h = drawer_box[i].h;
         WORD sw = look.scr->Width, sh = look.scr->Height, top = look.scr->BarHeight + 1;
+        struct IBox box;
         memcpy(path, drawer_paths[i], sizeof path);   /* open_drawer writes drawer_paths[ndrawers] */
-        if (!open_drawer(path)) continue;
+        if (!w) {
+            open_drawer(path);
+            continue;
+        }
         if (w > sw) w = sw;
         if (h > sh - top) h = sh - top;
         if (x + w > sw) x = sw - w;
         if (y + h > sh) y = sh - h;
         if (x < 0) x = 0;
         if (y < top) y = top;
-        ChangeWindowBox(wb_drawer_window(drawers[ndrawers - 1]), x, y, w, h);
+        box.Left = x; box.Top = y; box.Width = w; box.Height = h;
+        open_drawer_as(path, &box, 0);              /* row 3: its task puts it there */
     }
     nreopen = 0;
     tell_dock(WBC_OPEN);
@@ -5030,11 +5217,27 @@ static int wbreq_close(const char *path)
     return 1;
 }
 
-static wb_drawer *wbreq_drawer(const char *path)
+/* row 3: the drawer's own task shows the name, or hands each entry to fn */
+static int wbreq_show_name(const char *dir, const char *name)
+{
+    int at;
+    if (!root || (at = drawer_open_at(dir)) < 0) return 0;
+    return ob_dt_show_name(drawers[at], name);
+}
+
+static struct Window *wbreq_window(const char *path)
 {
     int at;
     if (!root || (at = drawer_open_at(path)) < 0) return NULL;
-    return drawers[at];
+    return ob_dt_window(drawers[at]);
+}
+
+static int wbreq_each(const char *path, int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y),
+                      void *ctx)
+{
+    int at;
+    if (!root || (at = drawer_open_at(path)) < 0) return -1;
+    return ob_dt_each(drawers[at], fn, ctx);
 }
 
 /* AppIcons or AppMenuItems came or went */
@@ -5062,7 +5265,8 @@ static int wbreq_info(const char *path)
     return rx_info(path);
 }
 
-static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_drawer, wb_changed, wbreq_reread, wbreq_info };
+static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_show_name, wbreq_window, wbreq_each, wb_changed,
+                                  wbreq_reread, wbreq_info };
 
 /* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
 
@@ -5084,19 +5288,34 @@ static struct Window *rx_window_at(int i, char *name, int n)
         return root;
     }
     if (i < 1 || i > ndrawers) return NULL;
-    snprintf(name, (size_t)n, "%s", wb_drawer_path(drawers[i - 1]));
-    return wb_drawer_window(drawers[i - 1]);
+    snprintf(name, (size_t)n, "%s", ob_dt_path(drawers[i - 1]));
+    return ob_dt_window(drawers[i - 1]);
+}
+
+/* ARexx's OPEN answers when the window is there (row 3: a drawer opens in its own task; only this waits for it) */
+static int rx_open_drawer(const char *path)
+{
+    int i;
+    if (!open_drawer(path)) return 0;
+    if ((i = drawer_open_at(path)) < 0) return 0;
+    return ob_dt_wait_open(drawers[i], 10);
+}
+
+/* ARexx's OPEN: a drawer's answer, too, comes once its window is there */
+static int rx_open_object(const char *path)
+{
+    int i;
+    if (!ob_open_object(path)) return 0;
+    if ((i = drawer_open_at(path)) >= 0 && !ob_dt_window(drawers[i])) return ob_dt_wait_open(drawers[i], 10);
+    return 1;
 }
 
 static int rx_close_window(struct Window *w)
 {
     int i;
-    for (i = 0; i < ndrawers; i++)
-        if (wb_drawer_window(drawers[i]) == w) {
-            close_index(i);
-            return 1;
-        }
-    return 0;                                       /* the root stays */
+    if ((i = drawer_of_window(w)) < 0) return 0;   /* the root stays */
+    close_index(i);
+    return 1;
 }
 
 static int rx_info(const char *path)
@@ -5146,13 +5365,11 @@ static int rx_icon_at(struct Window *w, int i, ob_rexx_icon *out, int detail)
         }
         return 0;
     }
-    for (k = 0; k < ndrawers; k++)
-        if (wb_drawer_window(drawers[k]) == w) break;
-    if (k == ndrawers) return 0;
-    if (i == 0 || !rx_dir_read || ci_cmp(rx_dir.path, wb_drawer_path(drawers[k]))) {
+    if ((k = drawer_of_window(w)) < 0) return 0;
+    if (i == 0 || !rx_dir_read || ci_cmp(rx_dir.path, ob_dt_path(drawers[k]))) {
         if (rx_dir_read) wb_dir_free(&rx_dir);
         memset(&rx_dir, 0, sizeof rx_dir);
-        rx_dir_read = wb_dir_read(&rx_dir, wb_drawer_path(drawers[k]), 0);
+        rx_dir_read = wb_dir_read(&rx_dir, ob_dt_path(drawers[k]), 0);
         if (!rx_dir_read) return 0;
         wb_dir_sort(&rx_dir, WB_SORT_NAME, 0);
     }
@@ -5191,12 +5408,12 @@ static void rx_changed(const char *dir)
     int i;
     BPTR l = Lock((CONST_STRPTR)dir, ACCESS_READ), l2;
     for (i = 0; i < ndrawers; i++) {
-        int same = !ci_cmp(wb_drawer_path(drawers[i]), dir);
-        if (!same && l && (l2 = Lock((CONST_STRPTR)wb_drawer_path(drawers[i]), ACCESS_READ))) {
+        int same = !ci_cmp(ob_dt_path(drawers[i]), dir);
+        if (!same && l && (l2 = Lock((CONST_STRPTR)ob_dt_path(drawers[i]), ACCESS_READ))) {
             same = SameLock(l, l2) == LOCK_SAME;
             UnLock(l2);
         }
-        if (same) wb_drawer_reread(drawers[i]);
+        if (same) ob_dt_note(drawers[i], OB_DT_REREAD);
     }
     if (l) UnLock(l);
     if (rx_dir_read) wb_dir_free(&rx_dir);
@@ -5204,8 +5421,8 @@ static void rx_changed(const char *dir)
 }
 
 static const ob_rexx_env rexx_env = {
-    "GFOpenBench " OPENBENCH_VERSION, rx_screen, rx_icon_font, rx_window_at, open_drawer, rx_close_window,
-    ob_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
+    "GFOpenBench " OPENBENCH_VERSION, rx_screen, rx_icon_font, rx_window_at, rx_open_drawer, rx_close_window,
+    rx_open_object, rx_info, rx_icon_at, rx_icon_select, rx_changed
 };
 
 /* LoadWB's switches (WBGapTest A10, ol_core.h): GFOpenBench takes LoadWB's template, from the Startup-Sequence's
@@ -5317,6 +5534,10 @@ static int run(void)
     look.empty_trash = ob_empty_trash;             /* Icons > Empty trash (WBGapTest M25) */
     look.rename_icon = drawer_rename;              /* 0.1.51: Icons > Rename... and Delete... in the drawers */
     look.delete_icons = drawer_delete;
+    if (!ob_dt_init(&dt_env)) {                    /* row 3: the drawers' tasks reach the desktop here */
+        no_signal("the drawers' tasks");
+        goto out;
+    }
     snaps_load();                                  /* 0.1.38: the places GFOpenBench snapshotted, before the icons */
     wb_prefs_load();
     aloha_start();                                 /* 0.1.22: Intuition's Workbench port, gfopenrtg.library 0.17 */
@@ -5362,7 +5583,8 @@ static int run(void)
     if (!(ob_switches & OL_SW_SKIPSTARTUP)) run_wbstartup();
 
     /* every two seconds: the title (free memory); 0.1.40: the volumes' fingerprint (volumes_moved) */
-    if (!(tport = CreateMsgPort())) no_signal("the 2-second timer");
+    /* on the drawers' signal: the desktop's own are all taken by now (a lab's GFOpenBench 0.1.60 had none left) */
+    if (!(tport = ob_dt_port())) no_signal("the 2-second timer");
     else if ((tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
              !OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)tr, 0)) {
         timer = 1;
@@ -5380,7 +5602,7 @@ static int run(void)
         else FreeSignal(s);
     }
     for (;;) {
-        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
+        ULONG sigs = Wait(ob_dt_sigmask() | (1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
                           ob_drop_sigmask() | ob_wb_sigmask() | ob_arexx_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
@@ -5487,13 +5709,16 @@ static int run(void)
                 Delay(60);
                 scan_volumes();
                 redraw_all();
-                for (i = 0; i < ndrawers; i++) wb_drawer_reread(drawers[i]);
+                for (i = 0; i < ndrawers; i++) ob_dt_note(drawers[i], OB_DT_REREAD);
             }
         }
         if ((sigs & wb_thumb_sigmask()) && wb_thumb_collect())
-            for (i = 0; i < ndrawers; i++) wb_drawer_thumbs(drawers[i]);
-        if ((sigs & wb_find_sigmask()) && wb_find_collect())   /* 0.1.49: the search of every drive, its hits */
-            for (i = 0; i < ndrawers; i++) wb_drawer_find_update(drawers[i]);
+            for (i = 0; i < ndrawers; i++) ob_dt_note(drawers[i], OB_DT_THUMBS);
+        /* 0.1.49's search of every drive is started by a drawer's task now, which takes its hits (OB_DTE_FOUND) */
+        if (sigs & ob_dt_sigmask()) {               /* row 3: the drawers' calls and events */
+            ob_dt_service();
+            ob_dt_set_gen(share_gen());
+        }
         if (sigs & wb_notify_sigmask())             /* 0.1.54: a drawer shown changed (gap rows F1, F2): read again 200 ms after */
             wb_notify_collect();
         if (sigs & (1UL << picture_sig)) {
@@ -5558,17 +5783,13 @@ static int run(void)
                 if (!root_event(cl, code, qual, mx, my, secs, micros)) quit = 1;
                 continue;
             }
-            for (i = 0; i < ndrawers; i++)
-                if (wb_drawer_window(drawers[i]) == win) {
-                    if (!wb_drawer_event(drawers[i], cl, code, qual, ia, mx, my, secs, micros)) close_index(i);
-                    else if (cl == IDCMP_ACTIVEWINDOW) SetWindowTitles(win, (CONST_STRPTR)~0, (CONST_STRPTR)title_now());
-                    break;
-                }
+            (void)ia;                               /* row 3: a drawer's window's messages go to its own task */
         }
         if (quit) break;
         if (reread_pending) {                       /* 0.1.35: icons left out or put away: their drawers again */
             reread_pending = 0;
-            for (i = 0; i < ndrawers; i++) wb_drawer_reread(drawers[i]);
+            ob_dt_set_gen(share_gen());
+            for (i = 0; i < ndrawers; i++) ob_dt_note(drawers[i], OB_DT_REREAD);
         }
         if (want_resize) {
             want_resize = 0;
@@ -5598,13 +5819,14 @@ out:
         CloseDevice((struct IORequest *)tr);
     }
     if (tr) DeleteIORequest((struct IORequest *)tr);
-    if (tport) DeleteMsgPort(tport);
+    if (tport) FreeVec(tport);                    /* ob_dt_port's: no signal of its own */
     notify_end();                               /* 0.1.39: the notifies, then their port */
     desktop_down();                             /* the Information windows, the drawers, the root, the screen */
     wbc_stop();
     wb_thumb_stop();                            /* its process runs our code, and uses datatypes.library */
     wb_find_stop();                             /* 0.1.49: the search's process runs our code too */
     wb_notify_end();                            /* 0.1.54: the drawers' notifications (desktop_down closed them all) */
+    ob_dt_end();                                /* row 3: the drawers' tasks are all gone (desktop_down) */
     wb_pic_close();
 #ifdef WB_GFOPENFILES
     wb_lv_close();

@@ -20,8 +20,11 @@ enum { OB_DESK_NONE = 0,
 typedef struct ob_drop_env {
     struct Screen **scr;                        /* the Workbench screen */
     struct Window **root;                       /* the desktop's window */
-    wb_drawer **drawers;                        /* the drawer windows open, and how many */
-    int *ndrawers;
+    /* What drawer window w has at (sx, sy) (wb_drawer_at, answered by the drawer's own task: ob_dtask.h), with the
+     * drawer's path in dir and the drawer in *who; -1 when w is no drawer's window. */
+    int (*drawer_at)(struct Window *w, WORD sx, WORD sy, char *out, int n, char *dir, int dn, wb_drawer **who);
+    /* Every open drawer showing path read again, but except (NULL: every one) */
+    void (*reread)(const char *path, wb_drawer *except);
     /* The desktop's icon at (sx, sy), not the one being dragged: OB_DESK_*, and its path in out ("Work:", or a
      * left-out "Work:Tools/x"). */
     int (*icon_at)(WORD sx, WORD sy, char *out, int n);
