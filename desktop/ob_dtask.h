@@ -63,6 +63,10 @@ int ob_dt_init(const ob_dt_env *env);
 void ob_dt_end(void);
 /* The signal the drawers' calls and events come on, and what to do with them (in the desktop's loop) */
 ULONG ob_dt_sigmask(void);
+/* A port of the desktop's on that signal, for another of its ports when no signal is left (the 2-second timer's: the
+ * desktop's own signals are all taken, so its CreateMsgPort failed and nothing ran every two seconds: #118 review,
+ * WBGapF3). FreeVec it; it has no signal of its own. NULL before ob_dt_init. */
+struct MsgPort *ob_dt_port(void);
 void ob_dt_service(void);
 /* Left outs or snapshots changed: the drawers ask again before they next answer hidden or snapped */
 void ob_dt_set_gen(unsigned long gen);

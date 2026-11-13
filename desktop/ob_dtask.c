@@ -92,6 +92,7 @@ struct ob_dt {
 static ob_dt_env env;
 static struct MsgPort *callport, *evport, *qreply, *tport;   /* calls and events apart: ob_dt_wait_open */
 static BYTE dsig = -1;                  /* the one signal the desktop's four ports share */
+static struct MsgPort *other;          /* ob_dt_port's: the desktop's 2-second timer */
 static struct timerequest *tr;
 static int timer_open;
 static ob_dt *live[DT_MAX];
@@ -448,6 +449,21 @@ static struct MsgPort *shared_port(void)
     return p;
 }
 
+struct MsgPort *ob_dt_port(void)
+{
+    if (dsig < 0 || other) return NULL;    /* one */
+    return other = shared_port();
+}
+
+/* What came on the shared signal while ask or ob_dt_wait_open took it (Wait cleared it): the signal again, for the
+ * desktop's loop */
+static void resignal(void)
+{
+    if (!IsListEmpty(&callport->mp_MsgList) || !IsListEmpty(&evport->mp_MsgList) ||
+        (other && !IsListEmpty(&other->mp_MsgList)))
+        SetSignal(1UL << dsig, 1UL << dsig);
+}
+
 int ob_dt_init(const ob_dt_env *e)
 {
     env = *e;
@@ -477,6 +493,7 @@ void ob_dt_end(void)
     if (callport) FreeVec(callport);
     if (evport) FreeVec(evport);
     tport = qreply = callport = evport = NULL;
+    other = NULL;                       /* the desktop's, freed by it (after its timer stopped) */
     if (dsig >= 0) FreeSignal(dsig);
     dsig = -1;
     if (qbuf) FreeVec(qbuf);
@@ -653,6 +670,7 @@ static int ask(ob_dt *t, dt_query *q)
         int gave_up;
         if (!wait_half() && held(t)) {  /* crashed with the question on its port: the question stays with it */
             qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
+            resignal();
             return 0;
         }
         /* not taken within a second (the drawer busy on a slow disk): withdrawn, left for the task to free, and the
@@ -663,9 +681,11 @@ static int ask(ob_dt *t, dt_query *q)
         Permit();
         if (gave_up) {
             qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
+            resignal();
             return 0;
         }
     }
+    resignal();
     return 1;
 }
 
@@ -749,8 +769,7 @@ int ob_dt_wait_open(ob_dt *t, int secs)
         if (live_at(t) < 0 || t->win) break;
         if (!wait_half() && (--halves <= 0 || held(t))) break;
     }
-    if (!IsListEmpty(&callport->mp_MsgList) || !IsListEmpty(&evport->mp_MsgList))
-        SetSignal(1UL << dsig, 1UL << dsig);    /* what was left, for the desktop's loop */
+    resignal();                                 /* what was left, for the desktop's loop */
     return live_at(t) >= 0 && t->win != NULL;
 }
 

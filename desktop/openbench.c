@@ -5583,7 +5583,8 @@ static int run(void)
     if (!(ob_switches & OL_SW_SKIPSTARTUP)) run_wbstartup();
 
     /* every two seconds: the title (free memory); 0.1.40: the volumes' fingerprint (volumes_moved) */
-    if (!(tport = CreateMsgPort())) no_signal("the 2-second timer");
+    /* on the drawers' signal: the desktop's own are all taken by now (a lab's GFOpenBench 0.1.60 had none left) */
+    if (!(tport = ob_dt_port())) no_signal("the 2-second timer");
     else if ((tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
              !OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)tr, 0)) {
         timer = 1;
@@ -5818,7 +5819,7 @@ out:
         CloseDevice((struct IORequest *)tr);
     }
     if (tr) DeleteIORequest((struct IORequest *)tr);
-    if (tport) DeleteMsgPort(tport);
+    if (tport) FreeVec(tport);                    /* ob_dt_port's: no signal of its own */
     notify_end();                               /* 0.1.39: the notifies, then their port */
     desktop_down();                             /* the Information windows, the drawers, the root, the screen */
     wbc_stop();
