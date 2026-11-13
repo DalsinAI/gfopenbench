@@ -171,6 +171,10 @@ static void check_settings(void)
     else fail("M34t", "(ARRANGE=) not kept as off");
     /* M16t: the view kept, and copied again when the icon changes */
     if (!drawer_icon("WBGapIdx/sorted", t2) || !ask("get", "WBGapIdx/sorted", &a)) { fail("M16t", "the icon rewritten, no answer"); return; }
+    if (!(setting(&a, "sort", &on, v, sizeof v) && on && wbgap_same(v, "DATE"))) {
+        Delay(25);   /* the host may copy the icon's settings a moment after the write: asked once more */
+        if (!ask("get", "WBGapIdx/sorted", &a)) { fail("M16t", "the icon rewritten, no answer the second time"); return; }
+    }
     printf("INFO ::wb get after SORT=DATE: %s\n", a.wb);
     if (setting(&a, "sort", &on, v, sizeof v) && on && wbgap_same(v, "DATE")) pass("M16t");
     else fail("M16t", "SORT=DATE not copied when the icon changed");
@@ -237,19 +241,24 @@ static void check_reclaim(void)
     char v[32];
     const char *line;
     if (!ask("reclaim", NULL, &a)) { fail("M23s", "the host gave no answer to ::wb reclaim"); return; }
-    line = a.wb[0] ? a.wb : (a.norder ? a.order[0] : "");
+    line = a.wb;   /* the WB line; an ORDER hit carries no reclaim= */
     if (wbgap_wb_field(line, "reclaim", v, sizeof v) && v[0] >= '0' && v[0] <= '9') { printf("INFO reclaim after %s s\n", v); pass("M23s"); }
     else fail("M23s", "no reclaim=SECONDS");
+}
+
+static void long_rel(char *rel)   /* "WBGapIdx/" and a 200-character name */
+{
+    int i;
+    strcpy(rel, "WBGapIdx/");
+    for (i = 0; i < 200; i++) rel[9 + i] = 'a' + i % 26;
+    rel[209] = 0;
 }
 
 static void check_long(void)
 {
     char rel[260], c[200], why[300];
     struct answer a;
-    int i;
-    strcpy(rel, "WBGapIdx/");
-    for (i = 0; i < 200; i++) rel[9 + i] = 'a' + i % 26;
-    rel[209] = 0;
+    long_rel(rel);
     remove_rel(rel);
     if (!write_file(rel, "long\n")) {
         snprintf(why, sizeof why, "a 200-character name refused (IoErr %ld)", (long)IoErr());
@@ -263,6 +272,19 @@ static void check_long(void)
     if (wbgap_compat_ok(c)) pass("X2b");
     else fail("X2b", "not 107 characters at most ending in ~ and 16 hex digits");
     remove_rel(rel);
+}
+
+/* what the rows made, removed whatever they found (the long name too when X2b failed) */
+static void clean_up(void)
+{
+    static const char *const made[] = {"WBGapIdx/sorted.info", "WBGapIdx/sorted", "WBGapIdx/order/A", "WBGapIdx/order/B",
+                                       "WBGapIdx/order", "WBGapIdx/A", "WBGapIdx/t"};
+    char rel[260];
+    int k;
+    for (k = 0; k < (int)(sizeof made / sizeof made[0]); k++) remove_rel(made[k]);
+    long_rel(rel);
+    remove_rel(rel);
+    remove_rel("WBGapIdx");
 }
 
 int main(int argc, char **argv)
@@ -287,6 +309,7 @@ int main(int argc, char **argv)
     check_trash();
     check_reclaim();
     check_long();
+    clean_up();
     CloseLibrary(IconBase);
     return 0;
 }
