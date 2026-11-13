@@ -242,7 +242,7 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
             run_free_args(r);
             return 0;
         }
-        r->args[i].wa_Name = (BYTE *)nm;
+        r->args[i].wa_Name = (STRPTR)nm;
     }
     r->nargs = n;
     seg = LoadSeg((CONST_STRPTR)tool);
