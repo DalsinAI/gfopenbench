@@ -159,11 +159,11 @@ static int has(const char *spec)
 }
 
 static const struct { const char *row, *spec; } menu_rows[] = {
-    {"M1", "!workbench|gfopenbench:backdrop"},    /* removed (Dale, 13 Nov 2026, gap 2): PASS when absent */
+    {"M1", "workbench|gfopenbench:backdrop"},
     {"M2", "workbench|gfopenbench:execute command"},
     {"M3", "workbench|gfopenbench:redraw all"},
     {"M4", "workbench|gfopenbench:update all|update"},
-    {"M5", "!workbench|gfopenbench:last message"}, /* removed (gap 4) */
+    {"M5", "workbench|gfopenbench:last message"},
     {"M6", "workbench|gfopenbench:about"},
     {"M7", "workbench|gfopenbench:quit|quit gfopenbench"},
     {"M8", "window:new drawer"},
@@ -184,8 +184,8 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M23", "icons:delete"},
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
-    {"M26", "tools:resetwb|refresh openbench"},    /* renamed Refresh OpenBench (gap 15) */
-    {"M29", "*:open volume"},                     /* in the Window menu (item 18) */
+    {"M26", "tools:resetwb"},
+    {"M29", "workbench|gfopenbench:open volume"},
     {"M30", "window:clear selection"},
     {"M31", "window:resize to fit"},
     {"M32", "window:sort order/reverse"},
@@ -199,7 +199,7 @@ static const struct { const char *row, *spec; } menu_rows[] = {
 static const struct { char key; const char *leaves; } wb_keys[] = {
     {'O', "open"}, {'K', "close"}, {'M', "update"}, {'A', "select contents|select all"}, {'Z', "clear selection"},
     {'S', "snapshot"}, {'U', "unsnapshot"}, {'L', "leave out"}, {'P', "put away"}, {'C', "copy"}, {'R', "rename"},
-    {'I', "information"}, {'D', "delete"}, {'E', "execute command"}, {'?', "about"},
+    {'I', "information"}, {'D', "delete"}, {'B', "backdrop"}, {'E', "execute command"}, {'?', "about"},
     {'Q', "quit|quit gfopenbench"}, {'N', "new drawer"}, {'-', "only icons"}, {'+', "all files|show all files"},
     {'F', "find"}, {'Y', "auto-arrange icons"}, {'G', "forward"}, {'H', "reverse"}, {'1', "icon|as icons"},
     {'2', "name|as a list"}, {'3', "date"}, {'4', "size"}, {'5', "type"}, {'.', "column|clean up"},
@@ -241,7 +241,7 @@ static int do_menus(int dump)
     if (dump) return 0;
     if (!wins) { fail("M*", "no Workbench window has a menu strip"); return 10; }
     for (i = 0; i < (int)(sizeof menu_rows / sizeof menu_rows[0]); i++)
-        if (menu_rows[i].spec[0] == '!' ? !has(menu_rows[i].spec + 1) : has(menu_rows[i].spec)) pass(menu_rows[i].row);
+        if (has(menu_rows[i].spec)) pass(menu_rows[i].row);
         else fail(menu_rows[i].row, menu_rows[i].spec);
     if (check_keys()) fail("M28", "Amiga-keys that mean something else than on 3.2.3 (INFO lines)"); else pass("M28");
     return fails ? 5 : 0;

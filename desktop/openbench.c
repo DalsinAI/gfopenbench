@@ -2531,6 +2531,20 @@ static int usb_drive(const char *volume, char *drive, int size)
     return found;
 }
 
+/* 0.1.57: a PCMCIA card ejected: its drive kept inhibited (no volume, so nothing can write to it) until the card goes
+ * (a disk event), one comes in, or a minute passes (30 of the 2-second ticks), then let go, so it mounts again when
+ * it's back (Team 2's review of #105) */
+static char card_held[34];
+static int card_ticks;
+
+static void card_release(void)
+{
+    if (!card_held[0]) return;
+    Inhibit((CONST_STRPTR)card_held, DOSFALSE);
+    card_held[0] = 0;
+    card_ticks = 0;
+}
+
 /* 0.1.57: the exec device a DOS device's mount names (its FileSysStartupMsg's fssm_Device: "carddisk.device"), in
  * out; 0 when it has none (RAM:, a handler with no startup message) */
 static int dev_exec(const char *dev, char *out, int n)
@@ -2580,12 +2594,15 @@ static void usb_eject_selected(void)
                 run_detached(cmd, "The disk couldn't be ejected.\nIt needs C:ACDisk from AmiCradle.");
                 break;
             case OB_EJECT_CARD:
-                /* 0.1.57: a PCMCIA card: its writes flushed and its volume let go, as a dismount does; then it can
-                 * come out, and the card's device sees it go */
+                /* 0.1.57: a PCMCIA card: its writes flushed and its drive held inhibited, so nothing writes to it
+                 * while it comes out (card_release lets it go) */
+                card_release();                     /* one card held at a time */
                 snprintf(cmd, sizeof cmd, "%.30s:", dv);
                 if (Inhibit((CONST_STRPTR)cmd, DOSTRUE)) {
-                    Inhibit((CONST_STRPTR)cmd, DOSFALSE);
-                    snprintf(said, sizeof said, "%.63s is safe to remove.", icons[i].name);
+                    snprintf(card_held, sizeof card_held, "%s", cmd);
+                    card_ticks = 30;
+                    snprintf(said, sizeof said, "%.63s is safe to remove.\nLeft in, it comes back in a minute.",
+                             icons[i].name);
                 } else
                     snprintf(said, sizeof said, "%.63s is busy, so it isn't safe to remove yet.", icons[i].name);
                 ask("GFOpenBench", said, "OK");
@@ -2867,7 +2884,7 @@ static void select_only(dicon *keep)
         }
 }
 
-/* 0.1.57: Window > Select contents (M12): every icon on the desktop that shows */
+/* 0.1.57: Window > Select contents (M12; Clear selection beside it is M30): every icon on the desktop that shows */
 static void select_all(void)
 {
     int i;
@@ -3836,6 +3853,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         break;
     case IDCMP_DISKINSERTED:
     case IDCMP_DISKREMOVED:
+        card_release();                         /* 0.1.57: an ejected card went, or one came in */
         volumes_again();
         break;
     case IDCMP_RAWKEY: {
@@ -4970,6 +4988,10 @@ static int run(void)
             /* 0.1.40: a volume mounted or dismounted with no disk event (ob_vols.h); not while a desktop icon is
              * held, which a scan would end: the next tick */
             if (root && !wb_down && !pressed_on && !dragging && volumes_moved()) volumes_again();
+            if (card_ticks && --card_ticks == 0) {  /* 0.1.57: an ejected card left in: back after a minute */
+                card_release();
+                if (root && !wb_down && !pressed_on && !dragging) volumes_again();
+            }
             /* 0.1.31: Font prefs changed and the screen wasn't reset: the desktop and its drawers again, in the
              * icons' new font, as after a reset */
             if (font_check && --font_check == 0 && !wb_down && root && label_font_changed()) {

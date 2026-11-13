@@ -4,7 +4,7 @@
  * found before this by its volume (usb_drive, GFOpenUSB's C:USBEject); everything else comes here:
  *   OB_EJECT_FLOPPY: DF0: to DF3:, through ACDisk (C:ACDisk DRIVE DFn EJECT QUIET).
  *   OB_EJECT_CARD:   a PCMCIA card (carddisk.device, compactflash.device, or a CF0:/CC0: drive): its writes flushed
- *                    and the volume let go (Inhibit on, then off), then "safe to remove".
+ *                    and its drive held inhibited (no volume to write to) until it goes, then "safe to remove".
  *   OB_EJECT_FIXED:  anything else (a hard drive, RAM:, a host drive): it isn't removable, and says so.
  * Plain C with no Amiga headers, tested on the host (tests/host/test_ob_eject.c).
  * MIT, Copyright (c) 2026 AmiCradle Team. */
