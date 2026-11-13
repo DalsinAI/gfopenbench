@@ -155,6 +155,20 @@ typedef struct ob_held {
 
 unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
 int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
+/* Held: waiting (in exec's TaskWait) on no signal at all, Wait(0), which only the guard's hold does to a task of
+ * ours; the record (rec_ok) only says why. Not the record alone: a lab's runtime that moves stacks may leave it
+ * where the task's bounds no longer point (#118 review, WBGapF3). */
+int ob_guard_held(int waiting, unsigned long sigwait, int rec_ok);
+
+/* ---- a question the desktop asks a drawer's task (ob_dtask.c's ask) ----
+ * The desktop withdraws one the task hasn't taken within OB_ASK_TICKS (a drawer busy on a slow disk must not hold
+ * the desktop); one the task took is answered, quickly, from what it has in memory, and waited for. The state
+ * changes under Forbid. ob_q_take: 1 to answer it, 0 when withdrawn (the task frees it). ob_q_withdraw: 1 when
+ * withdrawn (the desktop asks with a new one). */
+#define OB_ASK_TICKS 50                 /* 1 second, in DateStamp ticks */
+enum { OB_Q_QUEUED = 0, OB_Q_TAKEN, OB_Q_WITHDRAWN };
+int ob_q_take(volatile int *state);
+int ob_q_withdraw(volatile int *state, unsigned long waited_ticks);
 
 /* ---- a drawer task's answers about its own drawer (ob_dtask.h) ----
  * wb_look's hidden and snapped are asked once for every entry a drawer reads. A drawer task asks the desktop once

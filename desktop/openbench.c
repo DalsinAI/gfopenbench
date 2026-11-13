@@ -2658,6 +2658,20 @@ static void drawer_event(ob_dt *t, int kind, long err, unsigned long largest)
 
 static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen };
 
+/* WBGapF3, in a lab only (ENV:GFOpenBench/X4Test set): what the supervisor saw of each drawer task, a line each in
+ * T:GFOpenBench-X4.log, which WBGapF3.rexx shows when it fails */
+static void x4_log(struct Task *tk, const char *path, int held)
+{
+    char v[4], line[240];
+    BPTR f;
+    if (!tk || GetVar((CONST_STRPTR)"GFOpenBench/X4Test", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) < 0) return;
+    ob_task_describe(tk, line, sizeof line);
+    if (!(f = Open((CONST_STRPTR)"T:GFOpenBench-X4.log", MODE_READWRITE))) return;
+    Seek(f, 0, OFFSET_END);
+    FPrintf(f, (CONST_STRPTR)"%lu s %s: %s; seen held %ld\n", super_secs, (ULONG)path, (ULONG)line, (LONG)held);
+    Close(f);
+}
+
 /* X4 for the drawers: one held by the task guard is closed from here and opened again, as ob_super_crashed says */
 static void supervise_drawers(void)
 {
@@ -2670,6 +2684,7 @@ static void supervise_drawers(void)
         Forbid();
         h = tk && ob_task_held(tk, NULL);
         Permit();
+        x4_log(tk, ob_dt_path(drawers[i]), h);
         if (!h) continue;
         snprintf(path, sizeof path, "%s", ob_dt_path(drawers[i]));
         sid = ob_dt_user(drawers[i]);

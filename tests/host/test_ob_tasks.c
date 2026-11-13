@@ -287,6 +287,21 @@ static void test_guard(void)
     rec[0] = 'X';
     CHECK("no magic", ob_guard_read(rec, &h) == 0);
     CHECK("null", ob_guard_read(0, &h) == 0);
+    CHECK("held: Wait(0) with the record", ob_guard_held(1, 0, 1) == 1);
+    CHECK("held: Wait(0), record not where the bounds say", ob_guard_held(1, 0, 0) == 1);
+    CHECK("not held: waiting on a signal", ob_guard_held(1, 0x100, 1) == 0);
+    CHECK("not held: not waiting", ob_guard_held(0, 0, 1) == 0);
+}
+
+static void test_ask(void)
+{
+    volatile int st = OB_Q_QUEUED;
+    CHECK("ask: not withdrawn before a second", ob_q_withdraw(&st, OB_ASK_TICKS - 1) == 0 && st == OB_Q_QUEUED);
+    CHECK("ask: withdrawn after a second", ob_q_withdraw(&st, OB_ASK_TICKS) == 1 && st == OB_Q_WITHDRAWN);
+    CHECK("ask: a withdrawn one is not answered", ob_q_take(&st) == 0 && st == OB_Q_WITHDRAWN);
+    st = OB_Q_QUEUED;
+    CHECK("ask: taken", ob_q_take(&st) == 1 && st == OB_Q_TAKEN);
+    CHECK("ask: a taken one is never withdrawn", ob_q_withdraw(&st, 100000) == 0 && st == OB_Q_TAKEN);
 }
 
 static void test_dpack(void)
@@ -371,6 +386,7 @@ int main(void)
     test_pack();
     test_guard();
     test_out();
+    test_ask();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

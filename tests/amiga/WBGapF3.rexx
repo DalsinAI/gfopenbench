@@ -25,6 +25,7 @@ END
 GETATTR 'windows.count'
 n1 = RESULT
 SAY 'INFO F3 windows with RAM:WBGapD1 open:' n1
+ADDRESS COMMAND 'Delete T:GFOpenBench-X4.log QUIET >NIL:'
 ADDRESS COMMAND 'SetEnv GFOpenBench/X4Test 1'
 OPEN 'RAM:WBGapCrash'
 ADDRESS COMMAND 'Wait 14'
@@ -36,7 +37,10 @@ IF RC ~= 0 THEN DO
 END
 GETATTR 'windows.count'
 n2 = RESULT
-IF n2 ~= n1 THEN SAY 'FAIL F3 the crashing drawer was not closed for good: windows' n2 'not' n1
+IF n2 ~= n1 THEN DO
+  SAY 'FAIL F3 the crashing drawer was not closed for good: windows' n2 'not' n1
+  ADDRESS COMMAND 'Type T:GFOpenBench-X4.log'
+END
 ELSE SAY 'INFO F3 the crashing drawer closed for good after its restarts'
 WINDOW 'RAM:WBGapD1' CLOSE
 ADDRESS COMMAND 'Wait 1'

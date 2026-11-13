@@ -367,6 +367,26 @@ static unsigned long be32(const unsigned char *p)
     return (unsigned long)p[0] << 24 | (unsigned long)p[1] << 16 | (unsigned long)p[2] << 8 | p[3];
 }
 
+int ob_guard_held(int waiting, unsigned long sigwait, int rec_ok)
+{
+    (void)rec_ok;
+    return waiting && !sigwait;
+}
+
+int ob_q_take(volatile int *state)
+{
+    if (*state == OB_Q_WITHDRAWN) return 0;
+    *state = OB_Q_TAKEN;
+    return 1;
+}
+
+int ob_q_withdraw(volatile int *state, unsigned long waited_ticks)
+{
+    if (*state != OB_Q_QUEUED || waited_ticks < OB_ASK_TICKS) return 0;
+    *state = OB_Q_WITHDRAWN;
+    return 1;
+}
+
 int ob_guard_read(const unsigned char *rec, ob_held *h)
 {
     unsigned long v;

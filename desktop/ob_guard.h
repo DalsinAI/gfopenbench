@@ -6,8 +6,12 @@
 #include <exec/tasks.h>
 #include "ob_tasks.h"
 
-/* 1 when t is waiting on no signal with the guard's record in its own stack: the guard holds it. Under Forbid.
- * h (may be NULL) gets the record. 0 for NULL, a task not waiting, or one the guard doesn't hold. */
+/* 1 when t is waiting on no signal (Wait(0)): the guard holds it (ob_guard_held). Under Forbid. h (may be NULL)
+ * gets the guard's record, vector 0 when it isn't where t's stack bounds say. 0 for NULL or a task not so held. */
 int ob_task_held(struct Task *t, ob_held *h);
+
+/* For a lab's log (WBGapF3): what ob_task_held looks at, as one line: on TaskWait or not, tc_SigWait, tc_State,
+ * the stack bounds and the long where the record should be. */
+void ob_task_describe(struct Task *t, char *out, int n);
 
 #endif

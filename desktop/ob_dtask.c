@@ -67,6 +67,7 @@ typedef struct dt_query {               /* the desktop's question: AllocVec'd (l
     char out[256];
     int (*fn)(void *ctx, const char *name, int type, int selected, WORD x, WORD y);   /* DQ_EACH */
     void *ctx;
+    volatile int state;                 /* OB_Q_QUEUED, TAKEN or WITHDRAWN (ob_tasks.h), under Forbid */
 } dt_query;
 
 struct ob_dt {
@@ -109,6 +110,14 @@ static void answer_queries(ob_dt *t)
 {
     dt_query *q;
     while ((q = (dt_query *)GetMsg(t->qport))) {
+        int take;
+        Forbid();
+        take = ob_q_take(&q->state);
+        Permit();
+        if (!take) {                    /* the desktop gave up on it (ask): nobody waits for it, and it's ours */
+            FreeVec(q);
+            continue;
+        }
         if (q->op == DQ_SHOW) q->at = t->d ? wb_drawer_show_name(t->d, q->out) : 0;
         else if (q->op == DQ_EACH) q->at = t->d ? wb_drawer_each(t->d, q->fn, q->ctx) : -1;
         else {
@@ -616,13 +625,22 @@ static int held(const ob_dt *t)
 }
 
 /* qbuf, filled in by the caller but for its header, asked of t's task and waited for: 1 when answered */
+static unsigned long ticks_between(const struct DateStamp *a, const struct DateStamp *b)
+{
+    long d = (b->ds_Days - a->ds_Days) * 24L * 60 * TICKS_PER_SECOND * 60 + (b->ds_Minute - a->ds_Minute) * 60L *
+             TICKS_PER_SECOND + (b->ds_Tick - a->ds_Tick);
+    return d > 0 ? (unsigned long)d : 0;
+}
+
 static int ask(ob_dt *t, dt_query *q)
 {
+    struct DateStamp since, now;
     q->h.m.mn_Node.ln_Type = NT_MESSAGE;
     q->h.m.mn_Length = sizeof *q;
     q->h.m.mn_ReplyPort = qreply;
     q->h.kind = MK_QUERY;
     q->h.t = t;
+    q->state = OB_Q_QUEUED;
     Forbid();
     if (t->gone || !t->qport || !t->d) {
         Permit();
@@ -630,9 +648,20 @@ static int ask(ob_dt *t, dt_query *q)
     }
     PutMsg(t->qport, &q->h.m);
     Permit();
+    DateStamp(&since);
     while (!GetMsg(qreply)) {
-        if (wait_half()) continue;
-        if (held(t)) {                  /* crashed with the question on its port: the question stays with it */
+        int gave_up;
+        if (!wait_half() && held(t)) {  /* crashed with the question on its port: the question stays with it */
+            qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
+            return 0;
+        }
+        /* not taken within a second (the drawer busy on a slow disk): withdrawn, left for the task to free, and the
+         * desktop goes on as if the drawer had nothing there. One it took is answered from memory: waited for. */
+        DateStamp(&now);
+        Forbid();
+        gave_up = ob_q_withdraw(&q->state, ticks_between(&since, &now));
+        Permit();
+        if (gave_up) {
             qbuf = AllocVec(sizeof *qbuf, MEMF_PUBLIC | MEMF_CLEAR);
             return 0;
         }
