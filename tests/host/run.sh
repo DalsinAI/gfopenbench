@@ -77,6 +77,11 @@ cc -std=gnu99 -Wall -Wextra -Werror -O2 -g $SAN -I"$HERE/benchmark" "$HERE/bench
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_rexx.c" \
   "$HERE/tests/host/test_ob_rexx.c" -o "$OUT/test_ob_rexx"
 "$OUT/test_ob_rexx"
+# ob_tasks: the Workbench task model: supervisor, job queue, low-memory reserve (build plan row 3)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_tasks.c" \
+  "$HERE/tests/host/test_ob_tasks.c" -o "$OUT/test_ob_tasks"
+"$OUT/test_ob_tasks"
 "$OUT/test_benchmark"
 
 rm -rf "$OUT/icons"
