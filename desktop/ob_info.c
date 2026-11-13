@@ -2,7 +2,8 @@
  * the path in a message, and frees everything before it ends; GFOpenBench waits for them before it quits (their
  * code is GFOpenBench's). GadTools gadgets, the screen's font; the window is opened first and the gadgets laid out
  * inside its real borders (GFOpenFrames draws its own). Workbench 3.x's Information window, read for what it holds
- * (no code taken): name, type, size, date; Script, Archived, Readable, Writable, Executable, Deletable; comment;
+ * (no code taken): name, type, size, date; Script, Archived, Readable, Writable, Executable, Deletable;
+ * Hold and Pure in an Advanced section (not on that row); comment;
  * a project's (or a disk's) default tool; a tool's or a project's stack and tool types; Save and Cancel.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
@@ -30,6 +31,7 @@
 
 #include "ob_info.h"
 #include "ob_stack.h"
+#include "ob_prot.h"
 
 #define MAX_INFO 8
 #define MAX_TT 64
@@ -49,7 +51,7 @@ static struct Window *volatile info_win[MAX_INFO];
 static char info_for[MAX_INFO][PATH_LEN];
 
 enum { G_NAME = 1, G_TYPE, G_SIZE, G_DATE, G_PS, G_PA, G_PR, G_PW, G_PE, G_PD, G_COMMENT, G_TOOL, G_TTLIST, G_TTSTR,
-       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_COUNT };
+       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_ADV, G_HOLD, G_PURE, G_COUNT };
 
 typedef struct {
     struct Screen *scr;
@@ -298,6 +300,15 @@ static void layout(info *in, WORD *iw, WORD *ih, int make)
             if (make) p = gad(in, p, CHECKBOX_KIND, G_PS + i, ox + cx, oy + cy, 26, rh, prot[i], PLACETEXT_RIGHT, GTCB_Checked, on, GTCB_Scaled, TRUE, TAG_DONE);
         }
         y += 2 * (rh + 2) + 6;
+        /* Hold and Pure are the Advanced section only (gap N7), not one of the six above. */
+        if (make) {
+            p = gad(in, p, TEXT_KIND, G_ADV, ox + m, oy + y, cw, rh, NULL, 0, GTTX_Text, (ULONG)"Advanced", GTTX_Border, FALSE, TAG_DONE);
+            p = gad(in, p, CHECKBOX_KIND, G_HOLD, ox + m + cw, oy + y, 26, rh, "Hold", PLACETEXT_RIGHT,
+                    GTCB_Checked, (LONG)ob_prot_hold_on(in->prot), GTCB_Scaled, TRUE, TAG_DONE);
+            p = gad(in, p, CHECKBOX_KIND, G_PURE, ox + m + 2 * cw, oy + y, 26, rh, "Pure", PLACETEXT_RIGHT,
+                    GTCB_Checked, (LONG)ob_prot_pure_on(in->prot), GTCB_Scaled, TRUE, TAG_DONE);
+        }
+        y += rh + 4;
         if (make) p = gad(in, p, STRING_KIND, G_COMMENT, ox + m + lw, oy + y, W - 2 * m - lw, rh, "Comment", PLACETEXT_LEFT, GTST_String, (ULONG)in->comment, GTST_MaxChars, 79, TAG_DONE);
         y += rh + 4;
     }
@@ -384,13 +395,8 @@ static int save(info *in)
 {
     const char *newname = str_of(in, G_NAME);
     if (!in->disk) {
-        LONG p = in->prot & ~(FIBF_SCRIPT | FIBF_ARCHIVE | FIBF_READ | FIBF_WRITE | FIBF_EXECUTE | FIBF_DELETE);
-        if (checked(in, G_PS)) p |= FIBF_SCRIPT;
-        if (checked(in, G_PA)) p |= FIBF_ARCHIVE;
-        if (!checked(in, G_PR)) p |= FIBF_READ;
-        if (!checked(in, G_PW)) p |= FIBF_WRITE;
-        if (!checked(in, G_PE)) p |= FIBF_EXECUTE;
-        if (!checked(in, G_PD)) p |= FIBF_DELETE;
+        LONG p = ob_prot_apply(in->prot, checked(in, G_PS), checked(in, G_PA), checked(in, G_PR), checked(in, G_PW),
+                               checked(in, G_PE), checked(in, G_PD), checked(in, G_HOLD), checked(in, G_PURE));
         if (p != in->prot && !SetProtection((STRPTR)in->path, p)) { say(in, "The protection could not be set."); return 0; }
         if (strcmp(str_of(in, G_COMMENT), in->comment) && !SetComment((STRPTR)in->path, (STRPTR)str_of(in, G_COMMENT))) {
             say(in, "The comment could not be set.");
