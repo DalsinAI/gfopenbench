@@ -18,9 +18,9 @@
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
- *                               from WBStartup with STACK= (64 KB over the default stack) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *                               from WBStartup with STACK= (1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
  *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
- *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK= (64 KB over the default stack) and
+ *                               OpenWorkbenchObjectA with two projects as arguments, its icon's STACK= (1 MB over the default stack and 1 MB) and
  *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
@@ -128,16 +128,14 @@ static int ver_of(const char *path, char *out, int n)
     return 0;
 }
 
-/* GFOS (13 Nov): Format and DiskCopy are applications of their own, not 3.2.3's (version 40 to 47) */
+/* GFOS (13 Nov): Format and DiskCopy are applications of our own (OpenFormat, GFOpen...), not 3.2.3's */
 static void app_row(const char *row, const char *path, int gfos)
 {
     char v[80], why[160];
-    const char *num;
     if (!exists(path)) { snprintf(why, sizeof why, "no %s", path); fail(row, why); return; }
     ver_of(path, v, sizeof v);
     printf("INFO %s %s: %s\n", row, path, v[0] ? v : "no $VER");
-    num = strchr(v, ' ');
-    if (gfos && num && num[1] == '4' && num[2] >= '0' && num[2] <= '7' && num[3] == '.') {
+    if (gfos && !strstr(v, "Open") && !strstr(v, "GF")) {
         snprintf(why, sizeof why, "%s is 3.2.3's (%s), not a GFOS application", path, v);
         fail(row, why);
     } else pass(row);
@@ -771,13 +769,13 @@ static int do_startup(const char *what)
 }
 
 /* ---- launching (row 6's launcher) ---- */
-/* the STACK= the launch tests ask for: 64 KB over the Workbench's default stack (at least 40000), so the
- * default can't pass for it */
+/* the STACK= the launch tests ask for: 1 MB over the Workbench's default stack and over 1 MB, so neither the
+ * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
 static unsigned long stack_wanted(void)
 {
     ULONG def = 0;
     WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&def, TAG_END);
-    return (def > 40000 ? def : 40000) + 65536;
+    return (def > 1048576 ? def : 1048576) + 1048576;
 }
 
 /* STACK=n from an icon's tool types, 0 if none */
@@ -793,7 +791,7 @@ static unsigned long icon_stack(const char *path)
     return n;
 }
 
-/* the line a start with LAUNCHREC wrote: I12a STACK= (64 KB over the default stack), I12b TOOLPRI=-3, and with args, I11 three arguments.
+/* the line a start with LAUNCHREC wrote: I12a STACK= (1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
  * 0 if there was none (each row SKIPped) */
 static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
 {
