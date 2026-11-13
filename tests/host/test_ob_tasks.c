@@ -293,6 +293,20 @@ static void test_guard(void)
     CHECK("not held: not waiting", ob_guard_held(0, 0, 1) == 0);
 }
 
+static void test_place(void)
+{
+    ob_place p = { "Disk.info", 0, 0, 0 };
+    CHECK("place: another icon left alone", ob_place_take(&p, "Other", 0, 0, 10, 20) == 2 && !p.found);
+    CHECK("place: the one named, any case, stops", ob_place_take(&p, "disk.INFO", 0, 1, 48, 30) == -1 && p.found &&
+          p.x == 48 && p.y == 30);
+    p.found = 0;
+    CHECK("place: a longer name isn't it", ob_place_take(&p, "Disk.info2", 0, 0, 1, 1) == 2 && !p.found);
+    CHECK("place: a shorter name isn't it", ob_place_take(&p, "Disk", 0, 0, 1, 1) == 2 && !p.found);
+    CHECK("place: negative places kept", ob_place_take(&p, "Disk.info", 0, 0, -5, -12) == -1 && p.x == -5 && p.y == -12);
+    p.name = 0;
+    CHECK("place: no name asked: nothing", ob_place_take(&p, "Disk.info", 0, 0, 1, 1) == 2);
+}
+
 static void test_ask(void)
 {
     volatile int st = OB_Q_QUEUED;
@@ -387,6 +401,7 @@ int main(void)
     test_guard();
     test_out();
     test_ask();
+    test_place();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

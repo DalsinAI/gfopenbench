@@ -5379,8 +5379,17 @@ static int rx_icon_at(struct Window *w, int i, ob_rexx_icon *out, int detail)
     out->type = rx_dir.e[i].drawer ? "DRAWER" : "PROJECT";
     if (detail) {
         if (wb_entry_icon(&rx_dir, i, look.scr) && rx_dir.e[i].icon_type) out->type = rx_type(rx_dir.e[i].icon_type);
-        out->left = rx_dir.e[i].x;
-        out->top = rx_dir.e[i].y;
+        /* the places the drawer's task laid its icons at (a fresh read has none: 0, 0 when they aren't snapshotted) */
+        {
+            ob_place p = { rx_dir.e[i].name, 0, 0, 0 };
+            if (ob_dt_each(drawers[k], ob_place_take, &p) >= 0 && p.found) {
+                out->left = p.x;
+                out->top = p.y;
+            } else {
+                out->left = rx_dir.e[i].x;
+                out->top = rx_dir.e[i].y;
+            }
+        }
         out->width = rx_dir.e[i].iw;
         out->height = rx_dir.e[i].ih;
     }
