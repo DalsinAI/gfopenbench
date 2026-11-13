@@ -6,9 +6,9 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, A6-A8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
- *                               ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
+ *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
  *                               then a file with an icon made and an icon changed from here: the window's
  *                               inside must change by itself within 5 seconds, with no Update
@@ -17,7 +17,19 @@
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
- *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order
+ *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
+ *                               from WBStartup, and I12c: WBGapG with STACK= alone, its stack field the default) with stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and TOOLPRI=-3) and ENV:GFOpenBench/LoadWB (A10a)
+ *   WBGapTest LAUNCH            rows I11, I12a, I12b: RAM:WBGap/LaunchT (a copy of this program) started by
+ *                               OpenWorkbenchObjectA with two projects as arguments, its icon's stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB) and
+ *                               TOOLPRI=-3; it writes what it got to RAM:wbgap-launch
+ *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
+ *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
+ *   WBGapTest REPORT <file>     the lines of the modes above, in <file>, as exactly one PASS, FAIL or SKIP line per
+ *                               gap id (wbgap_rows.c, the gaps document plus the 13 Nov decisions), and a count
+ *
+ * Rows the 13 Nov decisions (amicradle-teams designs/WORKBENCH-REDESIGN-20261113.md) changed for GFOS only (M1, M4,
+ * M5, M24, M26, S2d, A10a) are checked the GFOS way when the desktop is GFOpenBench (an OPENBENCH port, or a menu
+ * titled GFOpenBench), and the 3.2.3 way otherwise.
  *
  * Started from the Workbench (as SYS:WBStartup/WBGapX), it writes "start X" to RAM:wbgap-order, waits
  * the STAMPSECS seconds its icon names, and writes "end X".
@@ -44,6 +56,8 @@
 #include <proto/icon.h>
 #include <proto/wb.h>
 
+#include "wbgap_rows.h"
+
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
 extern struct WBStartup *_WBenchMsg;   /* libnix: the Workbench's message, when started from it */
@@ -60,6 +74,73 @@ static void find_dragtest(void)
 static void pass(const char *row) { printf("PASS %s\n", row); }
 static void fail(const char *row, const char *why) { printf("FAIL %s %s\n", row, why); fails++; }
 static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row, why); }
+
+/* the desktop is GFOpenBench: its OPENBENCH ARexx port (0.1.53 on), or (MENUS) a menu titled GFOpenBench */
+static int check_launchrec(const char *file, int args_too, unsigned long want_stack);
+static void check_stack_alone(const char *file, unsigned long want);
+static unsigned long stack_wanted(void);
+static unsigned long icon_stack(const char *path);
+static int gfos_menu_seen;
+static int is_gfos(void)
+{
+    struct MsgPort *p;
+    Forbid();
+    p = FindPort((CONST_STRPTR)"OPENBENCH");
+    Permit();
+    return p != NULL || gfos_menu_seen;
+}
+
+static int exists(const char *path)
+{
+    BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
+    if (l) UnLock(l);
+    return l != 0;
+}
+
+/* a program's "$VER: " string, up to its end; 0 if the file can't be read or has none */
+static int ver_of(const char *path, char *out, int n)
+{
+    static char buf[4096 + 128];
+    BPTR fh = Open((CONST_STRPTR)path, MODE_OLDFILE);
+    long got, keep = 0, i;
+    out[0] = 0;
+    if (!fh) return 0;
+    while ((got = Read(fh, buf + keep, 4096)) > 0) {
+        long len = keep + got;
+        for (i = 0; i + 6 <= len; i++)
+            if (!memcmp(buf + i, "$VER: ", 6)) {
+                int k = 0;
+                if (i + 6 + n > len) {   /* the string runs on: read the rest of it */
+                    memmove(buf, buf + i, len - i);
+                    len -= i;
+                    i = 0;
+                    got = Read(fh, buf + len, 64);
+                    if (got > 0) len += got;
+                }
+                for (i += 6; i < len && k < n - 1 && buf[i] && buf[i] != '\n' && buf[i] != '\r'; i++) out[k++] = buf[i];
+                out[k] = 0;
+                Close(fh);
+                return 1;
+            }
+        keep = len < 5 ? len : 5;   /* "$VER:" across two reads */
+        memmove(buf, buf + len - keep, keep);
+    }
+    Close(fh);
+    return 0;
+}
+
+/* GFOS (13 Nov): Format and DiskCopy are applications of our own (OpenFormat, GFOpen...), not 3.2.3's */
+static void app_row(const char *row, const char *path, int gfos)
+{
+    char v[80], why[160];
+    if (!exists(path)) { snprintf(why, sizeof why, "no %s", path); fail(row, why); return; }
+    ver_of(path, v, sizeof v);
+    printf("INFO %s %s: %s\n", row, path, v[0] ? v : "no $VER");
+    if (gfos && !strstr(v, "Open") && !strstr(v, "GF")) {
+        snprintf(why, sizeof why, "%s is 3.2.3's (%s), not a GFOS application", path, v);
+        fail(row, why);
+    } else pass(row);
+}
 
 /* cybergraphics.library ReadRGBPixel (LVO -108: a1 rp, d0 x, d1 y), for a window on a deep RTG screen,
  * where ReadPixel gives no pen */
@@ -101,6 +182,7 @@ static void add_name(const char *menu, const char *item, const char *sub, int ke
 {
     char m[24], i[40], s[40];
     norm(m, menu ? menu : "", sizeof m);
+    if (!strcmp(m, "gfopenbench")) gfos_menu_seen = 1;
     norm(i, item, sizeof i);
     if (sub) norm(s, sub, sizeof s);
     if (dump) printf("MENU %s / %s%s%s%s%c\n", menu ? menu : "?", item, sub ? " / " : "", sub ? sub : "",
@@ -184,7 +266,7 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M23", "icons:delete"},
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
-    {"M26", "tools:resetwb"},
+    {"M26", "*:resetwb|refresh openbench"},
     {"M29", "workbench|gfopenbench:open volume"},
     {"M30", "window:clear selection"},
     {"M31", "window:resize to fit"},
@@ -240,9 +322,22 @@ static int do_menus(int dump)
     printf("INFO menus from %d Workbench window(s), %d names\n", wins, nnames);
     if (dump) return 0;
     if (!wins) { fail("M*", "no Workbench window has a menu strip"); return 10; }
-    for (i = 0; i < (int)(sizeof menu_rows / sizeof menu_rows[0]); i++)
-        if (has(menu_rows[i].spec)) pass(menu_rows[i].row);
-        else fail(menu_rows[i].row, menu_rows[i].spec);
+    printf("INFO desktop: %s\n", is_gfos() ? "GFOpenBench (GFOS rows)" : "not GFOpenBench (3.2.3 rows)");
+    for (i = 0; i < (int)(sizeof menu_rows / sizeof menu_rows[0]); i++) {
+        const char *row = menu_rows[i].row;
+        if (is_gfos() && (!strcmp(row, "M1") || !strcmp(row, "M5"))) {   /* removed in GFOS (13 Nov) */
+            if (has(menu_rows[i].spec)) fail(row, "removed by the 13 Nov decision, still in a menu");
+            else pass(row);
+        } else if (is_gfos() && !strcmp(row, "M4")) {   /* Refresh OpenBench covers Update All */
+            if (has("*:refresh openbench")) pass(row); else fail(row, "no Refresh OpenBench item (covers Update All)");
+        } else if (is_gfos() && !strcmp(row, "M24")) {   /* Format: a separate application */
+            app_row(row, "SYS:System/Format", 1);
+        } else if (has(menu_rows[i].spec)) pass(row);
+        else fail(row, menu_rows[i].spec);
+    }
+    /* D3 Format and D4 DiskCopy: separate applications; on GFOS not 3.2.3's own */
+    app_row("D3", "SYS:System/Format", is_gfos());
+    app_row("D4", "SYS:System/DiskCopy", is_gfos());
     if (check_keys()) fail("M28", "Amiga-keys that mean something else than on 3.2.3 (INFO lines)"); else pass("M28");
     return fails ? 5 : 0;
 }
@@ -257,20 +352,25 @@ static int write_file(const char *path, const char *text)
     return 1;
 }
 
-static int put_icon(const char *path, LONG type, STRPTR *tooltypes)
+static int put_icon_stack(const char *path, LONG type, STRPTR *tooltypes, LONG stack)
 {
     struct DiskObject *d = GetDefDiskObject(type);
     STRPTR *old;
+    LONG oldstack;
     int ok;
     if (!d) return 0;
     old = d->do_ToolTypes;
+    oldstack = d->do_StackSize;
     if (tooltypes) d->do_ToolTypes = tooltypes;
+    if (stack) d->do_StackSize = stack;
     d->do_CurrentX = d->do_CurrentY = NO_ICON_POSITION;
     ok = PutDiskObject((CONST_STRPTR)path, d);
     d->do_ToolTypes = old;
+    d->do_StackSize = oldstack;
     FreeDiskObject(d);
     return ok;
 }
+static int put_icon(const char *path, LONG type, STRPTR *tooltypes) { return put_icon_stack(path, type, tooltypes, 0); }
 
 static int do_setup(void)
 {
@@ -349,6 +449,11 @@ static int do_notify(void)
     do_setup();
     if (!(w = open_drawer("RAM:WBGap", "WBGap", 10, &how))) { fail("F1", "RAM:WBGap's window didn't open"); skip("F2", "no window"); return 10; }
     printf("INFO RAM:WBGap opened by %s\n", how ? "DragTest OPEN" : "OpenWorkbenchObjectA");
+    if (w->Width < 480 || w->Height < 240) {   /* a new drawer may open too small to show its icons (L1 checks that) */
+        ChangeWindowBox(w, w->LeftEdge, w->TopEdge, w->Width < 480 ? 480 : w->Width, w->Height < 240 ? 240 : w->Height);
+        Delay(50);
+        printf("INFO RAM:WBGap's window sized to %dx%d for F1 and F2\n", w->Width, w->Height);
+    }
     Delay(100);   /* its icons drawn */
     before = inside_sum(w);
     write_file("RAM:WBGap/new1", "new\n");
@@ -370,6 +475,34 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
+ * Workbench's windows */
+static int tools_item_within(const char *item, int want, int ticks)
+{
+    char spec[64];
+    snprintf(spec, sizeof spec, "tools:%s", item);
+    for (;;) {
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *w;
+        ULONG lock;
+        int found;
+        nnames = 0;
+        if (wb) {
+            lock = LockIBase(0);
+            for (w = wb->FirstWindow; w; w = w->NextWindow)
+                if ((w->Flags & WFLG_WBENCHWINDOW) && w->MenuStrip) walk_strip(w->MenuStrip, 0);
+            UnlockIBase(lock);
+            UnlockPubScreen(NULL, wb);
+        }
+        found = has(spec);
+        nnames = 0;
+        if (found == want) return 1;
+        if (ticks <= 0) return 0;
+        Delay(5);
+        ticks -= 5;
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -384,18 +517,59 @@ static int do_api(void)
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
-    if (mi) { pass("A4"); RemoveAppMenuItem(mi); } else printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
+    if (mi) {
+        pass("A4");
+        /* M27: the item shows in the Tools menu of the Workbench's windows within 2 s, and goes when removed */
+        if (tools_item_within("wbgapitem", 1, 100)) {
+            RemoveAppMenuItem(mi);
+            if (tools_item_within("wbgapitem", 0, 100)) pass("M27"); else fail("M27", "Tools/WBGapItem still shown 2 s after RemoveAppMenuItem");
+        } else { RemoveAppMenuItem(mi); fail("M27", "Tools/WBGapItem not in the Workbench windows' menus 2 s after AddAppMenuItemA"); }
+    } else { printf("FAIL A4 AddAppMenuItemA NULL (IoErr %ld)\n", (long)IoErr()); fails++; fail("M27", "no AppMenuItem (A4)"); }
     ok = OpenWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6"); else printf("FAIL A6 OpenWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     Delay(50);
-    {   /* UpdateWorkbench gives no answer; IoErr says (103 where no Workbench takes it) */
-        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+    {   /* UpdateWorkbench (A7): a file and icon made, then UpdateWorkbench; the drawer's window must show it at once,
+         * sooner than the 200 ms GFOpenBench's own notify waits, and IoErr stays as it was */
+        BPTR dir;
+        struct Window *w = NULL;
+        ULONG before = 0;
+        int t;
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2");
+        DeleteFile((CONST_STRPTR)"RAM:WBGap/new2.info");
+        for (t = 0; t < 30 && !(w = find_window("WBGap")); t++) Delay(10);
+        if (w) { Delay(100); before = inside_sum(w); }
+        write_file("RAM:WBGap/new2", "new\n");
+        put_icon("RAM:WBGap/new2", WBPROJECT, NULL);
+        dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
         SetIoErr(0);
         UpdateWorkbench((CONST_STRPTR)"new2", dir, UPDATEWB_ObjectAdded);
+        printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
+        if (IoErr() != 0) fail("A7", "UpdateWorkbench set IoErr");
+        else if (!w) fail("A7", "RAM:WBGap's window isn't open");
+        else {
+            Delay(5);
+            if (inside_sum(w) != before) pass("A7");
+            else fail("A7", "the drawer didn't show the new icon 100 ms after UpdateWorkbench");
+        }
         if (dir) UnLock(dir);
     }
-    printf("INFO UpdateWorkbench IoErr %ld\n", (long)IoErr());
-    if (IoErr() == 0) pass("A7"); else fail("A7", "UpdateWorkbench set IoErr");
+    {   /* WBInfo (A9; N8: a program's WBInfo opens it): TRUE, and its window comes; then closed (Ctrl-C) */
+        BPTR dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *iw = NULL;
+        ULONG r;
+        int t;
+        r = dir ? WBInfo(dir, (CONST_STRPTR)"a", wb) : 0;
+        for (t = 0; r && t < 30 && !(iw = find_window("Information: a")); t++) Delay(10);
+        if (r && iw) { pass("A9"); pass("N8"); }
+        else {
+            printf("FAIL A9 WBInfo %s, %s (IoErr %ld)\n", r ? "TRUE" : "FALSE", iw ? "window open" : "no window", (long)IoErr()), fails++;
+            printf("FAIL N8 WBInfo from a program opened no Information window\n"), fails++;
+        }
+        if (iw && iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+        if (wb) UnlockPubScreen(NULL, wb);
+        if (dir) UnLock(dir);
+    }
     ok = MakeWorkbenchObjectVisibleA((STRPTR)"RAM:WBGap/a", NULL);
     if (ok) pass("A8a"); else printf("FAIL A8a MakeWorkbenchObjectVisibleA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     memset(&hook, 0, sizeof hook);
@@ -503,16 +677,105 @@ static int from_workbench(struct WBStartup *wbs)
     BPTR old = CurrentDir(arg->wa_Lock);
     struct DiskObject *d = GetDiskObject((CONST_STRPTR)name);
     long secs = 1;
+    int rec = 0;
+    char recfile[64] = "RAM:wbgap-launch";
     if (d) {
         STRPTR v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"STAMPSECS");
         if (v) secs = atol((const char *)v);
+        if ((v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"LAUNCHREC"))) {   /* LAUNCHREC[=file] */
+            rec = 1;
+            if (*v) snprintf(recfile, sizeof recfile, "%s", (const char *)v);
+        }
         FreeDiskObject(d);
     }
     CurrentDir(old);
+    if (rec) {   /* LAUNCH: what this start got, as one line */
+        struct Task *me = FindTask(NULL);
+        char line[400];
+        int i, n;
+        BPTR fh = Open((CONST_STRPTR)recfile, MODE_NEWFILE);
+        n = snprintf(line, sizeof line, "launch stack %lu pri %d args %ld",
+                     (unsigned long)((char *)me->tc_SPUpper - (char *)me->tc_SPLower), (int)me->tc_Node.ln_Pri,
+                     (long)wbs->sm_NumArgs);
+        for (i = 0; i < wbs->sm_NumArgs && n < (int)sizeof line - 40; i++)
+            n += snprintf(line + n, sizeof line - n, " %s", (const char *)wbs->sm_ArgList[i].wa_Name);
+        snprintf(line + n, sizeof line - n, "\n");
+        if (fh) { Write(fh, line, strlen(line)); Close(fh); }
+        return 0;
+    }
     stamp("start", name);
     Delay(secs * 50);
     stamp("end", name);
     return 0;
+}
+
+/* A10a: the LoadWB switches GFOpenBench says it took (ENV:GFOpenBench/LoadWB, words) are the ones on the
+ * Startup-Sequence's line that started the desktop: "SYS:System/OpenBench ..." where that exists, else "LoadWB ..." */
+static const char *const loadwb_switches[] = {"DEBUG", "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SKIP",
+                                              "SIMPLEGELS", "LEGACY"};
+static int stricmp_n(const char *a, const char *b, int n)
+{
+    for (; n > 0; n--, a++, b++) {
+        char x = (*a >= 'a' && *a <= 'z') ? *a - 32 : *a, y = (*b >= 'a' && *b <= 'z') ? *b - 32 : *b;
+        if (x != y) return 1;
+        if (!x) return 0;
+    }
+    return 0;
+}
+static void upper(char *t) { for (; *t; t++) if (*t >= 'a' && *t <= 'z') *t -= 32; }
+static int switches_of(char *text, char *out, int n)   /* the known switches in text, as " A B ", in the template's order */
+{
+    int k, count = 0;
+    char *w;
+    out[0] = 0;
+    upper(text);
+    for (k = 0; k < (int)(sizeof loadwb_switches / sizeof loadwb_switches[0]); k++) {
+        const char *sw = loadwb_switches[k];
+        char tmp[400];
+        snprintf(tmp, sizeof tmp, "%s", text);
+        for (w = strtok(tmp, " \t\r\n"); w; w = strtok(NULL, " \t\r\n"))
+            if (!strcmp(w, sw)) {
+                const char *name = !strcmp(sw, "-DEBUG") ? "DEBUG" : !strcmp(sw, "SKIP") ? "SKIPWBSTARTUP" : sw;
+                if (!strstr(out, name) && (int)(strlen(out) + strlen(name) + 2) < n) { strcat(out, " "); strcat(out, name); count++; }
+            }
+    }
+    return count;
+}
+static void check_loadwb(void)
+{
+    char env[200] = "", seq[400] = "", line[256], want[120], got[120];
+    BPTR fh;
+    if (!is_gfos()) { skip("A10a", "GFOS only: 3.2.3 keeps no record of LoadWB's switches"); return; }
+    if (!(fh = Open((CONST_STRPTR)"ENV:GFOpenBench/LoadWB", MODE_OLDFILE))) { fail("A10a", "no ENV:GFOpenBench/LoadWB"); return; }
+    { long n = Read(fh, env, sizeof env - 1); env[n > 0 ? n : 0] = 0; }
+    Close(fh);
+    {   /* the line that started the desktop: SYS:System/OpenBench's where it exists (Instance-32), else LoadWB's */
+        int ob = exists("SYS:System/OpenBench");
+        const char *cmd = ob ? "SYS:System/OpenBench" : "LoadWB";
+        int cl = (int)strlen(cmd);
+        if ((fh = Open((CONST_STRPTR)"S:Startup-Sequence", MODE_OLDFILE))) {
+            while (FGets(fh, (STRPTR)line, sizeof line)) {
+                char *p = line;
+                for (;;) {   /* leading blanks, "Run" and redirections */
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (!stricmp_n(p, "Run ", 4)) { p += 4; continue; }
+                    if (*p == '>' || *p == '<') { while (*p && *p != ' ' && *p != '\t') p++; continue; }
+                    break;
+                }
+                if (!ob && !stricmp_n(p, "C:LoadWB", 8)) p += 2;
+                if (!stricmp_n(p, cmd, cl) && (p[cl] == ' ' || p[cl] == '\t' || p[cl] == '\n' || !p[cl])) {
+                    snprintf(seq, sizeof seq, "%s", p + cl);
+                    break;
+                }
+            }
+            Close(fh);
+        }
+        printf("INFO A10a the desktop's line (the first %s line in S:Startup-Sequence): %s%s", cmd, cmd, seq[0] ? seq : "\n");
+    }
+    switches_of(seq, want, sizeof want);
+    switches_of(env, got, sizeof got);
+    printf("INFO A10a Startup-Sequence:%s; GFOpenBench took:%s\n", want[0] ? want : " none", got[0] ? got : " none");
+    if (!strcmp(want, got)) pass("A10a"); else fail("A10a", "the switches taken aren't the Startup-Sequence's");
 }
 
 static int do_startup(const char *what)
@@ -523,6 +786,36 @@ static int do_startup(const char *what)
         static STRPTR tc[] = {(STRPTR)"STAMPSECS=1", NULL};
         int ok = put_icon("SYS:WBStartup/WBGapA", WBTOOL, ta) && put_icon("SYS:WBStartup/WBGapB", WBTOOL, tb) &&
                  put_icon("SYS:WBStartup/WBGapC", WBTOOL, tc);
+        /* S2d: D and E have no STARTPRI either; E was added before C, and C before D, so oldest first is E, C, D
+         * where name order is C, D, E. The date added is the older of the program's and its icon's dates. */
+        if (exists("SYS:WBStartup/WBGapD") && exists("SYS:WBStartup/WBGapE")) {
+            static const char *const names[] = {"SYS:WBStartup/WBGapE", "SYS:WBStartup/WBGapC", "SYS:WBStartup/WBGapD"};
+            struct DateStamp ds;
+            char path[64];
+            int i;
+            ok = ok && put_icon("SYS:WBStartup/WBGapD", WBTOOL, tc) && put_icon("SYS:WBStartup/WBGapE", WBTOOL, tc);
+            for (i = 0; i < 3 && ok; i++) {
+                ds.ds_Days = 7000 + i;   /* 2 March 1997 on, a day apart */
+                ds.ds_Minute = 600;
+                ds.ds_Tick = 0;
+                snprintf(path, sizeof path, "%s.info", names[i]);
+                ok = SetFileDate((CONST_STRPTR)names[i], &ds) && SetFileDate((CONST_STRPTR)path, &ds);
+            }
+        } else printf("INFO no SYS:WBStartup/WBGapD and WBGapE: S2d not set up\n");
+        if (exists("SYS:WBStartup/WBGapF")) {   /* I12a, I12b at WBStartup, which needs no registered Workbench */
+            static char st[24];
+            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)st, (STRPTR)"TOOLPRI=-3",
+                                  (STRPTR)"DONOTWAIT", NULL};
+            unsigned long want = stack_wanted();
+            snprintf(st, sizeof st, "STACK=%lu", want);
+            ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
+        } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
+        if (exists("SYS:WBStartup/WBGapG")) {   /* I12c: STACK= alone, the icon's own field left at the default */
+            static char sg[24];
+            static STRPTR tg[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb2", (STRPTR)sg, (STRPTR)"DONOTWAIT", NULL};
+            snprintf(sg, sizeof sg, "STACK=%lu", stack_wanted());
+            ok = ok && put_icon("SYS:WBStartup/WBGapG", WBTOOL, tg);
+        } else printf("INFO no SYS:WBStartup/WBGapG: I12c not set up\n");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
         printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
         return ok ? 0 : 20;
@@ -544,8 +837,173 @@ static int do_startup(const char *what)
         if (sa && sb && sc) pass("S1"); else fail("S1", "not all three started");
         if (sa && sb && sc && sb < sc && sc < sa) pass("S2"); else fail("S2", "not in STARTPRI order B, C, A");
         if (sc && eb && ec && sa && sc < eb && ec < sa) pass("S3"); else fail("S3", "DONOTWAIT or the wait for a program not honoured");
+        {   /* S2d: no STARTPRI, oldest date added first (GFOS); 3.2.3 goes by name */
+            const char *sd = strstr(buf, "start WBGapD"), *se = strstr(buf, "start WBGapE");
+            if (!sd || !se) skip("S2d", "WBGapD or WBGapE didn't start (not set up?)");
+            else if (!is_gfos()) skip("S2d", "a GFOS decision; 3.2.3 orders by name");
+            else if (se < sc && sc < sd) pass("S2d");
+            else fail("S2d", "not by date added E, C, D");
+        }
+        check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
+        check_stack_alone("RAM:wbgap-launchwb2", icon_stack("SYS:WBStartup/WBGapG"));
+        check_loadwb();
         return fails ? 5 : 0;
     }
+}
+
+/* ---- launching (row 6's launcher) ---- */
+/* the stack the launch tests ask for, in the icon's stack field (3.2.3 starts a tool with that) and as STACK=: 1 MB over the Workbench's default stack and over 1 MB, so neither the
+ * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
+static unsigned long stack_wanted(void)
+{
+    ULONG def = 0;
+    WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&def, TAG_END);
+    return (def > 1048576 ? def : 1048576) + 1048576;
+}
+
+/* STACK=n from an icon's tool types, 0 if none */
+static unsigned long icon_stack(const char *path)
+{
+    struct DiskObject *d = GetDiskObject((CONST_STRPTR)path);
+    unsigned long n = 0;
+    if (d) {
+        STRPTR v = FindToolType((CONST_STRPTR *)d->do_ToolTypes, (CONST_STRPTR)"STACK");
+        if (v) n = strtoul((const char *)v, NULL, 10);
+        FreeDiskObject(d);
+    }
+    return n;
+}
+
+/* the line a start with LAUNCHREC wrote: I12a stack (the icon's field and STACK=, 1 MB over the default stack and 1 MB), I12b TOOLPRI=-3, and with args, I11 three arguments.
+ * 0 if there was none (each row SKIPped) */
+/* I12c: a tool whose icon asks for its stack by STACK= alone (its stack field the default) gets it. On 3.2.3,
+ * which takes the field, the result is for reference only. */
+static void check_stack_alone(const char *file, unsigned long want)
+{
+    char buf[200], why[96];
+    long stack = 0, n;
+    BPTR fh = Open((CONST_STRPTR)file, MODE_OLDFILE);
+    if (!want) { skip("I12c", "no STACK= read back from WBGapG's icon"); return; }
+    if (!fh) { snprintf(why, sizeof why, "%s not written: WBGapG didn't start", file); skip("I12c", why); return; }
+    n = Read(fh, buf, sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    Close(fh);
+    sscanf(buf, "launch stack %ld", &stack);
+    printf("INFO I12c STACK= alone: stack seen %ld, wanted %lu\n", stack, want);
+    if ((unsigned long)stack >= want) pass("I12c");
+    else if (!is_gfos()) skip("I12c", "reference: 3.2.3 takes the icon's stack field, not STACK= alone");
+    else { snprintf(why, sizeof why, "STACK=%lu alone not given (%ld)", want, stack); fail("I12c", why); }
+}
+
+static int check_launchrec(const char *file, int args_too, unsigned long want_stack)
+{
+    char buf[400];
+    long stack = 0, args = 0, n;
+    int pri = 0;
+    BPTR fh = Open((CONST_STRPTR)file, MODE_OLDFILE);
+    if (!fh) {
+        char why[96];
+        snprintf(why, sizeof why, "%s not written: not launched", file);
+        if (args_too) fail("I11", why);
+        skip("I12a", why);
+        skip("I12b", why);
+        return 0;
+    }
+    n = Read(fh, buf, sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    Close(fh);
+    printf("INFO %s: %s", file, buf);
+    sscanf(buf, "launch stack %ld pri %d args %ld", &stack, &pri, &args);
+    printf("INFO I12a stack seen %ld, wanted %lu\n", stack, want_stack);
+    if (args_too) { if (args == 3 && strstr(buf, " LaunchT p1 p2")) pass("I11"); else fail("I11", "not 3 arguments LaunchT, p1, p2 in order"); }
+    if (!want_stack) skip("I12a", "no stack asked for (the icon's STACK= unread)");
+    else if ((unsigned long)stack >= want_stack) pass("I12a");
+    else { char why[64]; snprintf(why, sizeof why, "STACK=%lu not given (%ld)", want_stack, stack); fail("I12a", why); }
+    if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
+    return 1;
+}
+
+static int do_launch(void)
+{
+    static char st[24];
+    static STRPTR tt[] = {(STRPTR)"LAUNCHREC", (STRPTR)st, (STRPTR)"TOOLPRI=-3", NULL};
+    unsigned long want = stack_wanted();
+    char cmd[320];
+    BPTR dir, fh = 0;
+    BOOL ok;
+    int t;
+    snprintf(st, sizeof st, "STACK=%lu", want);
+    do_setup();
+    {   /* this program, by its full name: a Shell's PROGDIR: is the Shell's */
+        char self[256] = "WBGapTest";
+        BPTR pd = GetProgramDir();
+        if (pd && NameFromLock(pd, (STRPTR)self, sizeof self - 12)) AddPart((STRPTR)self, (CONST_STRPTR)"WBGapTest", sizeof self);
+        snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGap/LaunchT QUIET", self);
+    }
+    if (run(cmd) != 0 || !put_icon_stack("RAM:WBGap/LaunchT", WBTOOL, tt, (LONG)want)) {
+        fail("I11", "RAM:WBGap/LaunchT not made"); skip("I12a", "no LaunchT"); skip("I12b", "no LaunchT"); return 20;
+    }
+    write_file("RAM:WBGap/p1", "p1\n");
+    put_icon("RAM:WBGap/p1", WBPROJECT, NULL);
+    write_file("RAM:WBGap/p2", "p2\n");
+    put_icon("RAM:WBGap/p2", WBPROJECT, NULL);
+    DeleteFile((CONST_STRPTR)"RAM:wbgap-launch");
+    printf("INFO largest free block before the launch: %lu bytes\n", (unsigned long)AvailMem(MEMF_LARGEST));
+    dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
+    ok = dir && OpenWorkbenchObject((STRPTR)"RAM:WBGap/LaunchT", WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p1",
+                                    WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p2", TAG_DONE);
+    for (t = 0; ok && t < 100 && !(fh = Open((CONST_STRPTR)"RAM:wbgap-launch", MODE_OLDFILE)); t++) Delay(5);
+    if (dir) UnLock(dir);
+    if (!ok) {   /* I12 is checked at WBStartup too (STARTUP CHECK), which needs no registered Workbench */
+        printf("FAIL I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld): needs A6\n", (long)IoErr()), fails++;
+        skip("I12a", "not launched here (A6); see STARTUP CHECK");
+        skip("I12b", "not launched here (A6); see STARTUP CHECK");
+        return 10;
+    }
+    if (fh) Close(fh);
+    Delay(10);   /* the line written whole */
+    check_launchrec("RAM:wbgap-launch", 1, want);
+    return fails ? 5 : 0;
+}
+
+/* ---- L1, the default layout: the drawer; WBGapLayout.rexx opens it and reads the icons' places ---- */
+static int do_layout(void)
+{
+    static const struct { const char *name; LONG type; } in[] = {
+        {"ztool", WBTOOL}, {"mproj", WBPROJECT}, {"ydrawer", WBDRAWER}, {"atool", WBTOOL}, {"cdrawer", WBDRAWER},
+        {"bproj", WBPROJECT},
+    };
+    char path[64];
+    BPTR l;
+    int i, ok = 1;
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapL", NULL);
+    l = CreateDir((CONST_STRPTR)"RAM:WBGapL");
+    if (l) UnLock(l);
+    ok = put_icon("RAM:WBGapL", WBDRAWER, NULL);
+    for (i = 0; i < (int)(sizeof in / sizeof in[0]); i++) {
+        snprintf(path, sizeof path, "RAM:WBGapL/%s", in[i].name);
+        if (in[i].type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+        else write_file(path, "WBGapTest L1\n");
+        ok = put_icon(path, in[i].type, NULL) && ok;   /* NO_ICON_POSITION: the desktop lays them out */
+    }
+    printf("INFO RAM:WBGapL %s\n", ok ? "made" : "NOT made");
+    return ok ? 0 : 20;
+}
+
+/* ---- the report ---- */
+static void out_line(void *ctx, const char *line) { (void)ctx; printf("%s\n", line); }
+
+static int do_report(const char *path)
+{
+    static struct wbgap_report r;   /* 19 KB: not on the stack */
+    char line[300];
+    FILE *f = fopen(path, "r");
+    if (!f) { printf("FAIL setup %s can't be read\n", path); return 20; }
+    wbgap_report_init(&r);
+    while (fgets(line, sizeof line, f)) wbgap_report_line(&r, line);
+    fclose(f);
+    if (r.unknown) printf("INFO %d result line(s) naming no gap id\n", r.unknown);
+    return wbgap_report_print(&r, out_line, NULL) ? 5 : 0;
 }
 
 int main(int argc, char **argv)
@@ -556,7 +1014,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LAUNCH | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -566,6 +1024,9 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
+    else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
+    else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
+    else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else printf("unknown: %s\n", argv[1]);
 out:
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
