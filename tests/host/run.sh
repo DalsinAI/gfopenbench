@@ -66,6 +66,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_stack.c" \
   "$HERE/tests/host/test_ob_stack.c" -o "$OUT/test_ob_stack"
 "$OUT/test_ob_stack"
+# ob_prot: Hold and Pure in the Information window's Advanced section (gap N7)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_prot.c" \
+  "$HERE/tests/host/test_ob_prot.c" -o "$OUT/test_ob_prot"
+"$OUT/test_ob_prot"
 # ob_backdrop: a disk's .backdrop, Icons > Leave Out's line added and Put Away's taken out (GFOpenBench 0.1.41)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_backdrop.c" \
