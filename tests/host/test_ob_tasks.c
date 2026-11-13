@@ -71,6 +71,21 @@ static void test_super(void)
     CHECK("ids still unique", extra[0] != extra[1]);
 }
 
+static void test_vol_name(void)
+{
+    char v[8];
+    ob_vol_name("DH0:a/b", v, sizeof v);
+    CHECK("vol: device", !strcmp(v, "DH0"));
+    ob_vol_name("RAM:", v, sizeof v);
+    CHECK("vol: root", !strcmp(v, "RAM"));
+    ob_vol_name("a/b", v, sizeof v);
+    CHECK("vol: relative has none", !v[0]);
+    ob_vol_name("VeryLongVolume:x", v, sizeof v);
+    CHECK("vol: cut to fit", !strcmp(v, "VeryLon"));
+    ob_vol_name(NULL, v, sizeof v);
+    CHECK("vol: null", !v[0]);
+}
+
 static void test_jobq(void)
 {
     ob_jobq q;
@@ -279,6 +294,7 @@ int main(void)
     test_super();
     test_jobq();
     test_reserve();
+    test_vol_name();
     test_seq();
     test_names();
     test_pack();

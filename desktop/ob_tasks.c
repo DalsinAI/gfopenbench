@@ -82,6 +82,19 @@ static int same_vol(const char *a, const char *b)
     }
 }
 
+void ob_vol_name(const char *path, char *out, int n)
+{
+    int i;
+    if (n <= 0) return;
+    out[0] = 0;
+    if (!path) return;
+    for (i = 0; path[i] && path[i] != ':'; i++) ;
+    if (path[i] != ':') return;
+    if (i > n - 1) i = n - 1;
+    for (n = 0; n < i; n++) out[n] = path[n];
+    out[i] = 0;
+}
+
 void ob_jobq_init(ob_jobq *q, int max_running)
 {
     zero(q, sizeof *q);

@@ -83,6 +83,9 @@ int ob_jobq_cancel(ob_jobq *q, unsigned long id);                /* 1 taken out,
 void ob_jobq_finish(ob_jobq *q, unsigned long id, int ok);
 int ob_jobq_reap(ob_jobq *q);                                    /* finished jobs dropped; how many */
 int ob_jobq_percent(const ob_job *j);
+/* What a job is ordered by when there is no disk to ask: the volume or device name of path, before its ':'
+ * ("DH0:a/b" gives "DH0"); "" when path names none (a relative path: the caller's current disk) */
+void ob_vol_name(const char *path, char *out, int n);
 
 /* ---- low memory ---- */
 typedef struct ob_mem {
