@@ -8,6 +8,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
+#include <dos/var.h>
 #include <devices/timer.h>
 #include <workbench/startup.h>
 #include <proto/exec.h>
@@ -291,6 +292,18 @@ static void quit_all(int secs)
     }
 }
 
+/* WBGapTest X4 (tests/amiga/WBGapX4.rexx), in a lab only: with ENV:GFOpenBench/X4Test set, a program named
+ * WBGapCrash makes the launcher crash here (an illegal instruction), for the task guard to hold and the desktop's
+ * supervisor to find (ob_guard.h). Nothing happens without the variable. */
+static void x4_test(const char *tool)
+{
+    char v[4];
+    const char *name = (const char *)FilePart((CONST_STRPTR)tool);
+    if (strcmp(name, "WBGapCrash") || GetVar((CONST_STRPTR)"GFOpenBench/X4Test", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) < 0)
+        return;
+    __asm volatile("illegal");
+}
+
 static void launcher_entry(void)
 {
     struct MsgPort *tport = NULL, *rp;
@@ -333,6 +346,7 @@ static void launcher_entry(void)
             switch (r->kind) {
             case OB_LR_START:
                 r->tool[sizeof r->tool - 1] = 0;
+                x4_test(r->tool);
                 r->id = OLBase ? ol_start(r) : start_tool(r);
                 r->ok = r->id != 0;
                 ReplyMsg(m);
