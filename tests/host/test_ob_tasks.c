@@ -225,6 +225,23 @@ static void test_pack(void)
     CHECK("no NUL: nothing", ob_unpack(buf, sizeof buf, 1, out, 4) == 0);
 }
 
+static void test_guard(void)
+{
+    unsigned char rec[16] = {'T', 'G', 'R', 'D', 0, 0, 0, 4, 0, 0x21, 0xF0, 0x0A, 0, 0, 0x4A, 0xFC};
+    ob_held h;
+    CHECK("rec at", ob_guard_rec_at(0x1000, 0x2000) == 0x2000 - 56);
+    CHECK("rec aligned", ob_guard_rec_at(0x1000, 0x2003) == ((0x2003UL - 56) & ~3UL));
+    CHECK("stack too small", ob_guard_rec_at(0x1FF0, 0x2000) == 0);
+    CHECK("bad bounds", ob_guard_rec_at(0x2000, 0x1000) == 0 && ob_guard_rec_at(0, 10) == 0);
+    CHECK("read", ob_guard_read(rec, &h) == 1 && h.vector == 4 && h.pc == 0x0021F00AUL && h.addr == 0x4AFC);
+    rec[7] = 2;
+    CHECK("vector not the guard's", ob_guard_read(rec, &h) == 0);
+    rec[7] = 3;
+    rec[0] = 'X';
+    CHECK("no magic", ob_guard_read(rec, &h) == 0);
+    CHECK("null", ob_guard_read(0, &h) == 0);
+}
+
 int main(void)
 {
     test_super();
@@ -233,6 +250,7 @@ int main(void)
     test_seq();
     test_names();
     test_pack();
+    test_guard();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }

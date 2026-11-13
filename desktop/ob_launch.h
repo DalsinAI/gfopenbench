@@ -58,6 +58,13 @@ typedef struct ob_lreq {
 int ob_launch_start(void);
 /* r to the launcher (its mn_ReplyPort set by the caller). */
 void ob_launch_send(ob_lreq *r);
+/* The launcher's process, for the supervisor; NULL when there is none. */
+struct Task *ob_launch_task(void);
+/* The launcher crashed (the task guard holds it): it is let go and its request port handed back, with the requests
+ * it hadn't taken still on it (the caller takes them off and sends them to the next launcher, ob_launch_start).
+ * Its ports and its programs' memory stay, as Suspend leaves them; programs it started through gfopenlaunch.library
+ * go on being the library's. */
+struct MsgPort *ob_launch_abandon(void);
 /* A lock on the drawer holding path, and the name in it (as a WBArg wants them); 0 when there is none. */
 BPTR ob_parent_and_name(const char *path, char *name, int n);
 

@@ -30,6 +30,7 @@ typedef struct launch {
 } launch;
 
 static struct MsgPort *volatile req_port;   /* the launcher's, for ob_lreq */
+static struct Task *launcher_task;
 static struct Task *parent;
 static BYTE ready_sig = -1;
 
@@ -296,6 +297,11 @@ static void launcher_entry(void)
     struct timerequest *tr = NULL;
     int timer = 0, ticking = 0;
     ob_lreq *end = NULL;
+    int i;
+    /* a fresh start after one held by the task guard (ob_launch_abandon): nothing of the held one's is ours */
+    launches = NULL;
+    running = 0;
+    for (i = 0; i < OB_WATCH_MAX; i++) watch[i].id = 0;
     rp = CreateMsgPort();
     wbs_port = CreateMsgPort();
     if ((tport = CreateMsgPort()) && (tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
@@ -388,7 +394,10 @@ int ob_launch_start(void)
     SetSignal(0, 1UL << ready_sig);
     p = CreateNewProcTags(NP_Entry, (ULONG)launcher_entry, NP_StackSize, 16384,
                           NP_Name, (ULONG)"GFOpenBench launcher", TAG_DONE);
-    if (p) Wait(1UL << ready_sig);
+    if (p) {
+        Wait(1UL << ready_sig);
+        launcher_task = &p->pr_Task;
+    }
     FreeSignal(ready_sig);
     ready_sig = -1;
     return req_port != NULL;
@@ -399,4 +408,20 @@ void ob_launch_send(ob_lreq *r)
     r->msg.mn_Node.ln_Type = NT_MESSAGE;
     r->msg.mn_Length = sizeof *r;
     PutMsg(req_port, &r->msg);
+}
+
+struct Task *ob_launch_task(void)
+{
+    return req_port ? launcher_task : NULL;
+}
+
+struct MsgPort *ob_launch_abandon(void)
+{
+    struct MsgPort *old;
+    Forbid();
+    old = req_port;
+    req_port = NULL;
+    launcher_task = NULL;
+    Permit();
+    return old;
 }

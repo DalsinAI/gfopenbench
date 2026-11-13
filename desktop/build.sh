@@ -159,7 +159,8 @@ DROP_OBJS="$DROP_OBJS $TMP/ob_rexx.o $TMP/ob_arexx.o"
 # the process that starts programs so the desktop never waits)
 "$CC" $FLAGS -c -o "$TMP/ob_tasks.o" "$HERE/ob_tasks.c"
 "$CC" $FLAGS -I"$HERE/../launcher" -c -o "$TMP/ob_launch.o" "$HERE/ob_launch.c"
-DROP_OBJS="$DROP_OBJS $TMP/ob_tasks.o $TMP/ob_launch.o"
+"$CC" $FLAGS -c -o "$TMP/ob_guard.o" "$HERE/ob_guard.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_tasks.o $TMP/ob_launch.o $TMP/ob_guard.o"
 # wb_dir, as it is (0.1.23 to 0.1.31 renamed its wb_dir_read and wb_entry_icon for ROM:Prefs's editors; the ROM has
 # no ROM: since the no-ROM-volume design, 24 October 2026)
 # shellcheck disable=SC2086

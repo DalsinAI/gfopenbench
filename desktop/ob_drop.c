@@ -66,6 +66,7 @@
 #include <proto/icon.h>
 
 #include "ob_drop.h"
+#include "ob_guard.h"
 #include "of_ops.h"
 #include "of_fs_amiga.h"
 #include "of_path.h"
@@ -871,6 +872,13 @@ static int appwindow_drop(struct Window *w, const char *const *paths, int n, WOR
      * away between the two */
     Forbid();
     if (!appwindow_at(w, sx, sy, &at)) {
+        Permit();
+        app_free(am);
+        return 0;
+    }
+    /* build plan row 3 (X4): a program the task guard holds (it crashed) has its AppWindow and port still, but never
+     * answers: nothing is sent to it, so the desktop doesn't wait on it for ever (app_port, ob_drop_end) */
+    if (ob_task_held(at.aa_Port->mp_SigTask, NULL)) {
         Permit();
         app_free(am);
         return 0;

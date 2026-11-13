@@ -7,6 +7,7 @@
 #include <proto/dos.h>
 
 #include "ob_builtin.h"
+#include "ob_guard.h"
 
 typedef struct ob_builtin {
     const char *name;
@@ -103,6 +104,20 @@ int ob_builtin_open(const char *path)
         return 1;
     }
     return 0;
+}
+
+int ob_builtin_held(void)
+{
+    unsigned i;
+    int n = 0;
+    for (i = 0; i < NB; i++) {
+        struct Task *t = running_task[i];
+        if (t && ob_task_held(t, NULL)) {
+            running_task[i] = NULL;         /* let go: it never runs again, and a new one can start */
+            n++;
+        }
+    }
+    return n;
 }
 
 int ob_builtin_running(void)

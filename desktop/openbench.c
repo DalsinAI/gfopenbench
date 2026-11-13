@@ -278,6 +278,7 @@
 #include "ob_arexx.h"
 #include "ob_launch.h"
 #include "ob_tasks.h"
+#include "ob_guard.h"
 #include "ob_pick.h"
 #include "deskicons.h"
 #include "wb_dir.h"
@@ -1810,6 +1811,23 @@ static dicon *icon_at(LONG x, LONG y)
 static struct MsgPort *launch_port;
 static int launcher_up;
 
+/* 0.1.57 (X4): the starts sent and not answered yet, so a launcher the task guard holds (it crashed) loses none:
+ * those still on its port go to the next one, the one it had taken is answered "couldn't start" */
+#define OB_OUT_MAX 64
+static ob_lreq *outstanding[OB_OUT_MAX];
+
+static void out_add(ob_lreq *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++) if (!outstanding[i]) { outstanding[i] = r; return; }
+}
+
+static void out_del(ob_lreq *r)
+{
+    int i;
+    for (i = 0; i < OB_OUT_MAX; i++) if (outstanding[i] == r) outstanding[i] = NULL;
+}
+
 /* what the next start_tool is for: set around an ob_open_object by whoever needs its answer */
 static struct {
     void *om;                               /* an ob_msg to answer once the launcher has (obmsg.h) */
@@ -1848,6 +1866,7 @@ static int start_tool_args(const char *tool, const char *const *args, int n, LON
     r->user = open_ctx.om;
     if (open_ctx.fail) snprintf(r->fail, sizeof r->fail, "%s", open_ctx.fail);
     r->msg.mn_ReplyPort = launch_port;
+    out_add(r);
     ob_launch_send(r);
     open_ctx.sent = 1;
     return 1;
@@ -1909,6 +1928,7 @@ static void launch_answers(void)
         ob_lreq *r = (ob_lreq *)m;
         if (r->kind == OB_LR_ENDED) wbstartup_ended(r->id);
         else if (r->kind == OB_LR_START) {
+            out_del(r);
             if (r->user) {
                 ((struct ob_msg *)r->user)->ok = r->ok;
                 ReplyMsg((struct Message *)r->user);
@@ -1918,6 +1938,73 @@ static void launch_answers(void)
         }
         FreeVec(r);
     }
+}
+
+/* ---- supervision (Workbench build plan row 3, WBGapTest X4) -------------------------------------------------
+ * Every two seconds the desktop looks for its tasks the task guard holds (they crashed: ob_guard.h). The launcher is
+ * started again (ob_super: up to OB_RESTART_MAX times a minute, then left off and each start refused with a
+ * requester); a built-in is let go, to be opened again; the dock is started again. The desktop stays up. */
+static ob_super super;
+static unsigned long launcher_sid, dock_sid, super_secs;
+
+static void launcher_held(void)
+{
+    struct MsgPort *old = ob_launch_abandon();
+    struct Message *m;
+    ob_lreq *again[OB_OUT_MAX];
+    int n = 0, i, act = ob_super_crashed(&super, launcher_sid, super_secs);
+    launcher_up = 0;
+    if (act == OB_ACT_RESTART && (launcher_up = ob_launch_start())) launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
+    else launcher_sid = 0;
+    Forbid();
+    while (old && (m = GetMsg(old)) && n < OB_OUT_MAX) again[n++] = (ob_lreq *)m;   /* not taken yet */
+    Permit();
+    for (i = 0; i < n; i++) {
+        if (launcher_up && again[i]->kind == OB_LR_START) ob_launch_send(again[i]);
+        else {
+            again[i]->ok = 0;
+            ReplyMsg(&again[i]->msg);          /* to launch_port: answered as any other, "couldn't start" */
+        }
+    }
+    for (i = 0; i < OB_OUT_MAX; i++) {         /* the one it had taken: answered here, left to the held task */
+        ob_lreq *r = outstanding[i];
+        int k, queued = 0;
+        if (!r) continue;
+        for (k = 0; k < n; k++) queued |= again[k] == r;
+        if (queued) continue;
+        outstanding[i] = NULL;
+        if (r->user) {
+            ((struct ob_msg *)r->user)->ok = 0;
+            ReplyMsg((struct Message *)r->user);
+        }
+        if (r->tag) wbstartup_answered(r->tag, 0, 0);
+    }
+}
+
+static struct Task *dock_task(void);
+static void remove_dock_port(void);
+static void start_dock(void);
+
+static void supervise(void)
+{
+    struct Task *t;
+    super_secs += 2;
+    if (launcher_up && (t = ob_launch_task()) && ob_task_held(t, NULL)) launcher_held();
+    ob_builtin_held();
+    Forbid();
+    t = dock_task();
+    if (t && ob_task_held(t, NULL)) {
+        int act = ob_super_crashed(&super, dock_sid, super_secs);
+        remove_dock_port();                     /* the held one's: never used again */
+        Permit();
+        dock_sid = 0;
+        if (act == OB_ACT_RESTART || act == OB_ACT_NONE) {
+            start_dock();
+            dock_sid = ob_super_add(&super, OB_T_SERVICE, NULL);
+        }
+        return;
+    }
+    Permit();
 }
 
 /* 1 when the file is a program (an AmigaDOS load file: HUNK_HEADER). */
@@ -2658,6 +2745,14 @@ static struct Task *dock_task(void)
 {
     struct MsgPort *p = FindPort((CONST_STRPTR)"GFOpenDock");
     return p ? p->mp_SigTask : NULL;
+}
+
+/* 0.1.57 (X4): a dock the task guard holds keeps its port: taken off the public list (under Forbid) so a new dock
+ * can start and be found */
+static void remove_dock_port(void)
+{
+    struct MsgPort *p = FindPort((CONST_STRPTR)"GFOpenDock");
+    if (p) RemPort(p);
 }
 
 /* 1 when path is there; no requester while we look (a volume the machine hasn't got, say). */
@@ -4550,6 +4645,8 @@ static int run(void)
         no_signal("the programs it starts");
         goto out;
     }
+    ob_super_init(&super);                         /* 0.1.57: supervision (X4) */
+    launcher_sid = ob_super_add(&super, OB_T_LAUNCHER, NULL);
     if ((picture_sig = AllocSignal(-1)) < 0) {
         no_signal("the root picture");
         goto out;
@@ -4620,6 +4717,7 @@ static int run(void)
     /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
     if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
+    dock_sid = ob_super_add(&super, OB_T_SERVICE, NULL);   /* 0.1.57: started again if it crashes (X4) */
     switches_record();
     if (ob_switches & OL_SW_CLEANUP) {             /* A10: as Window > Clean Up */
         cleanup_snaps();
@@ -4799,6 +4897,7 @@ static int run(void)
                     wb_down = 2;                    /* tried again each tick */
                 }
             }
+            supervise();                            /* 0.1.57: a crashed task of ours (X4) */
             tr->tr_time.tv_secs = 2;
             tr->tr_time.tv_micro = 0;
             SendIO((struct IORequest *)tr);

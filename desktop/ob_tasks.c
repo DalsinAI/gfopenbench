@@ -316,3 +316,32 @@ int ob_unpack(const char *buf, int size, int count, const char **out, int max)
     }
     return i;
 }
+
+/* ---- a crashed task, held by the task guard ---- */
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper)
+{
+    unsigned long r;
+    if (spupper < 56 || spupper <= splower) return 0;
+    r = (spupper - 56) & ~3UL;
+    if (r < splower || r + 16 > spupper) return 0;
+    return r;
+}
+
+static unsigned long be32(const unsigned char *p)
+{
+    return (unsigned long)p[0] << 24 | (unsigned long)p[1] << 16 | (unsigned long)p[2] << 8 | p[3];
+}
+
+int ob_guard_read(const unsigned char *rec, ob_held *h)
+{
+    unsigned long v;
+    if (!rec || be32(rec) != OB_GUARD_MAGIC) return 0;
+    v = be32(rec + 4);
+    if (v != 3 && v != 4 && v != 10) return 0;      /* the only ones the guard holds */
+    if (h) {
+        h->vector = (int)v;
+        h->pc = be32(rec + 8);
+        h->addr = be32(rec + 12);
+    }
+    return 1;
+}

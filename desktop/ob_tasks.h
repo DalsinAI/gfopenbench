@@ -131,4 +131,17 @@ int ob_names_format(char *out, int n, const char *const *names, int count);
 int ob_pack(char *buf, int size, int *count, const char *s);
 int ob_unpack(const char *buf, int size, int count, const char **out, int max);
 
+/* ---- a crashed task, held by the task guard ----
+ * The host's task guard (amicradle docs/architecture/TASK_GUARD.md), and GFOpenGuard on a real 68040, hold a task
+ * that crashes in Wait(0) (tc_SigWait 0) and leave a record 56 bytes below tc_SPUpper (long aligned): 'TGRD', the
+ * vector, the PC, the address or opcode, 16 bytes big-endian. The supervisor looks for it (ob_guard.c). */
+#define OB_GUARD_MAGIC 0x54475244UL     /* 'TGRD' */
+typedef struct ob_held {
+    int vector;                         /* 3 address error, 4 illegal instruction, 10 line A */
+    unsigned long pc, addr;
+} ob_held;
+
+unsigned long ob_guard_rec_at(unsigned long splower, unsigned long spupper);   /* the record's address; 0: none */
+int ob_guard_read(const unsigned char *rec, ob_held *h);         /* 1: a guard record */
+
 #endif
