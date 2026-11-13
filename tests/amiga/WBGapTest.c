@@ -643,6 +643,18 @@ static int do_lowmem(int secs, const char *path)
         }
     }
     seen = find_retry(&x, &y);
+    {   /* had the drawer opened already, with the memory taken (then there was nothing to ask) */
+        struct Screen *s;
+        struct Window *w;
+        const char *name = (const char *)FilePart((CONST_STRPTR)path);
+        int open = 0;
+        ULONG lock = LockIBase(0);
+        for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen)
+            for (w = s->FirstWindow; w; w = w->NextWindow)
+                if (w->Title && *name && strstr((const char *)w->Title, name)) open = 1;
+        UnlockIBase(lock);
+        printf("INFO X3 %s's window open while the memory was taken: %s\n", name, open ? "yes" : "no");
+    }
     while ((e = list)) {
         list = e->next;
         FreeMem(e, e->size);
