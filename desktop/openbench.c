@@ -2725,7 +2725,7 @@ static void open_volume(void)
     const char *names[OB_PICK_MAX];
     int map[OB_PICK_MAX], i, n = 0, k, any = 0;
     for (i = 0; i < nicons; i++)
-        if (icons[i].selected && icons[i].lo < 0) { open_drawer(icons[i].path); any = 1; }
+        if (icons[i].selected && icons[i].lo == -1) { open_drawer(icons[i].path); any = 1; }   /* disks only */
     if (any) return;
     for (i = 0; i < nicons && n < OB_PICK_MAX; i++)
         if (icons[i].lo == -1) { names[n] = icons[i].name; map[n++] = i; }     /* 0.1.56: disks, not AppIcons */
@@ -3959,7 +3959,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             int i;
             for (i = 0; i < nicons; i++)
                 if (icons[i].selected) {
-                    if (icons[i].lo >= 0) ob_open_object(icons[i].path);
+                    if (icons[i].lo == OB_LO_APP) appicon_open(&icons[i], 0, 0);    /* the program's AppMessage */
+                    else if (icons[i].lo >= 0) ob_open_object(icons[i].path);
                     else open_drawer(icons[i].path);
                 }
             break;
