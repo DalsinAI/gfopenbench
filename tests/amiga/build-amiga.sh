@@ -14,5 +14,5 @@ if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/nu
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c"
-cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$OUT/"
+cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapDesk.rexx" "$OUT/"
 ls -l "$OUT"
