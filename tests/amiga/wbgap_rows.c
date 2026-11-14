@@ -367,14 +367,15 @@ int wbgap_root_has_disk(const char *list, const char *vol)
 /* D5r: pos holds the desktop's disk icons, "<left> <top> <width> <name>" a line (WBGapRoot.rexx's
  * RAM:wbgap-root-pos). The column is the disks whose left edge is less than one icon's width (16 at least) right of
  * the leftmost; its topmost (the first read wins a tie) must be vol, case not minded. top gets that icon's name.
- * 1: RAM Disk first; 0: another first; -1: no disk read. */
+ * One trailing colon on a name is dropped. 1: RAM Disk first; 0: another first; -1: no disk read (or cap 0). */
 int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap)
 {
     long minx = 0, cw = 16, besty = 0;
     int pass, have = 0;
     const char *p;
     size_t vn = vol ? strlen(vol) : 0;
-    if (cap) top[0] = 0;
+    if (!cap) return -1;
+    top[0] = 0;
     if (!pos) return -1;
     for (p = pos; *p; ) {                                   /* the leftmost disk and its width */
         long x, y, w;
@@ -396,11 +397,10 @@ int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap)
         if (sscanf(p, "%ld %ld %ld %n", &x, &y, &w, &used) == 3 && used && x - minx < cw && (!have || y < besty)) {
             size_t n = (size_t)(e - (p + used));
             while (n && (p[used + n - 1] == '\r' || p[used + n - 1] == ' ')) n--;
-            if (cap) {
-                if (n >= cap) n = cap - 1;
-                memcpy(top, p + used, n);
-                top[n] = 0;
-            }
+            if (n && p[used + n - 1] == ':') n--;      /* a port that names disks "RAM Disk:" (as #145 for D5) */
+            if (n >= cap) n = cap - 1;
+            memcpy(top, p + used, n);
+            top[n] = 0;
             besty = y;
             have = 1;
         }
