@@ -61,6 +61,17 @@ static void appwin_wait(struct MsgPort *port, int ticks, struct appwin_got *g, c
     else printf("INFO %s %s: no AppMessage\n", row, what);
 }
 
+/* every message still at port replied before a drop that must send nothing, so one that came late from the drop
+ * before isn't counted against it (Budgie, #168); how many there were is said */
+static void appwin_drain(struct MsgPort *port, const char *row)
+{
+    struct Message *m;
+    int n = 0;
+    Delay(25);
+    while ((m = GetMsg(port))) { ReplyMsg(m); n++; }
+    if (n) printf("INFO %s %d late AppMessage(s) from the drop before, replied\n", row, n);
+}
+
 /* d dragged from RAM:WBGapD's window dw to (rx, ry) inside our window w; the point let go at, relative to w, in rel */
 static void appwin_drop(struct Window *dw, struct Window *w, long rx, long ry, long rel[2], const char *row)
 {
@@ -120,7 +131,7 @@ int wbt_appwin(int argc, char **argv)
         v1 = wbgap_appwin_msg_judge(g.got, g.type, AMTYPE_APPWINDOW, g.id, 1, g.userdata, 0xA1, g.mx, g.my, rel, w, h,
                                     why1, sizeof why1);
         RemoveAppWindow(aw);
-        Delay(25);
+        appwin_drain(port, "A1");
         appwin_drop(dw, mine, w / 2, h / 2 + 10, rel, "A1");
         appwin_wait(port, 100, &g, "A1", "after RemoveAppWindow");
         v2 = wbgap_appwin_none_judge(g.got, g.type, g.id, "after RemoveAppWindow", why2, sizeof why2);
@@ -148,7 +159,7 @@ int wbt_appwin(int argc, char **argv)
             appwin_wait(port, 150, &g, "A2", "into the drop zone");
             v1 = wbgap_appwin_msg_judge(g.got, g.type, AMTYPE_APPWINDOWZONE, g.id, 22, g.userdata, 0xA22, g.mx, g.my,
                                         rel, w, h, why1, sizeof why1);
-            Delay(25);
+            appwin_drain(port, "A2");
             appwin_drop(dw, mine, w / 4, h / 2 + 10, rel, "A2");
             appwin_wait(port, 100, &g, "A2", "outside the drop zone");
             v2 = wbgap_appwin_none_judge(g.got, g.type, g.id, "a drop outside the drop zone", why2, sizeof why2);
