@@ -20,7 +20,10 @@
  *                               windows (two of our own opened for it); SKIP with no switcher (3.2.3)
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest CLOSEWB           row C6: CloseWorkBench() with this Shell's window on the screen (refused: the screen,
- *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back
+ *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back;
+ *                               the script starts it with Run >RAM:wbgap-c6, last before REPORT
+ *   WBGapTest CLOSEWBWAIT f s   row C6's line: waits up to s seconds for that CLOSEWB run to be over and prints file f;
+ *                               not over in time is FAIL C6, so a CloseWorkBench() that never returns can't hang the run
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
  *                               its height: Reboot, Restart, Power off, and an Eject row for each USB volume mounted)
  *                               and closed with Esc; nothing in it is picked
@@ -1604,7 +1607,7 @@ static struct Screen *wb_screen_now(void)
     return s;
 }
 
-static int do_closewb(void)
+static int closewb_row(void)
 {
     struct Screen *before, *after;
     struct Window *w;
@@ -1635,6 +1638,43 @@ static int do_closewb(void)
     clear_drawer("RAM:WBGapC", "WBGapC", "C6");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");
+    return fails ? 5 : 0;
+}
+
+static int do_closewb(void)
+{
+    int rc = closewb_row();
+    printf("INFO C6 done\n");                    /* the last line, on every way out: CLOSEWBWAIT waits for it */
+    return rc;
+}
+
+/* CLOSEWBWAIT file secs: the script starts CLOSEWB with Run >file, then this
+ * waits up to secs for it to be over (wbgap_closewb_over) and prints what it
+ * wrote. A CloseWorkBench() that never returns (lab t2-killcrazy-wbgap, 14
+ * Nov, before amicradle-guest #752) is then FAIL C6 here, and the run goes
+ * on to REPORT; the CLOSEWB process is left as it is, with its own code. */
+static int do_closewb_wait(const char *path, int secs)
+{
+    static char buf[4096];
+    int t, over = 0;
+    long n = 0;
+    BPTR fh;
+    for (t = 0; t <= secs * 2 && !over; t++) {
+        if (t) Delay(25);
+        buf[0] = 0;
+        if ((fh = Open((CONST_STRPTR)path, MODE_OLDFILE))) {
+            n = Read(fh, buf, sizeof buf - 1);
+            buf[n > 0 ? n : 0] = 0;
+            Close(fh);
+        }
+        over = wbgap_closewb_over(buf);
+    }
+    if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
+    if (!over) {
+        char why[96];
+        snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running)", secs);
+        fail("C6", why);
+    }
     return fails ? 5 : 0;
 }
 
@@ -3105,6 +3145,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SWITCH")) rc = do_switch();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
     else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
