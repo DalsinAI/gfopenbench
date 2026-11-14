@@ -17,12 +17,15 @@
 #include "ob_launch.h"
 #include "ob_tasks.h"
 #include "ol_lib.h"                          /* gfopenlaunch.library (Team 2, build plan row 6) */
+#include "ol_core.h"                         /* 0.1.64: STACK and TOOLPRI read as the library reads them */
+
+#define OB_LA_ARGS (OL_ARGS_MAX + 1)         /* 0.1.64: the tool and up to 32 arguments, as gfopenlaunch.library */
 
 /* A program's run: its WBStartup and its arguments, back on wbs_port when it ends. */
 typedef struct launch {
     struct WBStartup wbs;
-    struct WBArg args[2];
-    char names[2][108];
+    struct WBArg args[OB_LA_ARGS];          /* 0.1.64: every argument (was 2: the tool and the first only) */
+    char names[OB_LA_ARGS][108];
     struct launch *next;
     struct Segment *resident;               /* 0.1.32: the resident it runs (its code is the resident's), or NULL */
     unsigned long id;
@@ -107,45 +110,56 @@ static void resident_done(struct Segment *s)
     Permit();
 }
 
-/* A tool started with a WBStartup message: arg 0 the tool, arg 1 the project when there is one. Its id, or 0. */
+static void unlock_args(launch *L, int n)
+{
+    int i;
+    for (i = 0; i < n; i++) if (L->args[i].wa_Lock) { UnLock(L->args[i].wa_Lock); L->args[i].wa_Lock = 0; }
+}
+
+/* A tool started with a WBStartup message: arg 0 the tool, then every argument (a project; Shift-double-click's or
+ * OpenWorkbenchObjectA's icons, WBGapTest I11), at the icon's STACK and TOOLPRI (I12), when gfopenlaunch.library
+ * isn't there to do it. Its id, or 0. 0.1.64 (Franklin's lab, 14 November 2026: "args 2 LaunchT p1"): it took the
+ * first argument only and no TOOLPRI. */
 static unsigned long start_tool(const ob_lreq *r)
 {
     launch *L = AllocVec(sizeof *L, MEMF_PUBLIC | MEMF_CLEAR);
-    const char *tool = r->tool, *project = NULL;
+    const char *tool = r->tool, *args[OB_LA_ARGS - 1], *tt[65];
     BPTR seg;
     struct Process *p;
-    int n = 1;
+    ol_opts opts;
+    int n = 1, na, ntt, i;
     if (!L) { SetIoErr(ERROR_NO_FREE_STORE); return 0; }
-    if (r->nargs) ob_unpack(r->args, sizeof r->args, 1, &project, 1);   /* by itself: the first argument only, as 0.1.55 */
+    na = r->nargs ? ob_unpack(r->args, sizeof r->args, r->nargs, args, OB_LA_ARGS - 1) : 0;
+    ntt = ob_unpack(r->tt, sizeof r->tt, r->ntt, tt, 64);
+    tt[ntt] = NULL;
+    ol_opts_read(&opts, ntt ? tt : NULL, r->stack, r->min_stack);
     if (!(L->args[0].wa_Lock = ob_parent_and_name(tool, L->names[0], sizeof L->names[0]))) { FreeVec(L); return 0; }
     L->args[0].wa_Name = (STRPTR)L->names[0];
-    if (project) {
-        if (!(L->args[1].wa_Lock = ob_parent_and_name(project, L->names[1], sizeof L->names[1]))) {
-            UnLock(L->args[0].wa_Lock);
+    for (i = 0; i < na; i++, n++) {
+        if (!(L->args[n].wa_Lock = ob_parent_and_name(args[i], L->names[n], sizeof L->names[n]))) {
+            unlock_args(L, n);
             FreeVec(L);
             return 0;
         }
-        L->args[1].wa_Name = (STRPTR)L->names[1];
-        n = 2;
+        L->args[n].wa_Name = (STRPTR)L->names[n];
     }
     if (!(seg = LoadSeg((CONST_STRPTR)tool)) && !(seg = resident_tool(tool, &L->resident))) {
-        UnLock(L->args[0].wa_Lock);
-        if (n > 1) UnLock(L->args[1].wa_Lock);
+        unlock_args(L, n);
         FreeVec(L);
         return 0;
     }
     /* As Workbench starts a tool: no input or output and no current directory (0.1.7: dos's default NIL: made every
      * libnix tool fail on quitting with 8700000E; 0.1.10: a current directory of its own was unlocked twice) */
     p = CreateNewProcTags(NP_Seglist, (ULONG)seg, NP_FreeSeglist, FALSE,
-                          NP_StackSize, (ULONG)(r->stack > r->min_stack ? r->stack : r->min_stack),
+                          NP_StackSize, (ULONG)(opts.stack > r->min_stack ? opts.stack : r->min_stack),
+                          NP_Priority, (ULONG)(LONG)opts.pri,          /* 0.1.64: TOOLPRI */
                           NP_Name, (ULONG)L->names[0], NP_CurrentDir, 0,
                           NP_HomeDir, (ULONG)DupLock(L->args[0].wa_Lock), NP_Input, 0, NP_Output, 0,
                           NP_CloseInput, FALSE, NP_CloseOutput, FALSE, TAG_DONE);
     if (!p) {
         if (L->resident) resident_done(L->resident);
         else UnLoadSeg(seg);
-        UnLock(L->args[0].wa_Lock);
-        if (n > 1) UnLock(L->args[1].wa_Lock);
+        unlock_args(L, n);
         FreeVec(L);
         return 0;
     }
@@ -171,7 +185,7 @@ static unsigned long start_tool(const ob_lreq *r)
 }
 
 /* Through gfopenlaunch.library: every argument, the icon's stack and tool types. Its id, or 0. */
-static unsigned long ol_start(ob_lreq *r)
+static unsigned long lib_start(ob_lreq *r)
 {
     const char *args[OL_ARGS_MAX], *tt[65];
     struct TagItem t[OL_ARGS_MAX + 6];
@@ -225,7 +239,7 @@ static void launch_done(launch *L)
     tell_ended(L);
     if (L->resident) resident_done(L->resident);   /* a resident's code stays: it is the resident list's */
     else UnLoadSeg(L->wbs.sm_Segment);
-    for (i = 0; i < L->wbs.sm_NumArgs && i < 2; i++)
+    for (i = 0; i < L->wbs.sm_NumArgs && i < OB_LA_ARGS; i++)
         if (L->args[i].wa_Lock) UnLock(L->args[i].wa_Lock);
     FreeVec(L);
     running--;
@@ -348,7 +362,7 @@ static void launcher_entry(void)
                 r->tool[sizeof r->tool - 1] = 0;
                 x4_test(r->tool);
                 SetIoErr(0);
-                r->id = OLBase ? ol_start(r) : start_tool(r);
+                r->id = OLBase ? lib_start(r) : start_tool(r);
                 r->ok = r->id != 0;
                 r->err = r->ok ? 0 : IoErr();
                 r->largest = r->ok ? 0 : AvailMem(MEMF_ANY | MEMF_LARGEST);   /* X3: was it for want of memory */

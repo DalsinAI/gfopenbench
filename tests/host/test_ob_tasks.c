@@ -270,6 +270,18 @@ static void test_pack(void)
     CHECK("unpack max", ob_unpack(buf, sizeof buf, n, out, 2) == 2);
     memset(buf, 'y', sizeof buf);
     CHECK("no NUL: nothing", ob_unpack(buf, sizeof buf, 1, out, 4) == 0);
+    {   /* 0.1.64, I11: OpenWorkbenchObjectA's two names reach the built-in launcher both, as the launcher unpacks them
+         * (up to 32, OL_ARGS_MAX's room after the tool); 0.1.63's took the first only */
+        char big[4096];
+        const char *a[32];
+        int k = 0, i, ok = 1;
+        CHECK("I11 pack p1", ob_pack(big, sizeof big, &k, "RAM:WBGap/p1"));
+        CHECK("I11 pack p2", ob_pack(big, sizeof big, &k, "RAM:WBGap/p2"));
+        CHECK("I11 both back", ob_unpack(big, sizeof big, k, a, 32) == 2 && !strcmp(a[0], "RAM:WBGap/p1")
+              && !strcmp(a[1], "RAM:WBGap/p2"));
+        for (k = 0, i = 0; i < 40; i++) ok &= ob_pack(big, sizeof big, &k, "RAM:WBGap/pN") || i >= 40;
+        CHECK("40 packed, 32 back", ok && k == 40 && ob_unpack(big, sizeof big, k, a, 32) == 32);
+    }
 }
 
 static void test_guard(void)
