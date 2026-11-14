@@ -25,6 +25,8 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/w
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_index.c" \
   "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
 "$OUT/test_wbgap_index"
+# guest-index.sh: tests/amiga/build-amiga.sh fetches amicradle-guest's tools/openindex for WBGapIndex (row X2)
+sh "$HERE/tests/host/test_guest_index.sh"
 "$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 

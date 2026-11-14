@@ -4,4 +4,8 @@
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT=${OUT:-$HERE/../build/os3}
+# WBGapTest's WBGapIndex (row X2) needs amicradle-guest's tools/openindex: fetched when AMICRADLE_GUEST isn't set
+. "$HERE/../tests/amiga/guest-index.sh"
+guest_index_fetch "$OUT/deps"
 sh "$HERE/../build.sh" "$OUT"
+guest_index_done
