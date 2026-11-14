@@ -51,6 +51,7 @@ If EXISTS SYS:Rexxc/rx
   WBGapTest LAUNCHDESK DONE >NIL:
 Else
   Echo "SKIP I11 no rx" >>RAM:wbgap-results
+  Echo "SKIP I10 no rx" >>RAM:wbgap-results
 EndIf
 If EXISTS WBGapIndex
   WBGapIndex >>RAM:wbgap-results

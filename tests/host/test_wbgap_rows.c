@@ -69,6 +69,8 @@ static void every_id(void)
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
     CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
+    CHECK(wbgap_row(wbgap_find("I10"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I10"))->mode, "LAUNCHDESK"),
+          "I10, double-click opens or runs, is checked in LAUNCHDESK");
     CHECK(wbgap_row(wbgap_find("I3"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I3"))->mode, "LAUNCHDESK"),
           "I3, the lasso, is checked by WBGapDesk.rexx in LAUNCHDESK");
 }
@@ -87,6 +89,28 @@ static void launch_args(void)
     CHECK(!wbgap_launch_args("launch stack 4096 pri 0 args 3 LaunchT p1 p\n", want), "a shorter one neither");
     CHECK(!wbgap_launch_args("", want) && !wbgap_launch_args("start WBGapA\n", want), "not a launch record");
     CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 1 LaunchT\n", "LaunchT"), "the tool alone");
+}
+
+/* I10: a double-click runs a tool (OpenT, its one argument itself) and opens a drawer (Sub) */
+static void i10_plan(void)
+{
+    char why[96];
+    const char *ok = "launch stack 4096 pri 0 args 1 OpenT\n";
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 1, why, sizeof why) == 1 && !why[0], "both: PASS, nothing to say");
+    CHECK(wbgap_i10(NULL, 0, 1, NULL, 1, why, sizeof why) == 0 && strstr(why, "started nothing"), "no record: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 0, why, sizeof why) == 0 && strstr(why, "Sub opened no window"), "no window: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, NULL, 0, why, sizeof why) == 0 && strstr(why, "and Sub's"), "neither: FAIL, both said");
+    CHECK(wbgap_i10(NULL, 0, 1, "launch stack 4096 pri 0 args 2 OpenT p1\n", 1, why, sizeof why) == 0 &&
+          strstr(why, "not with itself"), "a selection carried along: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, "launch stack 4096 pri 0 args 1 LaunchT\n", 1, why, sizeof why) == 0,
+          "another tool's record isn't OpenT's");
+    CHECK(wbgap_i10(NULL, 1, 1, ok, 1, why, sizeof why) == -1 && strstr(why, "failed"), "a failed click: SKIP");
+    CHECK(wbgap_i10(NULL, 0, 0, ok, 1, why, sizeof why) == -1, "not clicked: SKIP");
+    CHECK(wbgap_i10("OpenT lies in the lasso's box", 0, 1, ok, 1, why, sizeof why) == -1 &&
+          !strcmp(why, "OpenT lies in the lasso's box"), "the script's own SKIP, as it said it");
+    CHECK(wbgap_i10("", 0, 1, ok, 1, why, sizeof why) == 1, "an empty skip file isn't a SKIP");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 0, why, 8) == 0 && strlen(why) == 7, "a cut buffer");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 1, NULL, 0) == 1, "no buffer");
 }
 
 /* LAUNCHDESK SETUP and DONE: DONE deletes RAM:.backdrop only when SETUP made it */
@@ -435,6 +459,7 @@ int main(int argc, char **argv)
     lines();
     wildcard();
     launch_args();
+    i10_plan();
     backdrop_plan();
     clear_plan();
     i11_lines();
