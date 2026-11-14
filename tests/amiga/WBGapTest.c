@@ -1081,7 +1081,7 @@ static int do_disks(void)
     printf("INFO D5 RAM: is \"%s\"; %ld bytes of the desktop's icons\n", vol, n);
     if (wbgap_root_has_disk(list, vol)) pass("D5");
     else {
-        char why[80];
+        char why[128];
         if (strstr(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
         else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
         fail("D5", why);
