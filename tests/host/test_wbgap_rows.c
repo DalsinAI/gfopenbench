@@ -105,6 +105,31 @@ static void backdrop_plan(void)
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
 }
 
+/* D5: the RAM Disk's icon among the desktop's, as WBGapRoot.rexx writes them */
+static void ramdisk_plan(void)
+{
+    char v[32];
+    const char *root = "DISK System\nDISK Ram Disk\nDRAWER WBGapI\nTOOL LaunchT\n";
+    wbgap_volume_name("Ram Disk:", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "NameFromLock's \"Ram Disk:\": the volume \"%s\"", v);
+    wbgap_volume_name("Ram Disk:T/x", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "anything after the colon dropped");
+    wbgap_volume_name("A very long volume name:", v, 7);
+    CHECK(!strcmp(v, "A very"), "cut to the room given: \"%s\"", v);
+    wbgap_volume_name(NULL, v, sizeof v);
+    CHECK(!v[0], "no path: empty");
+    CHECK(wbgap_root_has_disk(root, "Ram Disk"), "the RAM Disk's icon on the desktop");
+    CHECK(wbgap_root_has_disk(root, "RAM DISK") && wbgap_root_has_disk("disk ram disk", "Ram Disk"), "case not minded");
+    CHECK(wbgap_root_has_disk("DISK Ram Disk\r\n", "Ram Disk") && wbgap_root_has_disk("DISK Ram Disk  \n", "Ram Disk"),
+          "a line's CR and trailing blanks don't count");
+    CHECK(!wbgap_root_has_disk("DISK System\nDRAWER WBGapI\n", "Ram Disk"), "no RAM Disk icon");
+    CHECK(!wbgap_root_has_disk("DRAWER Ram Disk\n", "Ram Disk"), "a drawer of that name isn't the disk");
+    CHECK(!wbgap_root_has_disk("DISK Ram Disk 2\n", "Ram Disk") && !wbgap_root_has_disk("DISK Ram\n", "Ram Disk"),
+          "a longer or shorter name isn't it");
+    CHECK(!wbgap_root_has_disk("", "Ram Disk") && !wbgap_root_has_disk(root, "") && !wbgap_root_has_disk(NULL, "Ram Disk"),
+          "nothing read, or no name: no");
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -286,6 +311,7 @@ int main(int argc, char **argv)
     launch_args();
     backdrop_plan();
     i11_lines();
+    ramdisk_plan();
     which_plan();
     print_all();
     print_empty();
