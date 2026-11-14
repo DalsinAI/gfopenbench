@@ -123,7 +123,7 @@ static const struct wbgap_row rows[] = {
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
-    {"D5", NULL, A, NULL, "RAM Disk icon"},
+    {"D5", NULL, A, "DISKS", "RAM Disk icon"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
     {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},
@@ -321,4 +321,44 @@ int wbgap_backdrop_done(int have_was, int have_made)
 {
     if (have_was) return WBGAP_BD_RESTORE;
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
+}
+
+void wbgap_volume_name(const char *path, char *out, unsigned cap)
+{
+    unsigned k = 0;
+    if (!cap) return;
+    while (path && path[k] && path[k] != ':' && k + 1 < cap) { out[k] = path[k]; k++; }
+    out[k] = 0;
+}
+
+static int same_nocase(const char *a, const char *b, size_t n)
+{
+    size_t i;
+    for (i = 0; i < n; i++) {
+        int x = (unsigned char)a[i], y = (unsigned char)b[i];
+        if (x >= 'a' && x <= 'z') x -= 32;
+        if (y >= 'a' && y <= 'z') y -= 32;
+        if (x != y) return 0;
+    }
+    return 1;
+}
+
+int wbgap_root_has_disk(const char *list, const char *vol)
+{
+    size_t vn = vol ? strlen(vol) : 0;
+    const char *p = list;
+    if (!list || !vn) return 0;
+    while (*p) {
+        const char *e = p, *name;
+        size_t n;
+        while (*e && *e != '\n') e++;
+        n = (size_t)(e - p);
+        while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 5 && same_nocase(p, "DISK ", 5)) {
+            name = p + 5;
+            if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    return 0;
 }
