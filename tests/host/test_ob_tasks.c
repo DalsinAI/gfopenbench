@@ -400,6 +400,42 @@ static void test_out(void)
     CHECK("out: full after OB_OUT_MAX", i == OB_OUT_MAX && !ob_out_add(&o, &b));
 }
 
+/* GETATTR window.icons.* in a drawer window: what its task shows, matched to a reading with every file */
+static const char *const shown_names[] = {"bare", "Disk.info", "noicon", "OpenT", "Sub"};
+static const char *shown_at(void *ctx, int i)
+{
+    (void)ctx;
+    return i >= 0 && i < 5 ? shown_names[i] : 0;
+}
+
+static void test_shown(void)
+{
+    ob_shown_icon out[8];
+    ob_shown s = { shown_at, 0, 5, out, 8, 0, 0, 0 };
+    CHECK("shown: a name found, leaves its selection", ob_shown_take(&s, "OpenT", 3, 0, 10, 20) == 2 && s.count == 1 &&
+          out[0].at == 3 && !out[0].selected && out[0].x == 10 && out[0].y == 20);
+    CHECK("shown: any case, selection kept", ob_shown_take(&s, "SUB", 2, 1, 50, 20) == 2 && s.count == 2 &&
+          out[1].at == 4 && out[1].selected == 1);
+    CHECK("shown: from the start again past the end", ob_shown_take(&s, "noicon", 4, 0, 90, 20) == 2 && s.count == 3 &&
+          out[2].at == 2);
+    CHECK("shown: a name the reading lacks is missed", ob_shown_take(&s, "new", 4, 0, 1, 1) == 2 && s.count == 3 &&
+          s.missed == 1);
+    CHECK("shown: a longer name isn't it", ob_shown_take(&s, "Subs", 2, 0, 1, 1) == 2 && s.missed == 2);
+    ob_shown_sort(&s);
+    CHECK("shown: sorted to the reading's order", s.count == 3 && out[0].at == 2 && out[1].at == 3 && out[2].at == 4 &&
+          out[1].x == 10 && out[2].selected == 1);
+    s.cap = 3;
+    CHECK("shown: past cap not kept, still answered", ob_shown_take(&s, "bare", 4, 0, 1, 1) == 2 && s.count == 3);
+    s.hint = 99;
+    s.cap = 8;
+    CHECK("shown: a hint out of range starts at 0", ob_shown_take(&s, "bare", 4, 0, 1, 1) == 2 && out[3].at == 0);
+    s.n = 0;
+    CHECK("shown: an empty reading misses all", ob_shown_take(&s, "bare", 4, 0, 1, 1) == 2 && s.missed == 3);
+    CHECK("shown: no state stops", ob_shown_take(0, "bare", 4, 0, 1, 1) == -1);
+    CHECK("shown: no name stops", ob_shown_take(&s, 0, 4, 0, 1, 1) == -1);
+    ob_shown_sort(0);
+}
+
 int main(void)
 {
     test_dpack();
@@ -414,6 +450,7 @@ int main(void)
     test_out();
     test_ask();
     test_place();
+    test_shown();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }
