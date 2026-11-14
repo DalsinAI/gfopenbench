@@ -100,10 +100,10 @@ long wbgap_wbprefs_make(const unsigned char *orig, long len, unsigned long stack
             char cid[5];
             memcpy(cid, id, 4);
             cid[4] = 0;
-            if (!memcmp(id, "WBNC", 4) && sz >= 4 && sz <= sizeof wbnc) {
-                memcpy(wbnc, d, sz);
-                put32(wbnc, stack);
-                if (!add_chunk(out, cap, &n, "WBNC", wbnc, sz)) return 0;
+            if (!memcmp(id, "WBNC", 4) && sz >= 4 && !had_wbnc) {   /* any size: its first long word set where it lands */
+                long here = n;
+                if (!add_chunk(out, cap, &n, "WBNC", d, sz)) return 0;
+                put32(out + here + 8, stack);
                 had_wbnc = 1;
             } else if (!add_chunk(out, cap, &n, cid, d, sz)) return 0;
         }
@@ -125,6 +125,11 @@ long wbgap_wbprefs_make(const unsigned char *orig, long len, unsigned long stack
     }
     put32(out + 4, (unsigned long)(n - 8));
     return n;
+}
+
+int wbgap_wbprefs_whole(long got, long cap)
+{
+    return got >= 0 && got < cap - 1;   /* wbt_read_all reads cap - 1 at most: that many may be a file cut short */
 }
 
 int wbgap_wbprefs_judge(int gone, unsigned long got, unsigned long want, int back, char *why, unsigned cap)

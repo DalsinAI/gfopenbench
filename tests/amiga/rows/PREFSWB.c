@@ -79,12 +79,17 @@ int wbt_prefswb(int argc, char **argv)
     }
     was_n = wbt_read_all(PREFSWB_FILE, (char *)was_buf, sizeof was_buf);
     had = was_n >= 0;
-    if (was_n >= (long)sizeof was_buf) { wbt_skip("P7", "ENV:Sys/Workbench.prefs is bigger than this row reads; left as it is"); return 0; }
+    if (had && !wbgap_wbprefs_whole(was_n, (long)sizeof was_buf)) { wbt_skip("P7", "ENV:Sys/Workbench.prefs is bigger than this row reads; left as it is"); return 0; }
     old_stack = stack_now();
     printf("INFO P7 %s %s (%ld bytes), default stack %lu, \"%s\" on the desktop\n", PREFSWB_FILE, had ? "there" : "not there",
            had ? was_n : 0L, old_stack, vol);
     n = wbgap_wbprefs_make(had ? was_buf : NULL, had ? was_n : 0, PREFSWB_STACK, "RAM", new_buf, sizeof new_buf);
-    if (!n || !put_file(PREFSWB_FILE, new_buf, n)) { wbt_fail("P7", "ENV:Sys/Workbench.prefs could not be written"); return 10; }
+    if (!n || !put_file(PREFSWB_FILE, new_buf, n)) {   /* MODE_NEWFILE may have emptied it: the old one back */
+        if (had) put_file(PREFSWB_FILE, was_buf, was_n);
+        else DeleteFile((CONST_STRPTR)PREFSWB_FILE);
+        wbt_fail("P7", "ENV:Sys/Workbench.prefs could not be written");
+        return 10;
+    }
     gone = icon_wait(vol, 0, 10, "after RAM hidden");
     if (gone >= 0) gone = !gone;
     for (t = 0; t < 10 && (got = stack_now()) != PREFSWB_STACK; t++) Delay(50);

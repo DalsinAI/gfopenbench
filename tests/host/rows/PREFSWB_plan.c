@@ -48,6 +48,19 @@ void prefswb_plan(void)
         bad[20] = 0, bad[21] = 0, bad[22] = 0x10, bad[23] = 0;
         CHECK(wbgap_wbprefs_stack(bad, sizeof bad) == 0 && !wbgap_wbprefs_hides(bad, sizeof bad, "RAM"), "a chunk too long: nothing read");
     }
+    CHECK(wbgap_wbprefs_whole(106, 4096) && wbgap_wbprefs_whole(4094, 4096), "read whole: 106 and 4094 of 4096");
+    CHECK(!wbgap_wbprefs_whole(4095, 4096), "4095 of 4096, all wbt_read_all reads: maybe cut short, not written back");
+    CHECK(!wbgap_wbprefs_whole(-1, 4096), "nothing read: not whole");
+    {   /* a WBNC bigger than 3.2.3's 50 bytes: its stack set in place, no second WBNC */
+        unsigned char big[12 + 8 + 100], o2[200];
+        long m;
+        memset(big, 0, sizeof big);
+        memcpy(big, "FORM", 4), big[7] = (unsigned char)(sizeof big - 8), memcpy(big + 8, "PREF", 4);
+        memcpy(big + 12, "WBNC", 4), big[19] = 100, big[22] = 0x10, big[119] = 0x5a;
+        m = wbgap_wbprefs_make(big, sizeof big, 65536, NULL, o2, sizeof o2);
+        CHECK(m == (long)sizeof big && wbgap_wbprefs_stack(o2, m) == 65536 && o2[119] == 0x5a,
+              "a 100-byte WBNC: kept whole, stack set, no second WBNC: %ld", m);
+    }
     CHECK(wbgap_wbprefs_judge(1, 65536, 65536, 1, why, sizeof why) == WBGAP_PASS && !why[0], "hidden, stack, back: PASS");
     CHECK(wbgap_wbprefs_judge(-1, 0, 65536, -1, why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"), "icons not read: SKIP");
     CHECK(wbgap_wbprefs_judge(0, 65536, 65536, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "still on the desktop"),
