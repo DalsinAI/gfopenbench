@@ -1734,7 +1734,7 @@ out:
 }
 
 /* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
- * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side, each 440x240. d is made in
+ * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side, each 440x360. d is made in
  * RAM:WBGapD at 120,10 and the drawer sub at 20,100 (under a), each found where the window changed (wbgap_diff_box). I4: d dragged into
  * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
  * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
@@ -1871,7 +1871,7 @@ static struct Window *drag_place(const char *title, const long *avoid, long w, l
 }
 
 #define DRAG_WW 440   /* each drawer's window: room for three icons in a row and no scroller */
-#define DRAG_WH 240
+#define DRAG_WH 360
 
 static int do_dragfile(int keep)
 {
@@ -1888,7 +1888,7 @@ static int do_dragfile(int keep)
         goto out;
     }
     if (!(dw = drag_place("WBGapD", NULL, DRAG_WW, DRAG_WH))) {
-        fail("I4", "RAM:WBGapD's window couldn't be made 440x240");
+        fail("I4", "RAM:WBGapD's window couldn't be made 440x360");
         fail("I7", "RAM:WBGapD's window couldn't be sized");
         goto out;
     }
