@@ -98,45 +98,6 @@ static void every_id(void)
           && !strcmp(wbgap_row(wbgap_find("D5r"))->mode, "DISKS") && !wbgap_row(wbgap_find("D5r"))->parent
           && !wbgap_has_parts(wbgap_find("D5")),
           "D5r, RAM Disk first on the column, is a row of its own after D5, checked by DISKS");
-    {   /* wbgap_ram_first: "<left> <top> <width> <name>" a line */
-        char top[40];
-        CHECK(wbgap_ram_first("8 20 64 Ram Disk\n8 100 64 System\n8 180 64 Work\n", "Ram Disk", top, sizeof top) == 1
-              && !strcmp(top, "Ram Disk"), "RAM Disk at the column's top: PASS");
-        CHECK(wbgap_ram_first("8 100 64 Ram Disk\n8 20 64 System\n", "Ram Disk", top, sizeof top) == 0
-              && !strcmp(top, "System"), "System above it: FAIL, naming System");
-        CHECK(wbgap_ram_first("8 100 64 Ram Disk\n300 10 64 Games\n", "Ram Disk", top, sizeof top) == 1,
-              "a disk further right, higher up, is another column");
-        CHECK(wbgap_ram_first("12 100 64 Ram Disk\n40 10 64 USB0\n", "Ram Disk", top, sizeof top) == 0,
-              "a disk less than an icon's width right is in the column");
-        CHECK(wbgap_ram_first("8 20 64 RAM DISK\r\n8 90 64 Work\n", "Ram Disk", top, sizeof top) == 1,
-              "case not minded, CR and blanks ignored");
-        CHECK(wbgap_ram_first("8 20 64 Ram\n", "Ram Disk", top, sizeof top) == 0, "a shorter name isn't it");
-        CHECK(wbgap_ram_first("8 20 64 RAM Disk:\n8 100 64 System:\n", "Ram Disk", top, sizeof top) == 1
-              && !strcmp(top, "RAM Disk"), "a port that names disks with a trailing colon (Marcus, 833f230d)");
-        CHECK(wbgap_ram_first("8 20 64 System:\n8 100 64 RAM Disk:\n", "Ram Disk", top, sizeof top) == 0
-              && !strcmp(top, "System"), "with colons, System above it: FAIL, naming System");
-        CHECK(wbgap_ram_first("8 20 64 Ram Disk::\n", "Ram Disk", top, sizeof top) == 0, "only one colon is dropped");
-        CHECK(wbgap_ram_first("8 20 64 Ram Disk\n", "Ram Disk", top, 0) == -1, "cap 0: -1, nothing written");
-        CHECK(wbgap_ram_first("8 20 64 Work\n8 20 64 Ram Disk\n", "Ram Disk", top, sizeof top) == 0,
-              "a tie on the top edge: the first read wins");
-        CHECK(wbgap_ram_first("", "Ram Disk", top, sizeof top) == -1 && wbgap_ram_first(NULL, "Ram Disk", top, sizeof top) == -1,
-              "no disks read: -1");
-        CHECK(wbgap_ram_first("junk\n8 20 64 Ram Disk\n", "Ram Disk", top, sizeof top) == 1, "a line it can't read is passed over");
-        CHECK(wbgap_ram_first("8 20 4 Ram Disk\n20 10 4 Work\n", "Ram Disk", top, sizeof top) == 0,
-              "a width under 16 counts as 16");
-        CHECK(wbgap_ram_first("10 20 40 \n", "Ram Disk", top, sizeof top) == -1 && !top[0],
-              "a line with no name after the width: passed over, nothing read past it (Mr Flibble, 7456fde7)");
-        CHECK(wbgap_ram_first("8 5 64 \n8 20 64 Ram Disk\n8 100 64 Work\n", "Ram Disk", top, sizeof top) == 1
-              && !strcmp(top, "Ram Disk"), "a nameless line above RAM Disk is passed over");
-        CHECK(wbgap_ram_first("8 5 64 :\r\n8 20 64 Ram Disk", "Ram Disk", top, sizeof top) == 1,
-              "a name of just a colon is no name; the last line needs no newline");
-        CHECK(wbgap_ram_first("8 20\n64 Ram Disk\n", "Ram Disk", top, sizeof top) == -1,
-              "numbers split over two lines aren't joined");
-        CHECK(wbgap_ram_first("8 20 64 Ram Disk\n", "Ram Disk", top, 4) == 0 && !strcmp(top, "Ram"),
-              "a name longer than cap is cut to cap - 1");
-        CHECK(wbgap_ram_first("8 20 64 Ram Disk\t\n8 100 64 Work\n", "Ram Disk", top, sizeof top) == 1
-              && !strcmp(top, "Ram Disk"), "a trailing tab is dropped like a blank (Mr Flibble's nit, dabc05f0)");
-    }
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
     CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
@@ -340,30 +301,6 @@ static void showall_plan(void)
     CHECK(wbgap_showall_judge(-1, 1, why, sizeof why) == WBGAP_SKIP && wbgap_showall_judge(0, -1, why, sizeof why) == WBGAP_SKIP,
           "a read failed: SKIP");
     CHECK(wbgap_find("I14") >= 0 && !strcmp(wbgap_row(wbgap_find("I14"))->mode, "MENUS"), "I14's line comes from MENUS");
-}
-
-/* D1: a disk's icon goes while inhibited and comes back */
-static void diskio_plan(void)
-{
-    char why[64];
-    CHECK(wbgap_diskio_judge(1, 0, 1, why, sizeof why) == WBGAP_PASS && !why[0], "there, gone, back: PASS");
-    CHECK(wbgap_diskio_judge(0, 0, 0, why, sizeof why) == WBGAP_SKIP && strstr(why, "no icon before"),
-          "no icon before: SKIP, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(0, 1, 1, why, sizeof why) == WBGAP_SKIP, "no icon before, whatever after: SKIP");
-    CHECK(wbgap_diskio_judge(1, 1, 1, why, sizeof why) == WBGAP_FAIL && !strcmp(why, "its icon stayed while inhibited"),
-          "stayed: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "did not come back"),
-          "went, not back: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "stayed") && strstr(why, "then went"),
-          "stayed then went: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, -1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
-          "not read while inhibited: SKIP, never a PASS (Budgie), \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 0, -1, why, sizeof why) == WBGAP_SKIP, "not read after: SKIP, never a FAIL");
-    CHECK(wbgap_diskio_judge(1, 1, -1, why, sizeof why) == WBGAP_SKIP && wbgap_diskio_judge(-1, 0, 1, why, sizeof why) == WBGAP_SKIP,
-          "any read failed: SKIP");
-    CHECK(wbgap_diskio_judge(1, 0, 1, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
-    CHECK(wbgap_find("D1") >= 0 && wbgap_row(wbgap_find("D1"))->mode && !strcmp(wbgap_row(wbgap_find("D1"))->mode, "DISKIO"),
-          "D1's line comes from DISKIO");
 }
 
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
@@ -728,7 +665,6 @@ int main(int argc, char **argv)
     which_plan();
     bar_point_plan();
     closewb_plan();
-    diskio_plan();
     showall_plan();
     rx_line_plan();
     drop_plan();

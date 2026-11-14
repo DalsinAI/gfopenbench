@@ -1447,96 +1447,7 @@ static int do_menudrive(void)
     return fails ? 5 : 0;
 }
 
-/* ---- 1000 files ---- */
-static int do_big(void)
-{
-    char path[64];
-    struct Window *w;
-    struct DateStamp a, b;
-    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapBig");
-    int i, how;
-    long ticks;
-    if (l) UnLock(l);
-    put_icon("RAM:WBGapBig", WBDRAWER, NULL);
-    for (i = 0; i < 1000; i++) {
-        snprintf(path, sizeof path, "RAM:WBGapBig/file%04d", i);
-        write_file(path, "x\n");
-        put_icon(path, WBPROJECT, NULL);
-    }
-    DateStamp(&a);
-    w = open_drawer("RAM:WBGapBig", "WBGapBig", 60, &how);
-    if (!w) {
-        fail("X1", "RAM:WBGapBig's window didn't open in 60 s");
-        clear_drawer("RAM:WBGapBig", "WBGapBig", "X1");   /* in case it opens late, over the desktop */
-        return 10;
-    }
-    {   /* drawn: the inside stops changing for a second */
-        ULONG last = inside_sum(w), now;
-        int still = 0, t;
-        for (t = 0; t < 600 && still < 5; t++) { Delay(10); now = inside_sum(w); still = now == last ? still + 1 : 0; last = now; }
-    }
-    DateStamp(&b);
-    ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick) - 50;
-    printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
-    if (ticks < 10 * 50) pass("X1"); else fail("X1", "over 10 s");
-    /* closed again, and waited for: left open over the desktop's left-out icons, the next rows' clicks landed on its
-     * file icons and stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
-    clear_drawer("RAM:WBGapBig", "WBGapBig", "X1");
-    return fails ? 5 : 0;
-}
-
 static long read_all(const char *path, char *buf, long n);
-
-/* ---- D5: the RAM Disk's icon on the desktop ----
- * WBGapRoot.rexx wrote the desktop's icons to RAM:wbgap-root ("<type> <name>" a line); RAM:'s volume name comes from
- * NameFromLock ("Ram Disk:"). */
-static int do_disks(void)
-{
-    static char list[8192];
-    char path[108], vol[40];
-    BPTR l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ);
-    long n;
-    if (!l || !NameFromLock(l, (STRPTR)path, sizeof path)) {
-        if (l) UnLock(l);
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
-        fail("D5", "RAM: has no volume name");
-        fail("D5r", "RAM: has no volume name");
-        return 5;
-    }
-    UnLock(l);
-    wbgap_volume_name(path, vol, sizeof vol);
-    if ((n = read_all("RAM:wbgap-root", list, sizeof list)) < 0) {
-        skip("D5", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
-        skip("D5r", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
-        return 0;
-    }
-    printf("INFO D5 RAM: is \"%s\"; %ld bytes of the desktop's icons\n", vol, n);
-    if (wbgap_root_has_disk(list, vol)) pass("D5");
-    else {
-        char why[128];
-        if (n == 0) snprintf(why, sizeof why, "the port gave no icons");
-        else if (wbgap_has_nocase(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
-        else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
-        fail("D5", why);
-    }
-    DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
-    /* D5r: RAM Disk first in the volume column (Dale, 11 Nov), from the disks' places WBGapRoot.rexx wrote */
-    if ((n = read_all("RAM:wbgap-root-pos", list, sizeof list)) < 0)
-        skip("D5r", "the disks' places not read (WBGapRoot.rexx)");
-    else {
-        char top[40], why[128];
-        int r = wbgap_ram_first(list, vol, top, sizeof top);
-        printf("INFO D5r the column's top disk is \"%s\"\n", top);
-        if (r > 0) pass("D5r");
-        else if (r < 0) fail("D5r", "no disk icon's place read");
-        else {
-            snprintf(why, sizeof why, "the column starts with \"%s\", not \"%s\"", top, vol);
-            fail("D5r", why);
-        }
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-root-pos");
-    }
-    return fails ? 5 : 0;
-}
 
 /* ---- C6: CloseWorkBench / OpenWorkBench with programs running ---- */
 static int desk_port(void)
@@ -1803,8 +1714,6 @@ static int do_bar(void)
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
-static int diskio_has_row(const char *row, const char *vol, const char *when);
-static int diskio_has(const char *vol, const char *when) { return diskio_has_row("D1", vol, when); }
 static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
@@ -1825,46 +1734,6 @@ static int diskio_has_row(const char *row, const char *vol, const char *when)
     if (!vol || !*vol) return 0;
     printf("INFO %s %s: \"%s\" %s\n", row, when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
     return wbgap_root_has_disk(list, vol);
-}
-
-static int diskio_inhibit(const char *drive, int on)
-{
-    char cmd[400];
-    snprintf(cmd, sizeof cmd, "\"%s\" INHIBIT \"%s\" %s", dragtest, drive, on ? "ON" : "OFF");
-    return run(cmd);
-}
-
-static int do_diskio(const char *drive)
-{
-    char path[108], vol[40], why[64];
-    BPTR l;
-    int before, off, after, rc, v;
-    if (!(l = Lock((CONST_STRPTR)drive, ACCESS_READ))) { skip("D1", "the drive isn't mounted"); return 0; }
-    if (!NameFromLock(l, (STRPTR)path, sizeof path)) { UnLock(l); fail("D1", "the drive has no volume name"); return 5; }
-    UnLock(l);
-    wbgap_volume_name(path, vol, sizeof vol);
-    printf("INFO D1 %s is \"%s\"\n", drive, vol);
-    if ((before = diskio_has(vol, "before")) < 0) {
-        skip("D1", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
-        return 0;
-    }
-    if (!before) { skip("D1", "the disk had no icon before"); return 0; }
-    if ((rc = diskio_inhibit(drive, 1)) != 0) {
-        diskio_inhibit(drive, 0);
-        snprintf(why, sizeof why, "DragTest INHIBIT %s ON gave %d", drive, rc);
-        skip("D1", why);
-        return 0;
-    }
-    Delay(100);
-    off = diskio_has(vol, "inhibited");
-    diskio_inhibit(drive, 0);                       /* always given back, whatever was read */
-    Delay(150);
-    after = diskio_has(vol, "after");
-    v = wbgap_diskio_judge(before, off, after, why, sizeof why);
-    if (v == WBGAP_PASS) pass("D1");
-    else if (v == WBGAP_SKIP) skip("D1", why);
-    else fail("D1", why);
-    return fails ? 5 : 0;
 }
 
 static long read_all(const char *path, char *buf, long n);
@@ -2145,7 +2014,8 @@ static int drag_settle(struct Window *w, const unsigned long *before, int gw, in
     return wbgap_diff_box(before, after, gw, gh, DROP_STEP, box);
 }
 
-/* an object made in the drawer dir (its window w open) at x,y and told to the desktop; its box found as d's is */
+/* an object made in the drawer dir (its window w open; a volume's root, "RAM:", too) at x,y and told to the desktop;
+ * its box found as d's is. A drawer or a trashcan (WBGARBAGE) is made as a drawer */
 static int drag_make(struct Window *w, const char *dir, const char *name, LONG type, int x, int y, long box[4])
 {
     static unsigned long before[DROP_GW * DROP_GH];
@@ -2154,8 +2024,8 @@ static int drag_make(struct Window *w, const char *dir, const char *name, LONG t
     BPTR l;
     int gw, gh;
     drop_grab(w, before, &gw, &gh);
-    snprintf(path, sizeof path, "%s/%s", dir, name);
-    if (type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+    snprintf(path, sizeof path, "%s%s%s", dir, *dir && dir[strlen(dir) - 1] == ':' ? "" : "/", name);   /* "RAM:" too */
+    if (type == WBDRAWER || type == WBGARBAGE) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
     else write_file(path, "x\n");
     if ((o = GetDefDiskObject(type))) {
         o->do_CurrentX = x;
@@ -3049,6 +2919,8 @@ int wbt_put_icon(const char *path, long type, char **tooltypes) { return put_ico
 struct Window *wbt_find_window(const char *part) { return find_window(part); }
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how) { return open_drawer(path, title, secs, how); }
 int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
+int wbt_write_file(const char *path, const char *text) { return write_file(path, text); }
+unsigned long wbt_inside_sum(struct Window *w) { return inside_sum(w); }
 void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
@@ -3080,12 +2952,9 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
-    else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
-    else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
-    else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);

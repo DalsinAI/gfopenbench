@@ -102,17 +102,11 @@ void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
  * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
-/* D5r: RAM Disk first in the desktop's volume column, from RAM:wbgap-root-pos (wbgap_rows.c) */
-int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap);
 /* I14: 1 if a line of list (as WBGapRoot.rexx writes it) has the name, of any type, case not minded */
 int wbgap_root_has_name(const char *list, const char *name);
 /* I14: RAM:WBGap/noicon (no .info) among the drawer's icons with Only Icons (must not be) and with All Files (must);
  * each 0, 1, or -1 if not read (SKIP). WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
 int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap);
-/* D1: a disk's icon goes while its file system is inhibited (as for Format) and comes back after. The three answers
- * of wbgap_root_has_disk: before, while inhibited, after; -1 where the icons weren't read. WBGAP_SKIP if it had no
- * icon before (nothing to watch) or a read failed (nothing seen), else WBGAP_PASS or WBGAP_FAIL, the reason in why */
-int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
 /* A5 (WBCONTROL) and other rows made of several readings: names[k]'s reading got[k] must be want[k] for every k.
  * WBGAP_PASS, WBGAP_FAIL (the first wrong one in why: "<name>: <got>, not <want>"), WBGAP_SKIP for none */
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap);
