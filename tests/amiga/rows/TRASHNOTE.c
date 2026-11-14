@@ -2,13 +2,13 @@
  * The engine's trash is a volume's own Trashcan (<volume>:Trashcan; desktop/ob_drop.c is_engine_trash): a file dropped
  * there goes in through GFOpenFiles' engine (of_delete), with a line for it and its icon in the Trashcan's note
  * (.GFOpenFiles: name TAB where it came from), and GFOpenFiles puts it back from that note (of_restore).
- * RAM:WBGapR (a snapshotted at 20,10) is opened at the top-left, half the screen wide at most 400, and the RAM Disk's
+ * RAM:AWBGapR (a snapshotted at 20,10) is opened at the top-left, half the screen wide at most 400, and the RAM Disk's
  * own window beside it, clear of it (found by "RAM: - ", GFOpenDrawer's title, or by the volume's name). RAM:Trashcan
- * is made, with a trashcan's icon, at 200,150 in that window, and f at 120,10 in RAM:WBGapR, each found where its
+ * is made, with a trashcan's icon, at 200,150 in that window, and f at 120,10 in RAM:AWBGapR, each found where its
  * window's inside changed. f is dragged onto the Trashcan with DragTest.
- * I6t: f and f.info must leave RAM:WBGapR for RAM:Trashcan, and the note must have a line for each, from
- * ...WBGapR/f and ...WBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
- * back in RAM:WBGapR, out of the Trashcan, and take their lines out of the note.
+ * I6t: f and f.info must leave RAM:AWBGapR for RAM:Trashcan, and the note must have a line for each, from
+ * ...AWBGapR/f and ...AWBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
+ * back in RAM:AWBGapR, out of the Trashcan, and take their lines out of the note.
  * Only on GFOpenBench: 3.2.3's trashcan keeps no note. Only when RAM: has no Trashcan already (the user's trash is
  * not ours to empty: both SKIP). Everything this made is cleared afterwards, the Trashcan and its note with it, and
  * the RAM Disk's window closed again when it wasn't open before (it is moved and sized here, not put back).
@@ -33,19 +33,22 @@ WBGAP_MODE(TRASHNOTE, wbt_trashnote, NEWROWS)
 WBGAP_ROWMODE(I6t, TRASHNOTE)
 WBGAP_ROWMODE(I6p, TRASHNOTE)
 
-#define TN_DIR "RAM:WBGapR"
+/* RAM:AWBGapR, not RAM:WBGapR: GFOpenDrawer arranges a drawer with no snapshots by name, and a drawer named after
+ * "Trashcan" moved a place when the Trashcan was added, so the Trashcan's box took in both icons and the drag let go
+ * between them, in RAM: itself (14 Nov lab). Named before it, nothing else in RAM:'s window moves */
+#define TN_DIR "RAM:AWBGapR"
 #define TN_CAN "RAM:Trashcan"
 #define TN_NOTE TN_CAN "/.GFOpenFiles"
 #define TN_W 400
 #define TN_H 300
 #define TN_MINW 320
 /* the RAM Disk's window, found by its title: GFOpenDrawer's is the path it was opened by, then " - n items" ("RAM: -
- * 3 items", 14 Nov lab), never "RAM:WBGapR - ..."'s; a desktop that titles it with the volume's name ("RAM Disk") is
+ * 3 items", 14 Nov lab), never "RAM:AWBGapR - ..."'s; a desktop that titles it with the volume's name ("RAM Disk") is
  * found by that */
 #define TN_RAMWIN "RAM: - "
 
 /* wbt_place, tried 3 times a second apart: a drawer window GFOpenDrawer has just opened may still size itself to fit
- * (14 Nov lab: RAM:WBGapR's window left at 316x210 when the first ChangeWindowBox raced it) */
+ * (14 Nov lab: the drawer's window left at 316x210 when the first ChangeWindowBox raced it) */
 static struct Window *tn_place(const char *title, const long *avoid, long w, long h)
 {
     struct Window *x = NULL;
@@ -93,7 +96,7 @@ static void tn_clean(int can_ours, int ram_ours, const char *title)
     unsigned i, pass;
     int t;
     CloseWorkbenchObjectA((STRPTR)TN_DIR, NULL);
-    for (t = 0; t < 40 && wbt_find_window("WBGapR"); t++) Delay(5);
+    for (t = 0; t < 40 && wbt_find_window("AWBGapR"); t++) Delay(5);
     for (pass = 0; pass < 2; pass++) {   /* twice: a desktop may write a drawer's .info after the close */
         if (pass) Delay(25);
         for (i = 0; i < sizeof mine / sizeof mine[0]; i++) DeleteFile((CONST_STRPTR)mine[i]);
@@ -182,7 +185,7 @@ int wbt_trashnote(int argc, char **argv)
     ram_ours = !wbt_find_window(TN_RAMWIN) && !wbt_find_window(vol);   /* closed again after only if it wasn't open */
     can_ours = 1;                         /* from here RAM:Trashcan, if any, is ours */
     wbt_drawer(TN_DIR, "a");
-    if (!wbt_open_drawer(TN_DIR, "WBGapR", 10, &how) || !(w = tn_place("WBGapR", NULL, ww, TN_H))) {
+    if (!wbt_open_drawer(TN_DIR, "AWBGapR", 10, &how) || !(w = tn_place("AWBGapR", NULL, ww, TN_H))) {
         wbt_fail("I6t", TN_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
@@ -196,13 +199,20 @@ int wbt_trashnote(int argc, char **argv)
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
     }
-    printf("INFO I6t %s's window at %d,%d %dx%d, the RAM Disk's at %d,%d %dx%d\n", TN_DIR, w->LeftEdge, w->TopEdge, w->Width,
-           w->Height, rw->LeftEdge, rw->TopEdge, rw->Width, rw->Height);
+    printf("INFO I6t %s's window at %d,%d %dx%d, the RAM Disk's at %d,%d %dx%d\n", TN_DIR, w->LeftEdge, w->TopEdge,
+           w->Width, w->Height, rw->LeftEdge, rw->TopEdge, rw->Width, rw->Height);
     Delay(50);
     if (!wbt_make_icon(rw, "RAM:", "Trashcan", WBGARBAGE, 200, 150, box_t) || !(rw = wbt_find_window(title)) ||
-        !(w = wbt_find_window("WBGapR")) || !wbt_make_icon(w, TN_DIR, "f", WBPROJECT, 120, 10, box_f) ||
-        !(w = wbt_find_window("WBGapR")) || !(rw = wbt_find_window(title))) {
+        !(w = wbt_find_window("AWBGapR")) || !wbt_make_icon(w, TN_DIR, "f", WBPROJECT, 120, 10, box_f) ||
+        !(w = wbt_find_window("AWBGapR")) || !(rw = wbt_find_window(title))) {
         wbt_fail("I6t", "RAM:Trashcan or f never showed in its window (5 s after UpdateWorkbench)");
+        wbt_skip("I6p", "not tried (I6t failed)");
+        goto out;
+    }
+    if (box_t[2] > box_f[2] * 2) {        /* more than one icon changed: the drop point could miss the Trashcan */
+        printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two of f's (%ldx%ld): more than its icon moved\n",
+               box_t[2], box_t[3], box_f[2], box_f[3]);
+        wbt_fail("I6t", "RAM:Trashcan's icon not told apart: other icons moved in its window when it was added");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
     }
@@ -229,7 +239,7 @@ int wbt_trashnote(int argc, char **argv)
     if (wbt_read_all(TN_NOTE, note, sizeof note) < 0) note[0] = 0;
     printf("INFO I6t f: in %s %d/%d (file/icon), in RAM:Trashcan %d/%d; the note %ld bytes\n", TN_DIR, sf, si, df, di,
            (long)strlen(note));
-    v = wbgap_trashnote_judge(sf, si, df, di, tn_there(TN_NOTE) ? note : NULL, "f", "WBGapR/f", why, sizeof why);
+    v = wbgap_trashnote_judge(sf, si, df, di, tn_there(TN_NOTE) ? note : NULL, "f", "AWBGapR/f", why, sizeof why);
     wbt_say("I6t", v, why);
 
     /* I6p: put back, as GFOpenFiles does */
@@ -250,7 +260,8 @@ int wbt_trashnote(int argc, char **argv)
            tn_there(TN_DIR "/f.info"), tn_there(TN_CAN "/f"), tn_there(TN_CAN "/f.info"));
     v = wbgap_putback_judge(rc, tn_there(TN_DIR "/f"), tn_there(TN_DIR "/f.info"),
                             tn_there(TN_CAN "/f") || tn_there(TN_CAN "/f.info"),
-                            wbgap_trashnote_line(note, "f", "WBGapR/f") || wbgap_trashnote_line(note, "f.info", "WBGapR/f.info"),
+                            wbgap_trashnote_line(note, "f", "AWBGapR/f") ||
+                                wbgap_trashnote_line(note, "f.info", "AWBGapR/f.info"),
                             "f", why, sizeof why);
     wbt_say("I6p", v, why);
 out:
