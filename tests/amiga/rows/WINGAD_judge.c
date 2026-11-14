@@ -80,19 +80,18 @@ static int wg_line(const char *look, const char *const *words)
     return 0;
 }
 
-/* 1 if the look's first line that isn't empty or a comment (;) is the Classic theme ("Classic", "Classic light"...) */
+/* 1 if the look's line 1 names the Classic theme ("Classic", "Classic light", "\"Classic\" dark"...), as
+ * gfopengadtools' ogt_look_load reads it: the first word of line 1 only, unless it starts with ';'. A blank line 1, or
+ * Classic on a later line, names no theme there (the Open one is used). The name is a file's, so any case. */
 static int wg_classic_theme(const char *look)
 {
-    const char *s = look;
-    while (s && *s) {
-        const char *q = s;
-        while (*q == ' ' || *q == '\t') q++;
-        if (*q && *q != '\n' && *q != '\r' && *q != ';')
-            return wg_word(&q, "classic") && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q);
-        while (*s && *s != '\n') s++;
-        if (*s) s++;
-    }
-    return 0;
+    const char *q = look;
+    int quoted = 0;
+    if (!q) return 0;
+    while (*q == ' ' || *q == '\t') q++;
+    if (*q == '"') quoted = 1, q++;
+    if (!wg_word(&q, "classic")) return 0;
+    return (quoted && *q == '"') || (!quoted && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q));
 }
 
 /* gfopengadtools DESIGN.md: the Classic theme passes everything through, and Classic screens keep their zoom gadgets,

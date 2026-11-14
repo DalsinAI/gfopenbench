@@ -64,8 +64,12 @@ void wingad_plan(void)
     CHECK(wbgap_wingad_zoom_off("zoom off\nScreen  Workbench\tCLASSIC \r\n") == 0, "screen workbench classic, any case and spacing");
     CHECK(wbgap_wingad_zoom_off("zoom off\nscreen workbench classical\n") == 1, "classical is not classic");
     CHECK(wbgap_wingad_zoom_off("Classic light\nzoom off\n") == 0, "the Classic theme passes everything through: 0");
-    CHECK(wbgap_wingad_zoom_off("; OpenPrefs wrote this\n\n  classic\r\nzoom off\n") == 0,
-          "Classic after a comment and a blank line, any case: 0");
+    CHECK(wbgap_wingad_zoom_off("  classic\r\nzoom off\n") == 0, "Classic on line 1, any case and spacing: 0");
+    CHECK(wbgap_wingad_zoom_off("\"Classic\" dark\nzoom off\n") == 0, "Classic quoted on line 1: 0");
+    CHECK(wbgap_wingad_zoom_off("\nClassic light\nzoom off\n") == 1,
+          "a blank line 1: GFOpenLook names no theme (Open), so Classic on line 2 doesn't count: 1");
+    CHECK(wbgap_wingad_zoom_off("; OpenPrefs wrote this\nClassic light\nzoom off\n") == 1,
+          "a comment on line 1: no theme named, Classic on line 2 doesn't count: 1");
     CHECK(wbgap_wingad_zoom_off("Classical light\nzoom off\n") == 1 && wbgap_wingad_zoom_off("Open light\n; Classic\nzoom off\n") == 1,
           "a theme named Classical, or Classic only in a comment: 1");
     CHECK(wbgap_wingad_zoom_off(NULL) == 0 && wbgap_wingad_zoom_off("") == 0, "no look: 0");
