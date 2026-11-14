@@ -871,16 +871,19 @@ static void switch_name_change(struct Screen *s, const unsigned long *before, in
 /* The windows of an order by title, front first, for a FAIL: copied out under LockIBase, printed after it */
 static void switch_name(struct Screen *s, const unsigned long *ids, int n, const char *row, const char *what)
 {
-    static char line[512];
+    static char line[768];
     unsigned len = 0;
     int i;
     ULONG lock = LockIBase(0);
     line[0] = 0;
-    for (i = 0; i < n && len + 40 < sizeof line; i++) {
+    for (i = 0; i < n && len + 64 < sizeof line; i++) {
         struct Window *w;
         for (w = s->FirstWindow; w && (unsigned long)w != ids[i]; w = w->NextWindow) ;
-        len += snprintf(line + len, sizeof line - len, "%s\"%.24s\"", i ? ", " : "",
-                        w && w->Title ? (const char *)w->Title : (w ? "(untitled)" : "(gone)"));
+        if (w && !w->Title)       /* untitled: its size, flags and IDCMP say what it is (a dock, a panel) */
+            len += snprintf(line + len, sizeof line - len, "%s(untitled %dx%d $%lx/$%lx)", i ? ", " : "", w->Width,
+                            w->Height, (unsigned long)w->Flags, (unsigned long)w->IDCMPFlags);
+        else
+            len += snprintf(line + len, sizeof line - len, "%s\"%.24s\"", i ? ", " : "", w ? (const char *)w->Title : "(gone)");
     }
     UnlockIBase(lock);
     printf("INFO %s %s: %s\n", row, what, line);
