@@ -74,6 +74,8 @@ void wbgap_power_point(long left, long top, long width, long height, long xy[2])
  * pushed to x 0 by a narrow screen can't be told: UNSURE) */
 enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
 int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
+/* B1: 1 if (x, y) is inside the box l, t, w x h: the Power click's point under the list it opened */
+int wbgap_point_in_box(long x, long y, long l, long t, long w, long h);
 /* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
  * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
  * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
