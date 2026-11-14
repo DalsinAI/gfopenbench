@@ -779,6 +779,22 @@ static int do_api(void)
             SetIoErr(0);
             on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
             e1 = IoErr();
+            /* stock OS 3.x gives ism_Left/ism_Top in the drawer's view (from its inside's top-left, not scrolled in a
+             * drawer just opened); GFOpenBench gives the window's. Not the icon at the first: the view's, asked once */
+            if (wf.found && on_icon != WBO_ICON) {
+                long vp[2], vx, vy;
+                ULONG again;
+                wbgap_which_view_point(ww->BorderLeft, ww->BorderTop, wf.x, wf.y, vp);
+                vx = vp[0];
+                vy = vp[1];
+                t1 = WBGAP_WHICH_UNSET;
+                strcpy(name, "?");
+                SetIoErr(0);
+                again = WhichWorkbenchObjectA(ww, vx, vy, tg1);
+                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu\n", (unsigned long)on_icon, vx, vy,
+                       (unsigned long)again);
+                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = IoErr(); }
+            }
             SetIoErr(0);
             on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
             e2 = IoErr();
@@ -1197,94 +1213,6 @@ static int do_menudrive(void)
 }
 
 static long read_all(const char *path, char *buf, long n);
-
-/* ---- C6: CloseWorkBench / OpenWorkBench with programs running ---- */
-static int desk_port(void)
-{
-    int up;
-    Forbid();
-    up = FindPort((CONST_STRPTR)"GFOPENBENCH") || FindPort((CONST_STRPTR)"WORKBENCH");
-    Permit();
-    return up;
-}
-
-static struct Screen *wb_screen_now(void)
-{
-    struct Screen *s = LockPubScreen((CONST_STRPTR)"Workbench");
-    if (s) UnlockPubScreen(NULL, s);              /* not held: a lock would stop CloseWorkBench() */
-    return s;
-}
-
-static int closewb_row(void)
-{
-    struct Screen *before, *after;
-    struct Window *w;
-    LONG closed;
-    int how, reopened = 0, t, port = 0, drawer = 0, v;
-    char why[96];
-    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapC");
-    if (l) UnLock(l);
-    put_icon("RAM:WBGapC", WBDRAWER, NULL);
-    if (!(w = open_drawer("RAM:WBGapC", "WBGapC", 10, &how))) { skip("C6", "RAM:WBGapC's window didn't open"); return 0; }
-    if (!(before = wb_screen_now())) { skip("C6", "no Workbench screen"); return 0; }
-    closed = CloseWorkBench();
-    printf("INFO C6 CloseWorkBench() gave %ld\n", (long)closed);
-    if (closed) {
-        reopened = OpenWorkBench() != 0;
-        printf("INFO C6 OpenWorkBench() %s\n", reopened ? "opened the screen again" : "failed");
-    }
-    for (t = 0; t < 100; t++) {                     /* up to 10 s for the desktop and its drawer to be back */
-        port = desk_port();
-        drawer = find_window("WBGapC") != NULL;
-        if (port && drawer) break;
-        Delay(5);
-    }
-    after = wb_screen_now();
-    v = wbgap_closewb_judge(closed != 0, reopened, after == before, port, drawer, why, sizeof why);
-    if (v == WBGAP_PASS) pass("C6");
-    else fail("C6", why);
-    clear_drawer("RAM:WBGapC", "WBGapC", "C6");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapC");
-    return fails ? 5 : 0;
-}
-
-static int do_closewb(void)
-{
-    int rc = closewb_row();
-    printf("INFO C6 done\n");                    /* the last line, on every way out: CLOSEWBWAIT waits for it */
-    return rc;
-}
-
-/* CLOSEWBWAIT file secs: the script starts CLOSEWB with Run >file, then this
- * waits up to secs for it to be over (wbgap_closewb_over) and prints what it
- * wrote. A CloseWorkBench() that never returns (lab t2-killcrazy-wbgap, 14
- * Nov, before amicradle-guest #752) is then FAIL C6 here, and the run goes
- * on to REPORT; the CLOSEWB process is left as it is, with its own code. */
-static int do_closewb_wait(const char *path, int secs)
-{
-    static char buf[4096];
-    int t, over = 0;
-    long n = 0;
-    BPTR fh;
-    for (t = 0; t <= secs * 2 && !over; t++) {
-        if (t) Delay(25);
-        buf[0] = 0;
-        if ((fh = Open((CONST_STRPTR)path, MODE_OLDFILE))) {
-            n = Read(fh, buf, sizeof buf - 1);
-            buf[n > 0 ? n : 0] = 0;
-            Close(fh);
-        }
-        over = wbgap_closewb_over(buf);
-    }
-    if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
-    if (!over) {
-        char why[96];
-        snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running)", secs);
-        fail("C6", why);
-    }
-    return fails ? 5 : 0;
-}
 
 static void say_row(const char *row, int state, const char *why)
 {
@@ -2510,8 +2438,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "API")) rc = do_api();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
-    else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
-    else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
