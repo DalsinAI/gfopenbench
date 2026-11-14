@@ -143,8 +143,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"W2", NULL, A, NULL, "keyboard window cycling"},
     {"W3", NULL, A, NULL, "window and screen titles"},
     /* 10. Notifications */
-    {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
-    {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
+    {"F1", NULL, A, NULL, "a new file shows without Update"},
+    {"F2", NULL, A, NULL, "a changed .info updates its icon"},
     /* 11. Prefs */
     {"P1", NULL, L, NULL, "WBPattern"},
     {"P2", NULL, L, NULL, "icon text font"},

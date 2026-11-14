@@ -565,34 +565,6 @@ static int changes_within(struct Window *w, ULONG before, int secs)
     return 0;
 }
 
-static int do_notify(void)
-{
-    struct Window *w;
-    ULONG before;
-    int how;
-    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1");        /* a run before left them: the file must be new */
-    DeleteFile((CONST_STRPTR)"RAM:WBGap/new1.info");
-    do_setup();
-    if (!(w = open_drawer("RAM:WBGap", "WBGap", 10, &how))) { fail("F1", "RAM:WBGap's window didn't open"); skip("F2", "no window"); return 10; }
-    printf("INFO RAM:WBGap opened by %s\n", how ? "DragTest OPEN" : "OpenWorkbenchObjectA");
-    if (w->Width < 480 || w->Height < 240) {   /* a new drawer may open too small to show its icons (L1 checks that) */
-        ChangeWindowBox(w, w->LeftEdge, w->TopEdge, w->Width < 480 ? 480 : w->Width, w->Height < 240 ? 240 : w->Height);
-        Delay(50);
-        printf("INFO RAM:WBGap's window sized to %dx%d for F1 and F2\n", w->Width, w->Height);
-    }
-    Delay(100);   /* its icons drawn */
-    before = inside_sum(w);
-    write_file("RAM:WBGap/new1", "new\n");
-    put_icon("RAM:WBGap/new1", WBPROJECT, NULL);
-    if (changes_within(w, before, 5)) pass("F1"); else fail("F1", "a new file with an icon didn't show in 5 s");
-    Delay(50);
-    if (!(w = find_window("WBGap"))) { skip("F2", "window gone"); return 5; }
-    before = inside_sum(w);
-    put_icon("RAM:WBGap/a", WBTOOL, NULL);   /* "a"'s icon now a tool's image */
-    if (changes_within(w, before, 5)) pass("F2"); else fail("F2", "a changed .info didn't show in 5 s");
-    return fails ? 5 : 0;
-}
-
 /* ---- workbench.library ---- */
 static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), struct IconSelectMsg *ism __asm("a1"))
 {
@@ -2292,6 +2264,8 @@ struct Window *wbt_open_drawer(const char *path, const char *title, int secs, in
 int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
 int wbt_write_file(const char *path, const char *text) { return write_file(path, text); }
 unsigned long wbt_inside_sum(struct Window *w) { return inside_sum(w); }
+int wbt_changes_within(struct Window *w, unsigned long before, int secs) { return changes_within(w, before, secs); }
+int wbt_setup(void) { return do_setup(); }
 void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
@@ -2327,7 +2301,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
     else if (!stricmp(argv[1], "API")) rc = do_api();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
-    else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
