@@ -48,7 +48,7 @@ static const struct wbgap_row rows[] = {
     {"M24", NULL, A, MENUS, "Icons > Format Disk; in GFOS a separate Format application (13 Nov)"},
     {"M25", NULL, A, MENUS, "Icons > Empty Trash"},
     {"M26", NULL, A, MENUS, "Tools > ResetWB; in GFOS Refresh OpenBench (13 Nov)"},
-    {"M27", NULL, A, NULL, "Tools items added by programs (AddAppMenuItemA) shown"},
+    {"M27", NULL, A, API, "Tools items added by programs (AddAppMenuItemA) shown"},
     {"M28", NULL, A, MENUS, "Amiga-keys as 3.2.3"},
     {"M28k", "M28", H, NULL, "KEYS= on the Workbench icon remaps them (13 Nov)"},
     {"M29", NULL, A, MENUS, "Window > Open volume (13 Nov)"},
