@@ -104,3 +104,20 @@ int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w)
     long one = name_w > f_w ? name_w : f_w;
     return one > 0 && changed_w > one * 2;
 }
+
+int wbgap_trashnote_mapped(const long *name_t, const long *name_f, const long *changed_f, const long *changed_t,
+                           long inner_w, long inner_h, long out[4])
+{
+    long dx, dy, mx, my;
+    if (!name_t || !name_f || !changed_f || !changed_t || !out) return 0;
+    if (name_t[2] <= 0 || name_t[3] <= 0 || changed_f[2] <= 0 || changed_t[2] <= 0 || changed_t[3] <= 0) return 0;
+    dx = changed_f[0] - name_f[0];
+    dy = changed_f[1] - name_f[1];
+    out[0] = name_t[0] + dx; out[1] = name_t[1] + dy; out[2] = name_t[2]; out[3] = name_t[3];
+    if (out[0] < 0 || out[1] < 0) return 0;
+    if (inner_w > 0 && out[0] + out[2] > inner_w) return 0;
+    if (inner_h > 0 && out[1] + out[3] > inner_h) return 0;
+    mx = out[0] + out[2] / 2;
+    my = out[1] + out[3] / 2;
+    return mx >= changed_t[0] && mx < changed_t[0] + changed_t[2] && my >= changed_t[1] && my < changed_t[1] + changed_t[3];
+}
