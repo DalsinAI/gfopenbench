@@ -166,6 +166,7 @@ static const struct wbgap_row rows[] = {
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
     {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
+    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB stick mounted (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
@@ -341,7 +342,22 @@ int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
     return WBGAP_BAR_OTHER;
 }
 
-int wbgap_power_rows_fit(long menu_height, long font_height)
+long wbgap_power_height(int sticks, long row_height)
 {
-    return font_height > 0 && menu_height >= 3 * font_height;
+    if (sticks < 0) sticks = 0;
+    return 3 + sticks * row_height + (sticks ? 6 : 0) + 3 * row_height + 3;
+}
+
+void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2)
+{
+    if (row_height > 0 && height == wbgap_power_height(sticks, row_height)) {
+        *b1 = WBGAP_PASS;
+        *b2 = sticks > 0 ? WBGAP_PASS : WBGAP_SKIP;
+    } else if (row_height > 0 && sticks > 0 && height == wbgap_power_height(0, row_height)) {
+        *b1 = WBGAP_PASS;   /* the power rows are there; the sticks' Eject rows aren't */
+        *b2 = WBGAP_FAIL;
+    } else {
+        *b1 = WBGAP_FAIL;
+        *b2 = sticks > 0 ? WBGAP_FAIL : WBGAP_SKIP;
+    }
 }

@@ -17,8 +17,9 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
- *   WBGapTest BAR               row B1: GFOpenTitle's Power icon clicked, its list looked at (where it hangs, three
- *                               rows at least) and closed with Esc; nothing in it is picked
+ *   WBGapTest BAR               rows B1, B2: GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
+ *                               its height: Reboot, Restart, Power off, and an Eject row for each USB stick mounted)
+ *                               and closed with Esc; nothing in it is picked
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -64,6 +65,8 @@
 #include <workbench/startup.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <dos/dosextens.h>
+#include <dos/filehandler.h>
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include <proto/icon.h>
@@ -1056,7 +1059,7 @@ static int do_big(void)
     return fails ? 5 : 0;
 }
 
-/* ---- the system bar: B1, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
+/* ---- the system bar: B1 and B2, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
  * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
  * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
  * closed with Esc: nothing in it is ever picked (Reboot and Power off are in it). */
@@ -1091,53 +1094,107 @@ static struct Window *new_active(struct Window **was, int n, struct Task *t, int
     return NULL;
 }
 
+/* the USB sticks mounted, as GFOpenTitle counts them for Power's Eject rows: DOS devices on gfopenusbacfs.device or
+ * usbdisk.device with a handler running */
+static int usb_sticks_now(void)
+{
+    struct DosList *dl = LockDosList(LDF_DEVICES | LDF_READ), *e = dl;
+    int n = 0;
+    while ((e = NextDosEntry(e, LDF_DEVICES)) != NULL) {
+        struct DeviceNode *dn = (struct DeviceNode *)e;
+        struct FileSysStartupMsg *fssm;
+        const UBYTE *b;
+        char dev[40];
+        int k, len;
+        if ((ULONG)dn->dn_Startup <= 1024 || !dn->dn_Task) continue;
+        fssm = (struct FileSysStartupMsg *)BADDR(dn->dn_Startup);
+        b = (const UBYTE *)BADDR(fssm->fssm_Device);
+        if (!b) continue;
+        len = (int)b[0] < (int)sizeof dev - 1 ? (int)b[0] : (int)sizeof dev - 1;
+        for (k = 0; k < len; k++) dev[k] = (char)b[k + 1];
+        dev[len] = 0;
+        if (!strcmp(dev, "gfopenusbacfs.device") || !strcmp(dev, "usbdisk.device")) n++;
+    }
+    UnLockDosList(LDF_DEVICES | LDF_READ);
+    return n;
+}
+
+static void say_row(const char *row, int state, const char *why)
+{
+    if (state == WBGAP_PASS) pass(row);
+    else if (state == WBGAP_FAIL) fail(row, why);
+    else skip(row, why);
+}
+
 static int do_bar(void)
 {
     struct Screen *s;
     struct MsgPort *p;
     struct Task *t;
     struct Window *row, *was[MAXWINS], *m;
-    long xy[2], rr, ml, mt, mw, mh, fh;
-    int n, k, owner;
+    long xy[2], rr, ml, mt, mw, mh, rh;
+    int n, k, owner, sticks, b1, b2;
+    char why[96];
+    struct DrawInfo *dri;
     char cmd[320];
     Forbid();
     p = FindPort((CONST_STRPTR)"GFOpenTitle");
     t = p ? (struct Task *)p->mp_SigTask : NULL;
     Permit();
-    if (!t) { skip("B1", "GFOpenTitle isn't running (no GFOpenTitle port)"); return 0; }
-    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("B1", "no Workbench screen"); return 0; }
+    if (!t) {
+        skip("B1", "GFOpenTitle isn't running (no GFOpenTitle port)");
+        skip("B2", "GFOpenTitle isn't running (no GFOpenTitle port)");
+        return 0;
+    }
+    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("B1", "no Workbench screen"); skip("B2", "no Workbench screen"); return 0; }
     ScreenToFront(s);
     Delay(25);
     if (!(row = bar_row(s, t))) {
         fail("B1", "GFOpenTitle's row on the title bar not found");
+        skip("B2", "no Power list to read");
         UnlockPubScreen(NULL, s);
         return 5;
     }
     wbgap_power_point(row->LeftEdge, row->TopEdge, row->Width, row->Height, xy);
     rr = row->LeftEdge + row->Width;
-    fh = s->Font ? s->Font->ta_YSize : 8;
+    /* a list row: the bar font's height + 4, as menu_open measures it */
+    rh = (dri = GetScreenDrawInfo(s)) && dri->dri_Font ? dri->dri_Font->tf_YSize + 4 : 0;
+    if (dri) FreeScreenDrawInfo(s, dri);
+    sticks = usb_sticks_now();
     n = windows_now(s, was, MAXWINS);
     snprintf(cmd, sizeof cmd, "\"%s\" CLICK %ld %ld", dragtest, xy[0], xy[1]);
     run(cmd);
     if (!(m = new_active(was, n, t, 2))) {
         fail("B1", "a click on Power opened no list");
+        skip("B2", "no Power list to read");
         UnlockPubScreen(NULL, s);
         return 5;
     }
     ml = m->LeftEdge; mt = m->TopEdge; mw = m->Width; mh = m->Height;
-    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld\n", row->LeftEdge, row->TopEdge,
-           row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh);
+    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld; rows %ld high, %d USB sticks\n",
+           row->LeftEdge, row->TopEdge, row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh, rh, sticks);
     owner = wbgap_bar_menu_owner(rr, ml, mw);
     /* Esc closes it before anything else: nothing in it is picked */
     snprintf(cmd, sizeof cmd, "%s KEY 0x45", dragtest);
     run(cmd);
     for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
-    if (still_there(s, m)) fail("B1", "Esc left the list open");
-    else if (owner == WBGAP_BAR_PREFS) fail("B1", "a click on Power's cell opened Prefs' list");
-    else if (owner == WBGAP_BAR_OTHER) fail("B1", "the window that opened doesn't hang from Power");
-    else if (!wbgap_power_rows_fit(mh, fh)) fail("B1", "Power's list is shorter than Reboot, Restart and Power off");
-    else if (owner == WBGAP_BAR_UNSURE) skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told");
-    else pass("B1");
+    wbgap_power_judge(mh, sticks, rh, &b1, &b2);
+    if (still_there(s, m)) fail("B1", "Esc left the list open");   /* B2 still read: the height was taken before */
+    else if (owner == WBGAP_BAR_PREFS) { fail("B1", "a click on Power's cell opened Prefs' list"); b2 = WBGAP_NONE; }
+    else if (owner == WBGAP_BAR_OTHER) { fail("B1", "the window that opened doesn't hang from Power"); b2 = WBGAP_NONE; }
+    else if (owner == WBGAP_BAR_UNSURE) { skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told"); b2 = WBGAP_NONE; }
+    else {
+        snprintf(why, sizeof why, "the list is %ld high, not %ld (Reboot, Restart, Power off, %d Eject rows)", mh,
+                 wbgap_power_height(sticks, rh), sticks);
+        say_row("B1", b1, why);
+    }
+    if (b2 == WBGAP_NONE) skip("B2", "Power's list not read");
+    else {
+        if (b2 == WBGAP_SKIP) snprintf(why, sizeof why, "no USB stick mounted");
+        else snprintf(why, sizeof why, "%d USB sticks: the list is %ld high, not %ld with their Eject rows", sticks, mh,
+                      wbgap_power_height(sticks, rh));
+        say_row("B2", b2, why);
+    }
     UnlockPubScreen(NULL, s);
     return fails ? 5 : 0;
 }

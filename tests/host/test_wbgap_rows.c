@@ -105,7 +105,7 @@ static void backdrop_plan(void)
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
 }
 
-/* B1: GFOpenTitle's Power cell, and whose list a click opened */
+/* B1, B2: GFOpenTitle's Power cell, whose list a click opened, and its rows */
 static void bar_plan(void)
 {
     long xy[2];
@@ -119,9 +119,24 @@ static void bar_plan(void)
     CHECK(wbgap_bar_menu_owner(640, 200, 140) == WBGAP_BAR_OTHER, "anywhere else: another window");
     CHECK(wbgap_bar_menu_owner(640, 0, 600) == WBGAP_BAR_UNSURE, "pushed to x 0: can't tell");
     CHECK(wbgap_bar_menu_owner(100, 0, 100) == WBGAP_BAR_POWER, "at x 0 but ending at the row's edge: Power's");
-    CHECK(wbgap_power_rows_fit(36, 12) && wbgap_power_rows_fit(60, 12), "three rows or more fit");
-    CHECK(!wbgap_power_rows_fit(35, 12), "fewer than three rows' height");
-    CHECK(!wbgap_power_rows_fit(36, 0), "no font height: no answer");
+    {
+        int b1, b2;
+        CHECK(wbgap_power_height(0, 12) == 42, "no stick: 3 + 3 rows of 12 + 3");
+        CHECK(wbgap_power_height(2, 12) == 72, "two sticks: their rows and the line too");
+        CHECK(wbgap_power_height(-1, 12) == 42, "a negative count is none");
+        wbgap_power_judge(42, 0, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_PASS && b2 == WBGAP_SKIP, "no stick, the power rows: B1 PASS, B2 SKIP");
+        wbgap_power_judge(72, 2, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_PASS && b2 == WBGAP_PASS, "two sticks, their Eject rows: both PASS");
+        wbgap_power_judge(42, 2, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_PASS && b2 == WBGAP_FAIL, "two sticks but no Eject rows: B2 FAIL");
+        wbgap_power_judge(54, 2, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_FAIL && b2 == WBGAP_FAIL, "one Eject row for two sticks: neither");
+        wbgap_power_judge(30, 0, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_FAIL && b2 == WBGAP_SKIP, "two rows only, no stick: B1 FAIL, B2 SKIP");
+        wbgap_power_judge(42, 0, 0, &b1, &b2);
+        CHECK(b1 == WBGAP_FAIL, "no row height: no PASS");
+    }
 }
 
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
