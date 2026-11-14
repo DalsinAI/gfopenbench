@@ -783,17 +783,26 @@ static int do_api(void)
              * drawer just opened); GFOpenBench gives the window's. Not the icon at the first: the view's, asked once */
             if (wf.found && on_icon != WBO_ICON) {
                 long vp[2], vx, vy;
-                ULONG again;
+                ULONG again, t1_first = t1;
+                LONG e_again;
+                char name_first[64];
                 wbgap_which_view_point(ww->BorderLeft, ww->BorderTop, wf.x, wf.y, vp);
                 vx = vp[0];
                 vy = vp[1];
+                memcpy(name_first, name, sizeof name_first);
                 t1 = WBGAP_WHICH_UNSET;
                 strcpy(name, "?");
                 SetIoErr(0);
                 again = WhichWorkbenchObjectA(ww, vx, vy, tg1);
-                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu\n", (unsigned long)on_icon, vx, vy,
-                       (unsigned long)again);
-                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = IoErr(); }
+                e_again = IoErr();
+                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu (type %lu, IoErr %ld)\n",
+                       (unsigned long)on_icon, vx, vy, (unsigned long)again, (unsigned long)t1, (long)e_again);
+                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = e_again; }
+                else {
+                    /* missed again: the A8c line and wbgap_which_seen tell of the first ask, as on_icon does */
+                    t1 = t1_first;
+                    memcpy(name, name_first, sizeof name_first);
+                }
             }
             SetIoErr(0);
             on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
