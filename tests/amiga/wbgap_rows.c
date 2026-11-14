@@ -527,6 +527,13 @@ int wbgap_switcher_on(const char *env, char *key, unsigned cap)
     return on;
 }
 
+int wbgap_switch_offers(unsigned long flags, int width, int height)
+{
+    if ((flags & 0x100UL) || width < 8 || height < 8) return 0;            /* WFLG_BACKDROP, tiny */
+    if ((flags & 0x2000000UL) && !(flags & 0x8UL)) return 0;               /* WFLG_WBENCHWINDOW without CLOSEGADGET */
+    return (flags & 0xFUL) != 0;                                            /* SIZE, DRAGBAR, DEPTH or CLOSE gadget */
+}
+
 int wbgap_switch_judge(int back, const unsigned long *before, int nb, const unsigned long *after, int na,
                        unsigned long active, char *why, unsigned cap)
 {

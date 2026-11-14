@@ -113,6 +113,10 @@ int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int
  * of the screen to the front and activates it, Amiga+Shift+Tab sends the front one to the back and activates the one
  * behind it. ENV:GFOpenPrefs/Windows (text, may be NULL): 0 when it says "switcher off", else 1; its "switcher.key"
  * into key (cap bytes), "lcommand tab" when it has none */
+/* W2: a window Amiga+Tab cycles, by its Intuition Flags and size (GFOpenWindows 0.12.4, gfopenprefs
+ * Windows/src/switch_rule.h): not a backdrop, at least 8x8, not Workbench's root (a Workbench window without a close
+ * gadget), and with a system gadget (drag bar, depth, close or size), so tray buttons and panels don't take part */
+int wbgap_switch_offers(unsigned long flags, int width, int height);
 int wbgap_switcher_on(const char *env, char *key, unsigned cap);
 /* the step judged from the screen's switchable windows front to back before (nb of them) and after (na), and the
  * active window after (ids, any unique numbers): back 0 for Amiga+Tab, 1 for Amiga+Shift+Tab. WBGAP_PASS,

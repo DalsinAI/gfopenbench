@@ -821,8 +821,9 @@ static int do_screens(void)
 static long read_all(const char *path, char *buf, long n);
 
 /* ---- W2: keyboard window cycling (GFOpenWindows' switcher, gfopenprefs Windows) ----
- * The Workbench screen's windows front to back by their layers, as the switcher counts them: not a backdrop, not
- * tiny, not Workbench's own root window. Two windows of our own make sure there are some to cycle. */
+ * The Workbench screen's windows front to back by their layers, as the switcher counts them (wbgap_switch_offers:
+ * a window with a system gadget, not a backdrop, tiny, or Workbench's root; tray buttons and panels don't take part).
+ * Two windows of our own make sure there are some to cycle. */
 static int switch_order(struct Screen *s, unsigned long *ids, int cap)
 {
     struct Layer *l;
@@ -830,8 +831,7 @@ static int switch_order(struct Screen *s, unsigned long *ids, int cap)
     LockLayerInfo(&s->LayerInfo);   /* the layer list whole: a depth change half done holds this lock */
     for (l = s->LayerInfo.top_layer; l && n < cap; l = l->back) {
         struct Window *w = (struct Window *)l->Window;
-        if (!w || (w->Flags & WFLG_BACKDROP) || w->Width < 8 || w->Height < 8) continue;
-        if ((w->Flags & WFLG_WBENCHWINDOW) && !(w->Flags & WFLG_CLOSEGADGET)) continue;
+        if (!w || !wbgap_switch_offers((unsigned long)w->Flags, w->Width, w->Height)) continue;
         ids[n++] = (unsigned long)w;
     }
     UnlockLayerInfo(&s->LayerInfo);
