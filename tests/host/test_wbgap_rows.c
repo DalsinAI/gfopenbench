@@ -287,6 +287,28 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
+/* W3: window and screen titles */
+static void titles_plan(void)
+{
+    char why[200];
+    CHECK(wbgap_title_judge("WBGapT", "WBGapT", "Workbench Screen", why, sizeof why) == WBGAP_PASS && !why[0],
+          "the drawer's name, a screen title: PASS");
+    CHECK(wbgap_title_judge("WBGapT  2 files", "WBGapT", "x", why, sizeof why) == WBGAP_PASS, "the name, then a blank and more: PASS");
+    CHECK(wbgap_title_judge("RAM:WBGapT", "WBGapT", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, "RAM:WBGapT"),
+          "the path, not the name: FAIL, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapTx", "WBGapT", "x", why, sizeof why) == WBGAP_FAIL, "a longer name: FAIL");
+    CHECK(wbgap_title_judge("wbgapt", "WBGapT", "x", why, sizeof why) == WBGAP_FAIL, "the name's case changed: FAIL");
+    CHECK(wbgap_title_judge("", "WBGapT", "x", why, sizeof why) == WBGAP_FAIL, "an empty title: FAIL");
+    CHECK(wbgap_title_judge("WBGapT", "WBGapT", "", why, sizeof why) == WBGAP_FAIL && strstr(why, "screen has no title"),
+          "no screen title: FAIL, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapT", "WBGapT", NULL, why, sizeof why) == WBGAP_FAIL, "a NULL screen title: FAIL");
+    CHECK(wbgap_title_judge(NULL, "WBGapT", "x", why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
+          "the window not read: SKIP, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapT", "WBGapT", "x", NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
+    CHECK(wbgap_find("W3") >= 0 && wbgap_row(wbgap_find("W3"))->mode && !strcmp(wbgap_row(wbgap_find("W3"))->mode, "TITLES"),
+          "W3's line comes from TITLES");
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -478,6 +500,7 @@ int main(int argc, char **argv)
     bar_point_plan();
     closewb_plan();
     diskio_plan();
+    titles_plan();
     showall_plan();
     print_all();
     print_empty();
