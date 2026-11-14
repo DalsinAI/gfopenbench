@@ -17,7 +17,8 @@ int ob_rc_volume(const char *path, int disk, const char *trash, char *vol);
 void ob_rc_row(char *out, size_t size, const of_gone *g);
 
 /* Each kept file of vol's whole volume (never the rest of its drive) given to add (newest first), its row made;
- * msg (size bytes) gets what the window's status line says. The count, or -1 when the volume can't (msg says why). */
+ * msg (size bytes) gets what the window's status line says: every kept file is counted, even past what add takes.
+ * The rows added, or -1 when the volume can't (msg says why). */
 typedef int (*ob_rc_add_fn)(void *user, uint32_t id, const char *row);
 int ob_rc_fill(of_ctx *c, const char *vol, ob_rc_add_fn add, void *user, char *msg, size_t size);
 
