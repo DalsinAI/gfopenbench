@@ -124,6 +124,7 @@ static const struct wbgap_row rows[] = {
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
     {"D5", NULL, A, NULL, "RAM Disk icon"},
+    {"D5r", "D5", A, "WBGapRamFirst.rexx", "RAM Disk first in the desktop's volume column (14 Nov)"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
     {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},

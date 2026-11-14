@@ -66,6 +66,9 @@ static void every_id(void)
     CHECK(wbgap_has_parts(wbgap_find("A8")) && wbgap_has_parts(wbgap_find("I12")) && wbgap_has_parts(wbgap_find("C2")),
           "A8, C2 and I12 are made of parts");
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
+    CHECK(wbgap_find("D5r") == wbgap_find("D5") + 1 && wbgap_row(wbgap_find("D5r"))->how == WBGAP_AUTO
+          && !strcmp(wbgap_row(wbgap_find("D5r"))->mode, "WBGapRamFirst.rexx"),
+          "D5r, RAM Disk first on the column, is D5's automatic part, read by WBGapRamFirst.rexx");
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
     CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
