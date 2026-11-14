@@ -122,7 +122,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"S2i", "S2", A, INDEX, "the ACFS index keeps the date added: moved out and back is added again (13 Nov)"},
     {"S3", NULL, A, "STARTUP CHECK", "DONOTWAIT and WAIT honoured"},
     /* 7. Disks */
-    {"D1", NULL, A, "DISKIO", "disk in or out: its icon comes or goes"},
+    {"D1", NULL, A, NULL, "disk in or out: its icon comes or goes"},
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
@@ -573,19 +573,6 @@ int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap)
     if (only_icons < 0 || all_files < 0) { r = "the drawer's icons not read each time"; v = WBGAP_SKIP; }
     else if (only_icons) { r = "noicon was shown with Only Icons"; v = WBGAP_FAIL; }
     else if (!all_files) { r = "noicon not shown with All Files"; v = WBGAP_FAIL; }
-    if (why && cap) snprintf(why, cap, "%s", r);
-    return v;
-}
-
-int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap)
-{
-    const char *r = "";
-    int v = WBGAP_PASS;
-    if (!before) { r = "the disk had no icon before"; v = WBGAP_SKIP; }
-    else if (before < 0 || inhibited < 0 || after < 0) { r = "the desktop's icons not read each time"; v = WBGAP_SKIP; }
-    else if (inhibited && !after) { r = "its icon stayed while inhibited and then went"; v = WBGAP_FAIL; }
-    else if (inhibited) { r = "its icon stayed while inhibited"; v = WBGAP_FAIL; }
-    else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
 }

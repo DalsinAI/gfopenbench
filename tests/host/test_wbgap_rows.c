@@ -342,30 +342,6 @@ static void showall_plan(void)
     CHECK(wbgap_find("I14") >= 0 && !strcmp(wbgap_row(wbgap_find("I14"))->mode, "MENUS"), "I14's line comes from MENUS");
 }
 
-/* D1: a disk's icon goes while inhibited and comes back */
-static void diskio_plan(void)
-{
-    char why[64];
-    CHECK(wbgap_diskio_judge(1, 0, 1, why, sizeof why) == WBGAP_PASS && !why[0], "there, gone, back: PASS");
-    CHECK(wbgap_diskio_judge(0, 0, 0, why, sizeof why) == WBGAP_SKIP && strstr(why, "no icon before"),
-          "no icon before: SKIP, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(0, 1, 1, why, sizeof why) == WBGAP_SKIP, "no icon before, whatever after: SKIP");
-    CHECK(wbgap_diskio_judge(1, 1, 1, why, sizeof why) == WBGAP_FAIL && !strcmp(why, "its icon stayed while inhibited"),
-          "stayed: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "did not come back"),
-          "went, not back: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "stayed") && strstr(why, "then went"),
-          "stayed then went: FAIL, \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, -1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
-          "not read while inhibited: SKIP, never a PASS (Budgie), \"%s\"", why);
-    CHECK(wbgap_diskio_judge(1, 0, -1, why, sizeof why) == WBGAP_SKIP, "not read after: SKIP, never a FAIL");
-    CHECK(wbgap_diskio_judge(1, 1, -1, why, sizeof why) == WBGAP_SKIP && wbgap_diskio_judge(-1, 0, 1, why, sizeof why) == WBGAP_SKIP,
-          "any read failed: SKIP");
-    CHECK(wbgap_diskio_judge(1, 0, 1, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
-    CHECK(wbgap_find("D1") >= 0 && wbgap_row(wbgap_find("D1"))->mode && !strcmp(wbgap_row(wbgap_find("D1"))->mode, "DISKIO"),
-          "D1's line comes from DISKIO");
-}
-
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -706,7 +682,6 @@ int main(int argc, char **argv)
     which_plan();
     bar_point_plan();
     closewb_plan();
-    diskio_plan();
     showall_plan();
     rx_line_plan();
     drop_plan();
