@@ -19,10 +19,14 @@ WBGAP_MODE(CLOSEWBWAIT, wbt_closewbwait, SCRIPT)
  * wrote. A CloseWorkBench() that never returns (lab t2-killcrazy-wbgap, 14
  * Nov, before amicradle-guest #752) is then FAIL C6 here, and the run goes
  * on to REPORT; the CLOSEWB process is left as it is, with its own code.
- * The FAIL names the last "INFO C6 step:" line CLOSEWB flushed (from the
- * Run file, else WBGAP_C6_STEPS, which CLOSEWB closes after each line), so a
- * run shows which step hung (wbgap_closewb_last_step); an IoErr() on opening
- * the Run file is printed too, as Ackerman asked on #222. */
+ * The FAIL names the last "INFO C6 step:" line CLOSEWB wrote (from
+ * WBGAP_C6_STEPS, which CLOSEWB closes after each line, else the Run file),
+ * so a run shows which step hung (wbgap_closewb_last_step); an IoErr() on
+ * opening the Run file is printed too, as Ackerman asked on #222.
+ * When CLOSEWB had already decided C6 (wbgap_closewb_verdict) and only its
+ * clean-up hung, C6 is that verdict and an INFO line names the step: the
+ * 14 Nov 23:50 lab run hung at "closing and deleting RAM:WBGapC" after the
+ * row's judging, on 3.2.3 alone and on GFOS after RESETREQ. */
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096], steps[2048];
@@ -50,15 +54,28 @@ static int closewb_wait(const char *path, int secs)
     if (over) DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);
     if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
     if (!over) {
-        char why[192], step[96];
+        char why[192], step[96], said[128];
+        int v;
         if (ioerr) printf("INFO C6 %s couldn't be opened to read (IoErr %ld)\n", path, ioerr);
-        if (wbgap_closewb_last_step(buf, step, sizeof step) || wbgap_closewb_last_step(steps, step, sizeof step))
-            snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); last step: %s",
-                     secs, step);
-        else
-            snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); no step written",
-                     secs);
-        wbt_fail("C6", why);
+        /* the steps file first: closed after each line, it has every step; buf may be held or short */
+        if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
+        if (wbgap_closewb_verdict(buf, said, sizeof said) != WBGAP_NONE) {
+            /* the row's own PASS/FAIL is already in buf, printed above: only the clean-up hung */
+            printf("INFO C6 the row decided, then its clean-up didn't end in %d s (left running); last step: %s\n", secs,
+                   step[0] ? step : "none");
+        } else if ((v = wbgap_closewb_verdict(steps, said, sizeof said)) != WBGAP_NONE) {
+            printf("INFO C6 the row decided, then its clean-up didn't end in %d s (left running); last step: %s\n", secs,
+                   step[0] ? step : "none");
+            wbt_say("C6", v, said);
+        } else {
+            if (step[0])
+                snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); last step: %s",
+                         secs, step);
+            else
+                snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); no step written",
+                         secs);
+            wbt_fail("C6", why);
+        }
     }
     return wbt_fails() ? 5 : 0;
 }

@@ -27,19 +27,33 @@ WBGAP_ROWMODE(C6, CLOSEWB)
  * exit; each step is flushed, and also appended to WBGAP_C6_STEPS (closed each
  * time, so it can be read while CLOSEWB runs), so CLOSEWBWAIT can name the
  * last one reached when the process doesn't end in time (wbgap_closewb_last_step). */
+/* a line appended to WBGAP_C6_STEPS, opened and closed for it: the Run >file output may be held while CLOSEWB runs */
+static void steps_add(const char *line, int n)
+{
+    BPTR fh;
+    if (n > 0 && (fh = Open((CONST_STRPTR)WBGAP_C6_STEPS, MODE_READWRITE))) {
+        Seek(fh, 0, OFFSET_END);
+        Write(fh, (APTR)line, n);
+        Close(fh);
+    }
+}
+
 static void step(const char *what)
 {
     char line[96];
-    BPTR fh;
     int n = snprintf(line, sizeof line, "INFO C6 step: %s\n", what);
     printf("%s", line);
     fflush(stdout);
-    /* the Run >file output may be held while CLOSEWB runs: the same line, appended to a file closed each time */
-    if (n > 0 && (fh = Open((CONST_STRPTR)WBGAP_C6_STEPS, MODE_READWRITE))) {
-        Seek(fh, 0, OFFSET_END);
-        Write(fh, line, n < (int)sizeof line ? n : (int)sizeof line - 1);
-        Close(fh);
-    }
+    steps_add(line, n < (int)sizeof line ? n : (int)sizeof line - 1);
+}
+
+/* C6's verdict, in the steps file only (stdout has the row's own PASS/FAIL line), before the clean-up starts */
+static void verdict(int v, const char *why)
+{
+    char line[160];
+    int n = snprintf(line, sizeof line, "INFO C6 verdict: %s%s%s\n", v == WBGAP_PASS ? "PASS" : "FAIL",
+                     v == WBGAP_PASS ? "" : " ", v == WBGAP_PASS ? "" : why);
+    steps_add(line, n < (int)sizeof line ? n : (int)sizeof line - 1);
 }
 
 static int desk_port(void)
@@ -92,10 +106,14 @@ static int closewb_row(void)
     after = wb_screen_now();
     v = wbgap_closewb_judge(closed != 0, reopened, after == before, port, drawer, why, sizeof why);
     wbt_say("C6", v, why);
-    step("closing and deleting RAM:WBGapC");
+    fflush(stdout);
+    verdict(v, why);
+    step("closing RAM:WBGapC's window");
     wbt_clear_drawer("RAM:WBGapC", "WBGapC", "C6");
+    step("deleting RAM:WBGapC");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");
+    step("ending");
     return wbt_fails() ? 5 : 0;
 }
 
