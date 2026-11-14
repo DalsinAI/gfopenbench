@@ -57,8 +57,38 @@ static int rr_snap(struct Window **w)
     return n;
 }
 
+/* 1 for the requester's window: titled "Workbench" (es_Title) with a gadget whose text is "Cancel" */
+static int rr_is_req(struct Window *x)
+{
+    struct Gadget *g;
+    if (!x->Title || strcmp((char *)x->Title, "Workbench")) return 0;
+    for (g = x->FirstGadget; g; g = g->NextGadget)
+        if (!(g->Flags & GFLG_LABELIMAGE) && g->GadgetText && g->GadgetText->IText
+            && !strcmp((char *)g->GadgetText->IText, "Cancel"))
+            return 1;
+    return 0;
+}
+
+/* the Workbench screen's windows, one INFO line: title, flags, size (what is up at each step) */
+static void rr_list(const char *when)
+{
+    static char buf[1200];
+    struct Screen *s;
+    struct Window *x;
+    size_t k = 0;
+    ULONG l = LockIBase(0);                       /* written to buf under the lock, printed after it */
+    for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
+        ;
+    buf[0] = 0;
+    for (x = s ? s->FirstWindow : NULL; x && k < sizeof buf - 80; x = x->NextWindow)
+        k += (size_t)snprintf(buf + k, sizeof buf - k, " [%.24s $%08lx %ldx%ld%s]", x->Title ? (char *)x->Title : "-",
+                              (unsigned long)x->Flags, (long)x->Width, (long)x->Height, rr_is_req(x) ? " REQ" : "");
+    UnlockIBase(l);
+    printf("INFO C5a windows %s:%s\n", when, buf);
+}
+
 /* a window on the Workbench now that wasn't in before[], isn't the Workbench's own, isn't mine and has the
- * requester's title ("Workbench"): the refused try tells our system windows to close and open again, so they come
+ * requester's title ("Workbench") and Cancel gadget: the refused try tells our system windows to close and open again, so they come
  * up new beside it (lab, 14 November: an untitled one was taken for it and got the Cancel); NULL if none */
 static struct Window *rr_new(struct Window **before, int nb, struct Window *mine)
 {
@@ -69,7 +99,7 @@ static struct Window *rr_new(struct Window **before, int nb, struct Window *mine
     for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
         ;
     for (x = s ? s->FirstWindow : NULL; x && !found; x = x->NextWindow) {
-        if (x == mine || (x->Flags & WFLG_WBENCHWINDOW) || !x->Title || strcmp((char *)x->Title, "Workbench")) continue;
+        if (x == mine || (x->Flags & WFLG_WBENCHWINDOW) || !rr_is_req(x)) continue;
         for (i = 0; i < nb && before[i] != x; i++)
             ;
         if (i == nb) found = x;
@@ -119,7 +149,7 @@ static struct Window *rr_req_up(struct Window *not)
     struct Window *w[RR_MAXW];
     int n = rr_snap(w), i;
     for (i = 0; i < n; i++)
-        if (w[i] != not && !(w[i]->Flags & WFLG_WBENCHWINDOW) && w[i]->Title && !strcmp((char *)w[i]->Title, "Workbench"))
+        if (w[i] != not && !(w[i]->Flags & WFLG_WBENCHWINDOW) && rr_is_req(w[i]))
             return w[i];
     return NULL;
 }
@@ -198,6 +228,7 @@ int wbt_resetreq(int argc, char **argv)
     printf("INFO C5a the Workbench at depth %d (prefs %d), the change asks for %d\n", r.depth_before, old, r.depth_want);
 
     /* the reset owed with our window in its way: the requester; then our window closed: it goes, the reset made */
+    rr_list("at the start");
     if ((mine = rr_mine())) {
         nb = rr_settle(before);
         rr_write(RR_PREFS, now, n);
@@ -217,6 +248,7 @@ int wbt_resetreq(int argc, char **argv)
     if (r.shown && r.gone && r.depth_after == r.depth_want && (mine = rr_mine())) {
         r.cancel_tried = 1;
         nb = rr_settle(before);
+        rr_list("before the Cancel half's change");
         rr_write(RR_PREFS, was, n);
         req = rr_wait_new(before, nb, mine, 20);
         r.cancel_shown = req != NULL;
