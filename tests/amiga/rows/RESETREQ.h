@@ -15,6 +15,11 @@ struct wbgap_resetreq {
     int mine_failed;       /* the row's own window didn't open: a test fault, not the desktop's */
 };
 int wbgap_resetreq_judge(const struct wbgap_resetreq *r, char *why, unsigned cap);
+/* Whether the requester's window x is new against a snapshot before[nb]: 1 when it isn't in it, 2 when it is but
+ * at was_req[i] 0 (that window wasn't a requester then: its memory was taken again, as GFOS's refused reset closes
+ * our system windows and the requester is allocated where one was; Talkie Toaster's lab, 14 Nov), 0 when it was a
+ * requester already. was_req NULL: every window in the snapshot is old. */
+int wbgap_rr_is_new(void *const *before, const unsigned char *was_req, int nb, const void *x);
 /* A screenmode.prefs' SCRM depth (big-endian UWORD at the chunk's data + 24) put to depth; the old one in *old.
  * 0 when there's no whole SCRM chunk in buf. */
 int wbgap_smod_depth(unsigned char *buf, long len, int depth, int *old);

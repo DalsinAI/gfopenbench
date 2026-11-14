@@ -75,7 +75,7 @@ static int rr_is_req(struct Window *x)
     return 0;
 }
 
-/* the Workbench screen's windows, one INFO line: title, flags, size (what is up at each step) */
+/* the Workbench screen's windows, one INFO line: title, address, flags, size (what is up at each step) */
 static void rr_list(const char *when)
 {
     static char buf[1200];
@@ -87,8 +87,8 @@ static void rr_list(const char *when)
         ;
     buf[0] = 0;
     for (x = s ? s->FirstWindow : NULL; x && k < sizeof buf - 80; x = x->NextWindow)
-        k += (size_t)snprintf(buf + k, sizeof buf - k, " [%.24s $%08lx %ldx%ld%s]", x->Title ? (char *)x->Title : "-",
-                              (unsigned long)x->Flags, (long)x->Width, (long)x->Height, rr_is_req(x) ? " REQ" : "");
+        k += (size_t)snprintf(buf + k, sizeof buf - k, " [%.24s @%08lx $%08lx %ldx%ld%s]", x->Title ? (char *)x->Title : "-",
+                              (unsigned long)x, (unsigned long)x->Flags, (long)x->Width, (long)x->Height, rr_is_req(x) ? " REQ" : "");
     UnlockIBase(l);
     printf("INFO C5a windows %s:%s\n", when, buf);
 }
@@ -96,22 +96,44 @@ static void rr_list(const char *when)
 /* a window on the Workbench now that wasn't in before[], isn't the Workbench's own, isn't mine and has the
  * requester's title ("Workbench", or 3.2.3's "System Request") and Cancel gadget: the refused try tells our system windows to close and open again, so they come
  * up new beside it (lab, 14 November: an untitled one was taken for it and got the Cancel); NULL if none */
-static struct Window *rr_new(struct Window **before, int nb, struct Window *mine)
+static int rr_reused;                             /* rr_new took a window at a snapshot window's address (logged once) */
+
+static struct Window *rr_new(struct Window **before, const unsigned char *was_req, int nb, struct Window *mine)
 {
     struct Screen *s;
     struct Window *x, *found = NULL;
-    int i;
+    int k = 0;
     ULONG l = LockIBase(0);
     for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
         ;
     for (x = s ? s->FirstWindow : NULL; x && !found; x = x->NextWindow) {
         if (x == mine || (x->Flags & WFLG_WBENCHWINDOW) || !rr_is_req(x)) continue;
-        for (i = 0; i < nb && before[i] != x; i++)
-            ;
-        if (i == nb) found = x;
+        if ((k = wbgap_rr_is_new((void *const *)before, was_req, nb, x))) found = x;
     }
     UnlockIBase(l);
+    if (found && k == 2 && !rr_reused++)
+        printf("INFO C5a the requester $%08lx is at the address of a window that wasn't a requester before it\n",
+               (unsigned long)found);
     return found;
+}
+
+/* was[i]: 1 when before[i] is a requester's window now (rr_is_req), taken with the snapshot; a requester at the
+ * address of a window that wasn't one is new (rr_new, wbgap_rr_is_new) */
+static void rr_mark(struct Window **before, int nb, unsigned char *was)
+{
+    struct Screen *s;
+    struct Window *x;
+    int i;
+    ULONG l = LockIBase(0);
+    for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
+        ;
+    for (i = 0; i < nb; i++) {
+        was[i] = 0;
+        for (x = s ? s->FirstWindow : NULL; x && x != before[i]; x = x->NextWindow)
+            ;
+        if (x && rr_is_req(x)) was[i] = 1;
+    }
+    UnlockIBase(l);
 }
 
 /* 1 while w is a window on the Workbench screen */
@@ -126,6 +148,8 @@ static int rr_there(struct Window *w)
 
 /* the Workbench's windows still for 2 s (up to 12 s): after a reset our system windows (the tray, the dock,
  * GFOpenMeters) open again one by one, and one of them must not be taken for the requester */
+static unsigned char rr_before_req[RR_MAXW], rr_start_req[RR_MAXW];   /* rr_mark of before[] and start[] */
+
 static int rr_settle(struct Window **w)
 {
     struct Window *b[RR_MAXW];
@@ -138,6 +162,7 @@ static int rr_settle(struct Window **w)
         if (m == n && i == n) still++;
         else { still = 0; n = m; for (i = 0; i < m; i++) w[i] = b[i]; }
     }
+    rr_mark(w, n, rr_before_req);
     return n;
 }
 
@@ -145,7 +170,7 @@ static struct Window *rr_wait_new(struct Window **before, int nb, struct Window 
 {
     struct Window *r = NULL;
     int t;
-    for (t = 0; t < secs * 5 && !(r = rr_new(before, nb, mine)); t++) Delay(10);
+    for (t = 0; t < secs * 5 && !(r = rr_new(before, rr_before_req, nb, mine)); t++) Delay(10);
     return r;
 }
 
@@ -153,7 +178,7 @@ static struct Window *rr_wait_new(struct Window **before, int nb, struct Window 
  * Tested under the lock, as rr_new does (G'Kar, #202) */
 static struct Window *rr_req_up(struct Window *not)
 {
-    return rr_new(NULL, 0, not);
+    return rr_new(NULL, NULL, 0, not);
 }
 
 static int rr_wait_gone(struct Window *w, int secs)
@@ -240,7 +265,7 @@ static void rr_none_left(int secs, struct Window **before, int nb)
     struct Window *req;
     int t;
     for (t = 0; t < secs * 5; t++) {   /* only one that came after the change: a "please insert" there before stays */
-        if ((req = rr_new(before, nb, NULL))) {
+        if ((req = rr_new(before, rr_start_req, nb, NULL))) {
             printf("INFO C5a a requester left up (%dx%d): Cancel on it\n", (int)req->Width, (int)req->Height);
             rr_cancel(req);
             rr_wait_gone(req, 3);
@@ -261,6 +286,7 @@ int wbt_resetreq(int argc, char **argv)
     (void)argc, (void)argv;
     memset(&r, 0, sizeof r);
     ns = rr_snap(start);                          /* what was up before the row: rr_none_left leaves those */
+    rr_mark(start, ns, rr_start_req);             /* rr_none_left is always given start[] */
     n = wbt_read_all(RR_PREFS, (char *)was, sizeof was);
     if (n >= (long)sizeof was - 1) {              /* all wbt_read_all reads: maybe cut short, never written back (G'Kar) */
         printf("INFO C5a %s is %ld bytes or more: not changed\n", RR_PREFS, n);
