@@ -119,7 +119,7 @@ static const struct wbgap_row rows[] = {
     {"S2i", "S2", A, INDEX, "the ACFS index keeps the date added: moved out and back is added again (13 Nov)"},
     {"S3", NULL, A, "STARTUP CHECK", "DONOTWAIT and WAIT honoured"},
     /* 7. Disks */
-    {"D1", NULL, A, NULL, "disk in or out: its icon comes or goes"},
+    {"D1", NULL, A, "DISKIO", "disk in or out: its icon comes or goes"},
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
@@ -324,6 +324,30 @@ int wbgap_backdrop_done(int have_was, int have_made)
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
 }
 
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
+{
+    long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
+    if (sw < 1) sw = 1;
+    if (sh < 1) sh = 1;
+    if (w > sw) w = sw;
+    if (h > sh) h = sh;
+    box[0] = sw - w;
+    box[1] = sh - h;
+    box[2] = w;
+    box[3] = h;
+}
+
+int wbgap_clear_result(int gone, int at_park_box)
+{
+    if (gone) return WBGAP_CL_GONE;
+    return at_park_box ? WBGAP_CL_PARKED : WBGAP_CL_STUCK;
+}
+
+int wbgap_desk_clickable(int clear_result)
+{
+    return clear_result == WBGAP_CL_GONE || clear_result == WBGAP_CL_PARKED;
+}
+
 void wbgap_volume_name(const char *path, char *out, unsigned cap)
 {
     unsigned k = 0;
@@ -355,6 +379,7 @@ int wbgap_root_has_disk(const char *list, const char *vol)
         while (*e && *e != '\n') e++;
         n = (size_t)(e - p);
         while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 6 && p[n - 1] == ':') n--;          /* the WORKBENCH port names a disk "RAM Disk:" */
         if (n > 5 && same_nocase(p, "DISK ", 5)) {
             name = p + 5;
             if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
@@ -365,9 +390,9 @@ int wbgap_root_has_disk(const char *list, const char *vol)
 }
 
 /* One line of D5r's pos, [p, e), read on its own: a copy of it (up to 127 characters) is what sscanf sees, so a
- * blank in the format can't run on into the next line. The name is what follows the width, less trailing CR and
- * blanks and one trailing colon (a port that names disks "RAM Disk:", as #145 for D5). 1 with x, y, w, name and
- * its length; 0 for a line it can't read or a line with no name after the width (Mr Flibble, 7456fde7). */
+ * blank in the format can't run on into the next line. The name is what follows the width, less trailing CR,
+ * blanks and tabs and one trailing colon (a port that names disks "RAM Disk:", as #145 for D5). 1 with x, y, w,
+ * name and its length; 0 for a line it can't read or a line with no name after the width (Mr Flibble, 7456fde7). */
 static int pos_line(const char *p, const char *e, long *x, long *y, long *w, char *ln, const char **nm, size_t *nl)
 {
     size_t n = (size_t)(e - p);
@@ -377,7 +402,7 @@ static int pos_line(const char *p, const char *e, long *x, long *y, long *w, cha
     ln[n] = 0;
     if (sscanf(ln, "%ld %ld %ld %n", x, y, w, &used) != 3 || !used || (size_t)used > n) return 0;
     n -= (size_t)used;
-    while (n && (ln[used + n - 1] == '\r' || ln[used + n - 1] == ' ')) n--;
+    while (n && (ln[used + n - 1] == '\r' || ln[used + n - 1] == ' ' || ln[used + n - 1] == '\t')) n--;
     if (n && ln[used + n - 1] == ':') n--;
     if (!n) return 0;
     *nm = ln + used;
@@ -422,6 +447,29 @@ int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap)
     }
     pass = vn && strlen(top) == vn && same_nocase(top, vol, vn);
     return pass;
+}
+
+int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap)
+{
+    const char *r = "";
+    int v = WBGAP_PASS;
+    if (!before) { r = "the disk had no icon before"; v = WBGAP_SKIP; }
+    else if (before < 0 || inhibited < 0 || after < 0) { r = "the desktop's icons not read each time"; v = WBGAP_SKIP; }
+    else if (inhibited && !after) { r = "its icon stayed while inhibited and then went"; v = WBGAP_FAIL; }
+    else if (inhibited) { r = "its icon stayed while inhibited"; v = WBGAP_FAIL; }
+    else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
+int wbgap_has_nocase(const char *text, const char *word)
+{
+    size_t wn = word ? strlen(word) : 0;
+    const char *p;
+    if (!text || !wn) return 0;
+    for (p = text; *p; p++)
+        if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
+    return 0;
 }
 
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
