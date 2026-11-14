@@ -71,7 +71,7 @@ static const struct wbgap_row rows[] = {
     {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
     {"I8", NULL, A, NULL, "drag onto an AppIcon"},
     {"I9", NULL, A, NULL, "drag onto an AppWindow"},
-    {"I10", NULL, A, NULL, "double-click opens or runs"},
+    {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
@@ -308,6 +308,24 @@ int wbgap_launch_args(const char *rec, const char *want)
     }
     while (*p == ' ' || *p == '\n' || *p == '\r') p++;
     return !*p && args == words;
+}
+
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap)
+{
+    int ran = run_rec && wbgap_launch_args(run_rec, "OpenT");
+    const char *w;
+    if (skip && *skip) w = skip;
+    else if (bad) w = "a double-click failed (WBGapDesk.rexx)";
+    else if (!clicked) w = "not clicked: WBGapDesk.rexx didn't get to OpenT and Sub";
+    else if (!ran && !sub_opened) w = run_rec ? "OpenT started with other arguments, and Sub's window didn't open"
+                                              : "double-clicking OpenT started nothing, and Sub's window didn't open";
+    else if (!ran) w = run_rec ? "OpenT started, but not with itself as its one argument"
+                               : "double-clicking OpenT started nothing";
+    else if (!sub_opened) w = "double-clicking the drawer Sub opened no window";
+    else w = "";
+    if (why && cap) snprintf(why, cap, "%s", w);
+    if ((skip && *skip) || bad || !clicked) return -1;
+    return ran && sub_opened;
 }
 
 int wbgap_backdrop_setup(long n, long cap, int has_lines)

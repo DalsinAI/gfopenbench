@@ -60,6 +60,11 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* I10 (LAUNCHDESK): WBGapDesk.rexx double-clicked OpenT (a tool) and Sub (a drawer) on the desktop. From what it
+ * left: skip (a reason, or NULL), whether a click failed (bad) or all were given (clicked), OpenT's launch record
+ * (NULL: none), and whether a window of Sub opened. 1 PASS, 0 FAIL, -1 SKIP; why (cap bytes) says what failed */
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap);
+
 /* A drawer window a row leaves over the desktop (BIG's RAM:WBGapBig, 1000 icons): the next rows click the desktop's
  * left-out icons, and a click on one of its file icons stops an unattended run on "has no default tool". So it is
  * closed and waited for; if it stays, it is parked at its smallest size in the screen's bottom-right corner.
