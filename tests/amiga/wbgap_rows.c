@@ -78,7 +78,7 @@ static const struct wbgap_row rows[] = {
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
     {"I12c", "I12", A, "STARTUP CHECK", "STACK= alone, the icon's stack field the default, gives that stack; GFOS (3.2.3 reads the field)"},
     {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
-    {"I14", NULL, A, NULL, "files with no icon shown (Show All Files)"},
+    {"I14", NULL, A, MENUS, "files with no icon shown (Show All Files)"},
     {"I15", NULL, L, NULL, "a disk's status window with a pie chart, no gauge (13 Nov)"},
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
@@ -119,7 +119,7 @@ static const struct wbgap_row rows[] = {
     {"S2i", "S2", A, INDEX, "the ACFS index keeps the date added: moved out and back is added again (13 Nov)"},
     {"S3", NULL, A, "STARTUP CHECK", "DONOTWAIT and WAIT honoured"},
     /* 7. Disks */
-    {"D1", NULL, A, NULL, "disk in or out: its icon comes or goes"},
+    {"D1", NULL, A, "DISKIO", "disk in or out: its icon comes or goes"},
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
@@ -164,6 +164,10 @@ static const struct wbgap_row rows[] = {
     {"L1a", "L1", A, "WBGapLayout.rexx", "grouped tools, then projects, then drawers, by name in each"},
     {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
+    /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
+    {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
+    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB stick mounted (14 Nov)"},
+    {"B3", NULL, A, "BAR", "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
@@ -323,6 +327,42 @@ int wbgap_backdrop_done(int have_was, int have_made)
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
 }
 
+void wbgap_power_point(long left, long top, long width, long height, long xy[2])
+{
+    long cell = width < WBGAP_TRAY_CELL ? width : WBGAP_TRAY_CELL;
+    xy[0] = left + width - (cell + 1) / 2;
+    xy[1] = top + height / 2;
+}
+
+int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
+{
+    long right = menu_left + menu_width;
+    if (right == row_right) return WBGAP_BAR_POWER;
+    if (right == row_right - WBGAP_TRAY_CELL) return WBGAP_BAR_PREFS;
+    if (menu_left == 0 && right < row_right) return WBGAP_BAR_UNSURE;   /* x clamped to 0: Power or Prefs */
+    return WBGAP_BAR_OTHER;
+}
+
+long wbgap_power_height(int sticks, long row_height)
+{
+    if (sticks < 0) sticks = 0;
+    return 3 + sticks * row_height + (sticks ? 6 : 0) + 3 * row_height + 3;
+}
+
+void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2)
+{
+    if (row_height > 0 && height == wbgap_power_height(sticks, row_height)) {
+        *b1 = WBGAP_PASS;
+        *b2 = sticks > 0 ? WBGAP_PASS : WBGAP_SKIP;
+    } else if (row_height > 0 && sticks > 0 && height == wbgap_power_height(0, row_height)) {
+        *b1 = WBGAP_PASS;   /* the power rows are there; the sticks' Eject rows aren't */
+        *b2 = WBGAP_FAIL;
+    } else {
+        *b1 = WBGAP_FAIL;
+        *b2 = sticks > 0 ? WBGAP_FAIL : WBGAP_SKIP;
+    }
+}
+
 void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
 {
     long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
@@ -388,6 +428,51 @@ int wbgap_root_has_disk(const char *list, const char *vol)
     return 0;
 }
 
+int wbgap_root_has_name(const char *list, const char *name)
+{
+    size_t nn = name ? strlen(name) : 0;
+    const char *p = list;
+    if (!list || !nn) return 0;
+    while (*p) {
+        const char *e = p, *sp;
+        size_t n;
+        while (*e && *e != '\n') e++;
+        n = (size_t)(e - p);
+        while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        for (sp = p; sp < p + n && *sp != ' '; sp++) ;
+        if (sp < p + n) {
+            sp++;
+            if ((size_t)(p + n - sp) == nn && same_nocase(sp, name, nn)) return 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    return 0;
+}
+
+int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap)
+{
+    const char *r = "";
+    int v = WBGAP_PASS;
+    if (only_icons < 0 || all_files < 0) { r = "the drawer's icons not read each time"; v = WBGAP_SKIP; }
+    else if (only_icons) { r = "noicon was shown with Only Icons"; v = WBGAP_FAIL; }
+    else if (!all_files) { r = "noicon not shown with All Files"; v = WBGAP_FAIL; }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
+int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap)
+{
+    const char *r = "";
+    int v = WBGAP_PASS;
+    if (!before) { r = "the disk had no icon before"; v = WBGAP_SKIP; }
+    else if (before < 0 || inhibited < 0 || after < 0) { r = "the desktop's icons not read each time"; v = WBGAP_SKIP; }
+    else if (inhibited && !after) { r = "its icon stayed while inhibited and then went"; v = WBGAP_FAIL; }
+    else if (inhibited) { r = "its icon stayed while inhibited"; v = WBGAP_FAIL; }
+    else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
 int wbgap_has_nocase(const char *text, const char *word)
 {
     size_t wn = word ? strlen(word) : 0;
@@ -420,7 +505,7 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap)
 {
-    if (on_icon != 2) {
+    if (on_icon != WBGAP_WBO_ICON) {
         snprintf(why, cap, "on the icon: type %lu, not WBO_ICON", on_icon);
         return WBGAP_FAIL;
     }
@@ -428,7 +513,7 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
         snprintf(why, cap, "on the icon: named \"%s\", not \"%s\"", name ? name : "", want ? want : "");
         return WBGAP_FAIL;
     }
-    if (on_empty != 1) {
+    if (on_empty != WBGAP_WBO_DRAWER) {
         snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
         return WBGAP_FAIL;
     }
