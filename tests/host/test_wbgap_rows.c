@@ -16,17 +16,28 @@ int failures, checks;
 #include "wbgap_gen_plans.inc"
 #undef WBGAP_GEN_PLAN
 
-/* every row a file of its own names (WBGAP_ROWMODE) is in the table, its mode the file's */
+/* the modes the row files register (WBGAP_MODE) */
+static const char *const gen_modenames[] = {
+#define WBGAP_GEN_MODENAME(name) name,
+#include "wbgap_gen_modenames.inc"
+#undef WBGAP_GEN_MODENAME
+    NULL
+};
+
+/* every row a file of its own names (WBGAP_ROWMODE) is in the table, its mode the file's and a registered mode */
 static void gen_rowmodes_plan(void)
 {
     const char *id, *mode;
-    int k, i;
+    int k, i, m;
     for (k = 0; (id = wbgap_gen_rowmode(k, &mode)); k++) {
         i = wbgap_find(id);
         CHECK(i >= 0, "%s (WBGAP_ROWMODE, mode %s) is in the table", id, mode);
         CHECK(i < 0 || (wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, mode)),
               "%s's mode is %s, its file's, not the table's %s", id, mode, i >= 0 && wbgap_row(i)->mode ? wbgap_row(i)->mode : "(none)");
+        for (m = 0; gen_modenames[m] && strcmp(gen_modenames[m], mode); m++) {}
+        CHECK(gen_modenames[m] != NULL, "%s's mode %s is one a row file registers (WBGAP_MODE)", id, mode);
     }
+    CHECK(gen_modenames[0] != NULL, "the row files' modes are listed: %s", gen_modenames[0] ? gen_modenames[0] : "none");
     CHECK(k >= 1, "the row files are listed (gen-rows.sh): %d", k);
 }
 
