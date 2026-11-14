@@ -98,6 +98,10 @@ int wbt_prefswb(int argc, char **argv)
     printf("INFO P7 %s %s (%ld bytes), default stack %lu, \"%s\" on the desktop\n", PREFSWB_FILE,
            had ? "there" : "not there", had ? was_n : 0L, old_stack, vol);
     n = wbgap_wbprefs_make(had ? was_buf : NULL, had ? was_n : 0, PREFSWB_STACK, "RAM", new_buf, sizeof new_buf);
+    if (n && !wbgap_wbprefs_sane(new_buf, n, PREFSWB_STACK, "RAM")) {   /* never write a file the row made wrong */
+        wbt_fail("P7", "the row's own prefs file came out wrong (a test fault, not the desktop's); nothing written");
+        return 10;
+    }
     if (!n || !apply(new_buf, n)) {   /* MODE_NEWFILE may have emptied it: the old one back */
         if (had) put_file(PREFSWB_FILE, was_buf, was_n);
         else DeleteFile((CONST_STRPTR)PREFSWB_FILE);
@@ -112,7 +116,7 @@ int wbt_prefswb(int argc, char **argv)
     if (had) restored = apply(was_buf, was_n);
     else {
         n = wbgap_wbprefs_make(NULL, 0, old_stack ? old_stack : 4096, NULL, new_buf, sizeof new_buf);
-        restored = n && apply(new_buf, n);
+        restored = n && wbgap_wbprefs_sane(new_buf, n, old_stack ? old_stack : 4096, NULL) && apply(new_buf, n);
     }
     if (had && !restored) restored = put_file(PREFSWB_FILE, was_buf, was_n);   /* the file at least */
     if (!restored) printf("INFO P7 the old prefs could NOT be put back: ENV:Sys/Workbench.prefs still hides RAM\n");

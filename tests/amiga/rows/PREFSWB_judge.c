@@ -10,7 +10,9 @@ static unsigned long be32(const unsigned char *p)
     return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) | ((unsigned long)p[2] << 8) | p[3];
 }
 
-static void put32(unsigned char *p, unsigned long v)
+/* not inlined: os32-gcc16 -O2 -m68040 put the inlined put32(out + here + 8, ...)'s third byte at out + here + 2, which
+ * turned the WBNC id into "WB\0C" and left the old stack's third byte (Legion's dump, 14 Nov). As a call it is right. */
+static __attribute__((noinline)) void put32(unsigned char *p, unsigned long v)
 {
     p[0] = (unsigned char)(v >> 24), p[1] = (unsigned char)(v >> 16), p[2] = (unsigned char)(v >> 8), p[3] = (unsigned char)v;
 }
@@ -125,6 +127,24 @@ long wbgap_wbprefs_make(const unsigned char *orig, long len, unsigned long stack
     }
     put32(out + 4, (unsigned long)(n - 8));
     return n;
+}
+
+/* buf (n bytes, from wbgap_wbprefs_make) checked before it is written: a whole FORM PREF whose length is right, every
+ * chunk id four printable ASCII characters and the chunks filling it exactly, a WBNC giving stack, and dev hidden if
+ * given. 1 if so. Run on the Amiga, it catches a maker built wrong (the "WB\0C" of 14 Nov) */
+int wbgap_wbprefs_sane(const unsigned char *buf, long n, unsigned long stack, const char *dev)
+{
+    const unsigned char *id, *d;
+    unsigned long sz;
+    long at = 12;
+    int k;
+    if (!is_pref(buf, n) || be32(buf + 4) != (unsigned long)(n - 8)) return 0;
+    while (next_chunk(buf, n, &at, &id, &d, &sz))
+        for (k = 0; k < 4; k++)
+            if (id[k] < 0x20 || id[k] > 0x7e) return 0;
+    if (at != n) return 0;
+    if (wbgap_wbprefs_stack(buf, n) != stack) return 0;
+    return !dev || !*dev || wbgap_wbprefs_hides(buf, n, dev);
 }
 
 int wbgap_wbprefs_whole(long got, long cap)
