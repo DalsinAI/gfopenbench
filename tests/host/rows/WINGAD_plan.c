@@ -63,6 +63,11 @@ void wingad_plan(void)
           "only custom screens Classic: the Workbench's windows have no zoom, 1");
     CHECK(wbgap_wingad_zoom_off("zoom off\nScreen  Workbench\tCLASSIC \r\n") == 0, "screen workbench classic, any case and spacing");
     CHECK(wbgap_wingad_zoom_off("zoom off\nscreen workbench classical\n") == 1, "classical is not classic");
+    CHECK(wbgap_wingad_zoom_off("Classic light\nzoom off\n") == 0, "the Classic theme passes everything through: 0");
+    CHECK(wbgap_wingad_zoom_off("; OpenPrefs wrote this\n\n  classic\r\nzoom off\n") == 0,
+          "Classic after a comment and a blank line, any case: 0");
+    CHECK(wbgap_wingad_zoom_off("Classical light\nzoom off\n") == 1 && wbgap_wingad_zoom_off("Open light\n; Classic\nzoom off\n") == 1,
+          "a theme named Classical, or Classic only in a comment: 1");
     CHECK(wbgap_wingad_zoom_off(NULL) == 0 && wbgap_wingad_zoom_off("") == 0, "no look: 0");
     m = wg_good(); m.front1 = 0;
     CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && strstr(why, "to the front"),

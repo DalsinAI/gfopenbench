@@ -80,12 +80,29 @@ static int wg_line(const char *look, const char *const *words)
     return 0;
 }
 
+/* 1 if the look's first line that isn't empty or a comment (;) is the Classic theme ("Classic", "Classic light"...) */
+static int wg_classic_theme(const char *look)
+{
+    const char *s = look;
+    while (s && *s) {
+        const char *q = s;
+        while (*q == ' ' || *q == '\t') q++;
+        if (*q && *q != '\n' && *q != '\r' && *q != ';')
+            return wg_word(&q, "classic") && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q);
+        while (*s && *s != '\n') s++;
+        if (*s) s++;
+    }
+    return 0;
+}
+
+/* gfopengadtools DESIGN.md: the Classic theme passes everything through, and Classic screens keep their zoom gadgets,
+ * whatever "zoom off" says. Out of scope here: a "never" line naming Workbench, "profile" presets, and which of two
+ * "screen workbench" lines wins (any Classic one keeps zoom) */
 int wbgap_wingad_zoom_off(const char *look)
 {
     static const char *const zoom_off[] = {"zoom", "off", NULL};
     static const char *const classic[] = {"screen", "workbench", "classic", NULL};
-    /* gfopengadtools DESIGN.md: Classic screens keep their zoom gadgets, whatever "zoom off" says */
-    return wg_line(look, zoom_off) && !wg_line(look, classic);
+    return wg_line(look, zoom_off) && !wg_line(look, classic) && !wg_classic_theme(look);
 }
 
 void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int relbottom, int relwidth,
