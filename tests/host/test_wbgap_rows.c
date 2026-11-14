@@ -182,6 +182,56 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
+/* C6: CloseWorkBench / OpenWorkBench with programs running (WBCLOSE) */
+static void wbclose_plan(void)
+{
+    char why[WBGAP_WHY];
+    int c6 = wbgap_find("C6"), a = wbgap_find("C6a"), b = wbgap_find("C6b");
+    CHECK(c6 >= 0 && !wbgap_row(c6)->mode && wbgap_has_parts(c6), "C6 is made of C6a and C6b");
+    CHECK(a > c6 && b > a && !strcmp(wbgap_row(a)->mode, "WBCLOSE") && !strcmp(wbgap_row(b)->mode, "WBCLOSE"),
+          "C6a and C6b come from WBCLOSE, after C6");
+
+    /* C6a: a program's window open */
+    CHECK(wbgap_c6a_judge(0, 1, 3, 3, 1, why, sizeof why) == WBGAP_PASS && !why[0], "refused, all kept: PASS");
+    CHECK(wbgap_c6a_judge(0, 1, 3, 4, 1, why, sizeof why) == WBGAP_PASS, "refused, one more window: still PASS");
+    CHECK(wbgap_c6a_judge(1, 0, 3, 0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "answered 1"),
+          "TRUE with a window open: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6a_judge(-1, 1, 3, 3, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "answered -1"),
+          "any answer but 0 is a FAIL (BOOL as LONG), \"%s\"", why);
+    CHECK(wbgap_c6a_judge(0, 0, 3, 0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "screen went"),
+          "refused but the screen went: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6a_judge(0, 1, 3, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "closed 2 of its 3"),
+          "refused, the desktop closed its windows anyway (the half-close): FAIL, \"%s\"", why);
+    CHECK(wbgap_c6a_judge(0, 1, 3, 3, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "RAM:WBGap"),
+          "refused, same count but the drawer is another window: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6a_judge(0, 1, 3, 3, 1, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
+
+    /* C6b: no program's window */
+    CHECK(wbgap_c6b_judge(0, 1, 1, 1, 1, why, sizeof why) == WBGAP_PASS && !why[0], "closed, gone, back with the drawer: PASS");
+    CHECK(wbgap_c6b_judge(1, 0, 0, -1, 0, why, sizeof why) == WBGAP_SKIP && strstr(why, "1 window of other") &&
+          strstr(why, "Shell"), "a Shell's window: SKIP, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(2, 1, 1, 1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "2 windows"),
+          "others win over the rest: SKIP, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(0, 0, 0, -1, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "refused"),
+          "refused with none open: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(0, 1, 0, -1, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "screen stayed"),
+          "TRUE but the screen stayed: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(0, 1, 1, 0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "OpenWorkBench gave 0"),
+          "OpenWorkBench failed: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(0, 1, 1, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "didn't (5 s)"),
+          "the screen back, the drawer not: FAIL, \"%s\"", why);
+    CHECK(wbgap_c6b_judge(0, 1, 1, 0x1234, 1, why, sizeof why) == WBGAP_PASS, "OpenWorkBench's answer is a screen address: any but 0");
+
+    /* the report: C6 settled by its parts */
+    {
+        struct wbgap_report r;
+        wbgap_report_init(&r);
+        CHECK(wbgap_report_line(&r, "PASS C6a") == 1 && wbgap_report_line(&r, "SKIP C6b 1 window of other programs") == 1,
+              "C6a and C6b lines are rows");
+        CHECK(r.state[c6] == WBGAP_NONE, "C6 itself has no line of its own");
+    }
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -367,6 +417,7 @@ int main(int argc, char **argv)
     ramdisk_plan();
     which_plan();
     diskio_plan();
+    wbclose_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);

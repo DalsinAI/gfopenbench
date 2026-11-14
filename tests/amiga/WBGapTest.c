@@ -16,6 +16,11 @@
  *                               mouse in RAM:WBGap's window (DragTest DRAG RIGHT), and what it did read back
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
+ *   WBGapTest WBCLOSE           row C6: RAM:WBGap's window open and a window of this program's own on Workbench,
+ *                               CloseWorkBench() must be refused with every desktop window kept (C6a); then, with no
+ *                               window but the desktop's on the screen, it must close the screen and OpenWorkBench()
+ *                               bring it back with RAM:WBGap's window (C6b). From a Shell on Workbench C6b is a SKIP
+ *                               (the Shell's window is a program's): run it with the Shell on a screen of its own
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
@@ -1097,6 +1102,103 @@ static int do_menudrive(void)
 }
 
 /* ---- 1000 files ---- */
+/* ---- C6: CloseWorkBench / OpenWorkBench with programs running ---- */
+/* the Workbench screen if it is open, read without opening it (LockPubScreen("Workbench") would open it) */
+static struct Screen *wb_screen_now(void)
+{
+    struct Screen *s, *found = NULL;
+    ULONG lock = LockIBase(0);
+    for (s = IntuitionBase->FirstScreen; s && !found; s = s->NextScreen)
+        if ((s->Flags & SCREENTYPE) == WBENCHSCREEN) found = s;
+    UnlockIBase(lock);
+    return found;
+}
+
+/* the desktop's windows (WFLG_WBENCHWINDOW) on s and the others; with info, an INFO line names each other one */
+static void wb_windows(struct Screen *s, int *desk, int *others, int info)
+{
+    struct Window *w;
+    ULONG lock;
+    *desk = *others = 0;
+    if (!s) return;
+    lock = LockIBase(0);
+    for (w = s->FirstWindow; w; w = w->NextWindow) {
+        if (w->Flags & WFLG_WBENCHWINDOW) { (*desk)++; continue; }
+        (*others)++;
+        if (info) printf("INFO C6 a program's window: \"%s\"\n", w->Title ? (const char *)w->Title : "");
+    }
+    UnlockIBase(lock);
+}
+
+static void c6_line(const char *row, int v, const char *why)
+{
+    if (v == WBGAP_PASS) pass(row);
+    else if (v == WBGAP_SKIP) skip(row, why);
+    else fail(row, why);
+}
+
+static int do_wbclose(void)
+{
+    struct Screen *wb;
+    struct Window *own, *drawer;
+    char why[WBGAP_WHY];
+    int how, desk0, desk1, others, gone = 0, back, t, v;
+    LONG closed, opened = -1;
+    if (!exists("RAM:WBGap")) {
+        skip("C6a", "no RAM:WBGap (WBGapTest SETUP first)");
+        skip("C6b", "no RAM:WBGap (WBGapTest SETUP first)");
+        return 0;
+    }
+    if (!drawer_window()) open_drawer("RAM:WBGap", "WBGap", 5, &how);
+    if (!(drawer = drawer_window()) || !(wb = wb_screen_now())) {
+        skip("C6a", "RAM:WBGap's window didn't open");
+        skip("C6b", "RAM:WBGap's window didn't open");
+        return 0;
+    }
+
+    /* C6a: a window of this program's own on Workbench, so CloseWorkBench() has a program running there */
+    own = OpenWindowTags(NULL, WA_PubScreenName, (ULONG)"Workbench", WA_Title, (ULONG)"C6 probe", WA_Left, 0, WA_Top,
+                         wb->BarHeight + 1, WA_Width, 200, WA_Height, 50, WA_DragBar, TRUE, WA_DepthGadget, TRUE, TAG_DONE);
+    if (!own) fail("C6a", "no window of its own on Workbench");
+    else {
+        wb_windows(wb, &desk0, &others, 0);
+        closed = CloseWorkBench();
+        Delay(100);                                   /* a desktop that closes its windows on the way has done so */
+        {
+            struct Screen *now = wb_screen_now();
+            wb_windows(now, &desk1, &others, 0);
+            v = wbgap_c6a_judge(closed, now == wb, desk0, desk1, now == wb && still_there(wb, drawer), why, sizeof why);
+        }
+        printf("INFO C6a CloseWorkBench %ld, desktop windows %d then %d\n", (long)closed, desk0, desk1);
+        c6_line("C6a", v, why);
+        CloseWindow(own);
+        if (!wb_screen_now()) OpenWorkBench();        /* never left closed */
+    }
+
+    /* C6b: only the desktop's windows on the screen */
+    if (!(drawer = drawer_window())) open_drawer("RAM:WBGap", "WBGap", 5, &how);
+    if (!drawer_window() || !(wb = wb_screen_now())) { skip("C6b", "RAM:WBGap's window isn't open"); return fails ? 5 : 0; }
+    wb_windows(wb, &desk0, &others, 1);
+    if (others) {
+        v = wbgap_c6b_judge(others, 0, 0, -1, 0, why, sizeof why);
+        c6_line("C6b", v, why);
+        return fails ? 5 : 0;
+    }
+    closed = CloseWorkBench();
+    for (t = 0; closed && t < 30 && wb_screen_now(); t++) Delay(5);
+    gone = closed && !wb_screen_now();
+    if (!wb_screen_now()) opened = (LONG)OpenWorkBench();   /* put back whatever happened */
+    for (t = 0, back = 0; t < 50 && !back; t++) {
+        if (wb_screen_now() && drawer_window()) back = 1;     /* drawer_window locks the screen: only once it's open */
+        else Delay(5);
+    }
+    printf("INFO C6b CloseWorkBench %ld, the screen %s, OpenWorkBench %ld, %d desktop windows before\n", (long)closed,
+           gone ? "went" : "stayed", (long)opened, desk0);
+    v = wbgap_c6b_judge(0, closed, gone, opened, back, why, sizeof why);
+    c6_line("C6b", v, why);
+    return fails ? 5 : 0;
+}
+
 static int do_big(void)
 {
     char path[64];
@@ -1842,7 +1944,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | WBCLOSE | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -1851,6 +1953,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
+    else if (!stricmp(argv[1], "WBCLOSE")) rc = do_wbclose();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");

@@ -134,6 +134,8 @@ static const struct wbgap_row rows[] = {
     {"C4", NULL, A, "SCREENS", "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
+    {"C6a", "C6", A, "WBCLOSE", "a program's window open: CloseWorkBench refused, the desktop's windows all stay"},
+    {"C6b", "C6", A, "WBCLOSE", "no program's window: the screen closes, OpenWorkBench brings it back with its drawers"},
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
@@ -434,4 +436,36 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+int wbgap_c6a_judge(long closed, int screen_after, int wins_before, int wins_after, int drawer_after, char *why,
+                    unsigned cap)
+{
+    char r[WBGAP_WHY] = "";
+    int v = WBGAP_FAIL;
+    if (closed) snprintf(r, sizeof r, "CloseWorkBench answered %ld with a program's window open", closed);
+    else if (!screen_after) snprintf(r, sizeof r, "the Workbench screen went");
+    else if (wins_after < wins_before)
+        snprintf(r, sizeof r, "refused, but the desktop closed %d of its %d windows", wins_before - wins_after, wins_before);
+    else if (!drawer_after) snprintf(r, sizeof r, "refused, but RAM:WBGap's window went");
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
+int wbgap_c6b_judge(int others, long closed, int screen_gone, long opened, int drawer_back, char *why, unsigned cap)
+{
+    char r[WBGAP_WHY] = "";
+    int v = WBGAP_FAIL;
+    if (others > 0) {
+        snprintf(r, sizeof r, "%d window%s of other programs on Workbench (a Shell?): run WBCLOSE with none", others,
+                 others == 1 ? "" : "s");
+        v = WBGAP_SKIP;
+    } else if (!closed) snprintf(r, sizeof r, "CloseWorkBench refused with no program's window open");
+    else if (!screen_gone) snprintf(r, sizeof r, "CloseWorkBench answered %ld but the screen stayed", closed);
+    else if (opened == 0) snprintf(r, sizeof r, "OpenWorkBench gave 0: the screen didn't come back");
+    else if (!drawer_back) snprintf(r, sizeof r, "the screen came back, RAM:WBGap's window didn't (5 s)");
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
 }

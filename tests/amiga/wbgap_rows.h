@@ -92,4 +92,18 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
+/* C6, CloseWorkBench / OpenWorkBench with programs running (WBGapTest WBCLOSE). On 3.2.3 CloseWorkBench() refuses at
+ * once while a window that isn't the Workbench's (WFLG_WBENCHWINDOW) is on its screen, and the desktop keeps every
+ * window; with none, the desktop closes its windows, the screen goes, and OpenWorkBench() brings both back.
+ * C6a, a program's window open: closed is CloseWorkBench()'s answer, screen_after whether the Workbench screen is still
+ * there, wins_before and wins_after the desktop's windows on it, drawer_after whether RAM:WBGap's window is the same
+ * window still. WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_c6a_judge(long closed, int screen_after, int wins_before, int wins_after, int drawer_after, char *why,
+                    unsigned cap);
+/* C6b, no program's window: others is how many windows on the screen aren't the desktop's (any: WBGAP_SKIP, nothing
+ * tried), closed and opened CloseWorkBench() and OpenWorkBench()'s answers (opened -1 when it wasn't called),
+ * screen_gone whether the screen went between them, drawer_back whether RAM:WBGap's window came back within 5 s.
+ * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
+int wbgap_c6b_judge(int others, long closed, int screen_gone, long opened, int drawer_back, char *why, unsigned cap);
+
 #endif
