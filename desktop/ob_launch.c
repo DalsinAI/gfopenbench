@@ -185,7 +185,7 @@ static unsigned long start_tool(const ob_lreq *r)
 }
 
 /* Through gfopenlaunch.library: every argument, the icon's stack and tool types. Its id, or 0. */
-static unsigned long ol_start(ob_lreq *r)
+static unsigned long lib_start(ob_lreq *r)
 {
     const char *args[OL_ARGS_MAX], *tt[65];
     struct TagItem t[OL_ARGS_MAX + 6];
@@ -362,7 +362,7 @@ static void launcher_entry(void)
                 r->tool[sizeof r->tool - 1] = 0;
                 x4_test(r->tool);
                 SetIoErr(0);
-                r->id = OLBase ? ol_start(r) : start_tool(r);
+                r->id = OLBase ? lib_start(r) : start_tool(r);
                 r->ok = r->id != 0;
                 r->err = r->ok ? 0 : IoErr();
                 r->largest = r->ok ? 0 : AvailMem(MEMF_ANY | MEMF_LARGEST);   /* X3: was it for want of memory */
