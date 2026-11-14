@@ -24,6 +24,8 @@
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
+ *                               volume must get a disk icon among the desktop's icons (WBGapRoot.rexx) within 10 s
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -1428,7 +1430,9 @@ static int do_bar(void)
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
-static int diskio_has(const char *vol, const char *when)
+static int diskio_has_row(const char *row, const char *vol, const char *when);
+static int diskio_has(const char *vol, const char *when) { return diskio_has_row("D1", vol, when); }
+static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
     char cmd[400], rexx[256];
@@ -1436,12 +1440,13 @@ static int diskio_has(const char *vol, const char *when)
     snprintf(rexx, sizeof rexx, "%s", dragtest);
     *PathPart((STRPTR)rexx) = 0;
     AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
-    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" D1 RAM:wbgap-root-d1", rexx);
+    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s RAM:wbgap-root-d1", rexx, row);
     run(cmd);
     n = read_all("RAM:wbgap-root-d1", list, sizeof list);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-root-d1");
     if (n < 0) return -1;
-    printf("INFO D1 %s: \"%s\" %s\n", when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
+    if (!vol || !*vol) return 0;
+    printf("INFO %s %s: \"%s\" %s\n", row, when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
     return wbgap_root_has_disk(list, vol);
 }
 
@@ -1482,6 +1487,55 @@ static int do_diskio(const char *drive)
     if (v == WBGAP_PASS) pass("D1");
     else if (v == WBGAP_SKIP) skip("D1", why);
     else fail("D1", why);
+    return fails ? 5 : 0;
+}
+
+/* ---- D2: a volume mounted later gets an icon ----
+ * The drive (RAD: if none given) must not be mounted yet: looked for in the DOS list, so no "insert volume"
+ * requester. The desktop's icons are read once (can they be read at all?), "Mount <drive>" is run, the volume's
+ * name is taken from a lock on the drive, and the icons are read again once a second for up to 10 s. The drive
+ * stays mounted afterwards, for DISKIO. */
+static int drive_mounted(const char *drive)
+{
+    char name[32];
+    struct DosList *dl;
+    size_t n = strlen(drive);
+    int found;
+    if (n && drive[n - 1] == ':') n--;
+    if (!n || n >= sizeof name) return 0;
+    memcpy(name, drive, n);
+    name[n] = 0;
+    dl = LockDosList(LDF_DEVICES | LDF_READ);
+    found = FindDosEntry(dl, (CONST_STRPTR)name, LDF_DEVICES) != NULL;
+    UnLockDosList(LDF_DEVICES | LDF_READ);
+    return found;
+}
+
+static int do_mounticon(const char *drive)
+{
+    char cmd[80], path[108], vol[40], why[96];
+    int was, before, rc = 0, up = 0, after = -1, k, v;
+    BPTR l;
+    vol[0] = 0;
+    was = drive_mounted(drive);
+    before = was ? 0 : diskio_has_row("D2", "", "before");
+    if (!was && before >= 0) {
+        snprintf(cmd, sizeof cmd, "C:Mount %s", drive);
+        rc = run(cmd);
+        if (!rc && (l = Lock((CONST_STRPTR)drive, ACCESS_READ))) {
+            if (NameFromLock(l, (STRPTR)path, sizeof path)) { wbgap_volume_name(path, vol, sizeof vol); up = vol[0] != 0; }
+            UnLock(l);
+        }
+        if (up) {
+            printf("INFO D2 %s mounted, its volume \"%s\"\n", drive, vol);
+            for (k = 0; k < 10; k++) {
+                Delay(50);
+                if ((after = diskio_has_row("D2", vol, "after")) > 0) break;
+            }
+        }
+    }
+    v = wbgap_mount_judge(was, before, rc, up, after, why, sizeof why);
+    say_row("D2", v, why);
     return fails ? 5 : 0;
 }
 
@@ -2112,6 +2166,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
