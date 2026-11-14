@@ -106,6 +106,15 @@ static void backdrop_plan(void)
 }
 
 /* B1, B2: GFOpenTitle's Power cell, whose list a click opened, and its rows */
+static void bar_point_plan(void)
+{
+    CHECK(wbgap_point_in_box(1880, 30, 1756, 24, 139, 57), "a point inside the list: under it");
+    CHECK(!wbgap_point_in_box(1880, 11, 1756, 24, 139, 57), "Power's cell on the bar, above the list: not under it");
+    CHECK(wbgap_point_in_box(1756, 24, 1756, 24, 139, 57) && !wbgap_point_in_box(1895, 24, 1756, 24, 139, 57) &&
+          !wbgap_point_in_box(1756, 81, 1756, 24, 139, 57), "the left and top edges are in, the right and bottom out");
+    CHECK(!wbgap_point_in_box(10, 10, 0, 0, 0, 0), "an empty box holds nothing");
+}
+
 static void bar_plan(void)
 {
     long xy[2];
@@ -403,6 +412,7 @@ int main(int argc, char **argv)
     bar_plan();
     ramdisk_plan();
     which_plan();
+    bar_point_plan();
     diskio_plan();
     print_all();
     print_empty();

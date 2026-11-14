@@ -18,7 +18,7 @@
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
- *                               its height: Reboot, Restart, Power off, and an Eject row for each USB stick mounted)
+ *                               its height: Reboot, Restart, Power off, and an Eject row for each USB volume mounted)
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
@@ -1210,7 +1210,7 @@ static struct Window *new_active(struct Window **was, int n, struct Task *t, int
     return NULL;
 }
 
-/* the USB sticks mounted, as GFOpenTitle counts them for Power's Eject rows: DOS devices on gfopenusbacfs.device or
+/* the USB volumes mounted, as GFOpenTitle counts them for Power's Eject rows: DOS devices on gfopenusbacfs.device or
  * usbdisk.device with a handler running */
 static int usb_sticks_now(void)
 {
@@ -1222,6 +1222,8 @@ static int usb_sticks_now(void)
         const UBYTE *b;
         char dev[40];
         int k, len;
+        /* dn_Startup of 1024 or less is a number, not an FSSM (the usual test, as Mount and Info make it): never
+         * read through it, since a wrong guess here reads garbage while the DOS list is locked */
         if ((ULONG)dn->dn_Startup <= 1024 || !dn->dn_Task) continue;
         fssm = (struct FileSysStartupMsg *)BADDR(dn->dn_Startup);
         b = (const UBYTE *)BADDR(fssm->fssm_Device);
@@ -1242,14 +1244,14 @@ static void say_row(const char *row, int state, const char *why)
     else skip(row, why);
 }
 
-static int do_bar(void)
+static int bar_rows(void)
 {
     struct Screen *s;
     struct MsgPort *p;
     struct Task *t;
     struct Window *row, *was[MAXWINS], *m;
     long xy[2], rr, ml, mt, mw, mh, rh;
-    int n, k, owner, sticks, b1, b2;
+    int n, k, owner, sticks, b1, b2, under, esc_left;
     char why[96];
     struct DrawInfo *dri;
     char cmd[320];
@@ -1293,15 +1295,24 @@ static int do_bar(void)
         return 5;
     }
     ml = m->LeftEdge; mt = m->TopEdge; mw = m->Width; mh = m->Height;
-    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld; rows %ld high, %d USB sticks\n",
+    under = wbgap_point_in_box(xy[0], xy[1], ml, mt, mw, mh);
+    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld; rows %ld high, %d USB volumes\n",
            row->LeftEdge, row->TopEdge, row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh, rh, sticks);
     owner = wbgap_bar_menu_owner(rr, ml, mw);
     /* Esc closes it before anything else: nothing in it is picked */
     snprintf(cmd, sizeof cmd, "%s KEY 0x45", dragtest);
     run(cmd);
     for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
+    if ((esc_left = still_there(s, m))) {           /* a click on the screen's title, far from the list, closes it */
+        snprintf(cmd, sizeof cmd, "\"%s\" CLICK 4 %d", dragtest, row->TopEdge + row->Height / 2);
+        run(cmd);
+        for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
+        printf("INFO B1 Esc left the list open; a click on the screen's title %s\n",
+               still_there(s, m) ? "didn't close it either" : "closed it");
+    }
     wbgap_power_judge(mh, sticks, rh, &b1, &b2);
-    if (still_there(s, m)) fail("B1", "Esc left the list open");   /* B2 still read: the height was taken before */
+    if (under) { fail("B1", "the list opened under the pointer (a mouse-up there could pick Reboot)"); b2 = WBGAP_NONE; }
+    else if (esc_left) fail("B1", "Esc left the list open");   /* B2 still read: the height was taken before */
     else if (owner == WBGAP_BAR_PREFS) { fail("B1", "a click on Power's cell opened Prefs' list"); b2 = WBGAP_NONE; }
     else if (owner == WBGAP_BAR_OTHER) { fail("B1", "the window that opened doesn't hang from Power"); b2 = WBGAP_NONE; }
     else if (owner == WBGAP_BAR_UNSURE) { skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told"); b2 = WBGAP_NONE; }
@@ -1312,13 +1323,32 @@ static int do_bar(void)
     }
     if (b2 == WBGAP_NONE) skip("B2", "Power's list not read");
     else {
-        if (b2 == WBGAP_SKIP) snprintf(why, sizeof why, "no USB stick mounted");
-        else snprintf(why, sizeof why, "%d USB sticks: the list is %ld high, not %ld with their Eject rows", sticks, mh,
+        if (b2 == WBGAP_SKIP) snprintf(why, sizeof why, "no USB volume mounted");
+        else snprintf(why, sizeof why, "%d USB volumes: the list is %ld high, not %ld with their Eject rows", sticks, mh,
                       wbgap_power_height(sticks, rh));
         say_row("B2", b2, why);
     }
     UnlockPubScreen(NULL, s);
     return fails ? 5 : 0;
+}
+
+/* BAR brings the Workbench screen to the front; the screen that was in front goes back after */
+static int do_bar(void)
+{
+    struct Screen *front;
+    ULONG lock = LockIBase(0);
+    int rc;
+    front = IntuitionBase->FirstScreen;
+    UnlockIBase(lock);
+    rc = bar_rows();
+    lock = LockIBase(0);
+    if (front && IntuitionBase->FirstScreen != front) {
+        struct Screen *x;
+        for (x = IntuitionBase->FirstScreen; x && x != front; x = x->NextScreen) ;
+        UnlockIBase(lock);
+        if (x) ScreenToFront(front);              /* only if it is still open */
+    } else UnlockIBase(lock);
+    return rc;
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
@@ -1342,7 +1372,7 @@ static int diskio_has(const char *vol, const char *when)
 static int diskio_inhibit(const char *drive, int on)
 {
     char cmd[400];
-    snprintf(cmd, sizeof cmd, "\"%s\" INHIBIT %s %s", dragtest, drive, on ? "ON" : "OFF");
+    snprintf(cmd, sizeof cmd, "\"%s\" INHIBIT \"%s\" %s", dragtest, drive, on ? "ON" : "OFF");
     return run(cmd);
 }
 

@@ -166,7 +166,7 @@ static const struct wbgap_row rows[] = {
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
     {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
-    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB stick mounted (14 Nov)"},
+    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
     {"B3", NULL, A, "BAR", "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
@@ -341,6 +341,11 @@ int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
     if (right == row_right - WBGAP_TRAY_CELL) return WBGAP_BAR_PREFS;
     if (menu_left == 0 && right < row_right) return WBGAP_BAR_UNSURE;   /* x clamped to 0: Power or Prefs */
     return WBGAP_BAR_OTHER;
+}
+
+int wbgap_point_in_box(long x, long y, long l, long t, long w, long h)
+{
+    return x >= l && x < l + w && y >= t && y < t + h;
 }
 
 long wbgap_power_height(int sticks, long row_height)
