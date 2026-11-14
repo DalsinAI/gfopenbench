@@ -65,10 +65,13 @@ static int rr_is_req(struct Window *x)
 {
     struct Gadget *g;
     if (!x->Title || (strcmp((char *)x->Title, "Workbench") && strcmp((char *)x->Title, "System Request"))) return 0;
-    for (g = x->FirstGadget; g; g = g->NextGadget)
-        if (!(g->Flags & GFLG_LABELIMAGE) && g->GadgetText && g->GadgetText->IText
-            && !strcmp((char *)g->GadgetText->IText, "Cancel"))
-            return 1;
+    for (g = x->FirstGadget; g; g = g->NextGadget) {
+        const char *label = NULL;                 /* GadgetText is an IntuiText only for LABELITEXT (G'Kar, #202) */
+        if (!g->GadgetText) continue;
+        if ((g->Flags & GFLG_LABELMASK) == GFLG_LABELITEXT) label = (const char *)g->GadgetText->IText;
+        else if ((g->Flags & GFLG_LABELMASK) == GFLG_LABELSTRING) label = (const char *)g->GadgetText;
+        if (label && !strcmp(label, "Cancel")) return 1;
+    }
     return 0;
 }
 
@@ -91,7 +94,7 @@ static void rr_list(const char *when)
 }
 
 /* a window on the Workbench now that wasn't in before[], isn't the Workbench's own, isn't mine and has the
- * requester's title ("Workbench") and Cancel gadget: the refused try tells our system windows to close and open again, so they come
+ * requester's title ("Workbench", or 3.2.3's "System Request") and Cancel gadget: the refused try tells our system windows to close and open again, so they come
  * up new beside it (lab, 14 November: an untitled one was taken for it and got the Cancel); NULL if none */
 static struct Window *rr_new(struct Window **before, int nb, struct Window *mine)
 {
@@ -146,15 +149,11 @@ static struct Window *rr_wait_new(struct Window **before, int nb, struct Window 
     return r;
 }
 
-/* a requester's window (the title "Workbench", not the Workbench's own) on the Workbench now, other than not; NULL if none */
+/* a requester's window (rr_is_req, not the Workbench's own) on the Workbench now, other than not; NULL if none.
+ * Tested under the lock, as rr_new does (G'Kar, #202) */
 static struct Window *rr_req_up(struct Window *not)
 {
-    struct Window *w[RR_MAXW];
-    int n = rr_snap(w), i;
-    for (i = 0; i < n; i++)
-        if (w[i] != not && !(w[i]->Flags & WFLG_WBENCHWINDOW) && rr_is_req(w[i]))
-            return w[i];
-    return NULL;
+    return rr_new(NULL, 0, not);
 }
 
 static int rr_wait_gone(struct Window *w, int secs)
@@ -236,13 +235,13 @@ static void rr_cancel(struct Window *req)
 
 /* Any reset requester still up after a while (the prefs put back may owe a reset of their own): Cancel on it, so
  * none is left on the Workbench for the rows after this one; with no timeout it would wait there for ever */
-static void rr_none_left(int secs)
+static void rr_none_left(int secs, struct Window **before, int nb)
 {
     struct Window *req;
     int t;
-    for (t = 0; t < secs * 5; t++) {
-        if ((req = rr_req_up(NULL))) {
-            printf("INFO C5a a requester left up: Cancel on it\n");
+    for (t = 0; t < secs * 5; t++) {   /* only one that came after the change: a "please insert" there before stays */
+        if ((req = rr_new(before, nb, NULL))) {
+            printf("INFO C5a a requester left up (%dx%d): Cancel on it\n", (int)req->Width, (int)req->Height);
             rr_cancel(req);
             rr_wait_gone(req, 3);
             return;
@@ -255,13 +254,18 @@ int wbt_resetreq(int argc, char **argv)
 {
     static unsigned char was[RR_FILE], now[RR_FILE];
     struct wbgap_resetreq r;
-    struct Window *before[RR_MAXW], *mine, *req;
+    struct Window *before[RR_MAXW], *start[RR_MAXW], *mine, *req;
     char why[200], ctitle[40] = "";
     long n;
-    int nb, old = 0, v;
+    int nb, ns, old = 0, v;
     (void)argc, (void)argv;
     memset(&r, 0, sizeof r);
+    ns = rr_snap(start);                          /* what was up before the row: rr_none_left leaves those */
     n = wbt_read_all(RR_PREFS, (char *)was, sizeof was);
+    if (n >= (long)sizeof was - 1) {              /* all wbt_read_all reads: maybe cut short, never written back (G'Kar) */
+        printf("INFO C5a %s is %ld bytes or more: not changed\n", RR_PREFS, n);
+        n = 0;
+    }
     memcpy(now, was, n > 0 ? (size_t)n : 0);
     r.depth_before = rr_depth();
     if (n <= 0 || r.depth_before < 1 || !wbgap_smod_depth(now, n, wbgap_other_depth(r.depth_before), &old)) {
@@ -280,7 +284,8 @@ int wbt_resetreq(int argc, char **argv)
          * come up, and Cancel take it down with the depth kept; the reset half is for a run with no Shell window */
         r.runner = 1;
         printf("INFO C5a this Shell's window is on the Workbench: the requester is answered with Cancel\n");
-        if ((mine = rr_mine())) {
+        if (!(mine = rr_mine())) r.mine_failed = 1;
+        else {
             nb = rr_settle(before);
             rr_write(RR_PREFS, now, n);
             req = rr_wait_new(before, nb, mine, 20);
@@ -297,13 +302,14 @@ int wbt_resetreq(int argc, char **argv)
                    r.depth_cancel);
         }
         rr_write(RR_PREFS, was, n);               /* the prefs as they were */
-        rr_none_left(20);
+        rr_none_left(20, start, ns);
         if (rr_req_up(NULL)) printf("INFO C5a a requester is still up\n");
         v = wbgap_resetreq_judge(&r, why, sizeof why);
         wbt_say("C5a", v, why);
         return wbt_fails() ? 5 : 0;
     }
-    if ((mine = rr_mine())) {
+    if (!(mine = rr_mine())) r.mine_failed = 1;
+    else {
         nb = rr_settle(before);
         rr_write(RR_PREFS, now, n);
         req = rr_wait_new(before, nb, mine, 20);
@@ -363,7 +369,7 @@ int wbt_resetreq(int argc, char **argv)
     }
 
     rr_write(RR_PREFS, was, n);                       /* the prefs as they were, every way */
-    if (!r.shown || !r.gone) rr_none_left(5);         /* a requester the row lost track of: not left up */
+    if (!r.shown || !r.gone) rr_none_left(5, start, ns);         /* a requester the row lost track of: not left up */
     if (rr_depth() != r.depth_before) {               /* the Workbench in them: held since the Cancel */
         int closed = CloseWorkBench() != 0;
         if (closed) OpenWorkBench();

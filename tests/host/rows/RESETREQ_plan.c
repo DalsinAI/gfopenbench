@@ -11,7 +11,7 @@ WBGAP_PLAN(resetreq_plan)
 void resetreq_plan(void)
 {
     char why[200];
-    struct wbgap_resetreq ok = { 0, 1, 1, 24, 16, 16, 1, 1, 1, 16, 0 }, r;
+    struct wbgap_resetreq ok = { 0, 1, 1, 24, 16, 16, 1, 1, 1, 16, 0, 0 }, r;
     /* FORM <36> PREF, PRHD <6>, SCRM <28>: depth 24 at the SCRM data's +24 */
     unsigned char f[12 + 14 + 36];
     int old = 0;
@@ -55,6 +55,18 @@ void resetreq_plan(void)
     r.depth_cancel = 24; r.no_prefs = 1;
     CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_SKIP && strstr(why, "ScreenMode prefs"),
           "no prefs comes first: SKIP");
+    r.no_prefs = 0; r.mine_failed = 1;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "test fault"),
+          "our own window didn't open (Shell case): a test fault, not \"no requester\": \"%s\"", why);
+    r.runner = 0;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "test fault"),
+          "our own window didn't open (full row): a test fault: \"%s\"", why);
+    {   /* a chunk length of $80000000 (negative as a 68k long): stopped, not walked backwards */
+        unsigned char big[12 + 8 + 28];
+        memset(big, 0, sizeof big);
+        memcpy(big, "FORM", 4), memcpy(big + 8, "PREF", 4), memcpy(big + 12, "PRHD", 4), big[16] = 0x80;
+        CHECK(wbgap_smod_depth(big, sizeof big, 8, &old) == 0, "a chunk length of $80000000: 0, nothing read past the file");
+    }
     CHECK(wbgap_smod_depth(f, sizeof f, 16, &old) == 1 && old == 24 && f[34 + 24] == 0 && f[34 + 25] == 16,
           "the SCRM depth found past PRHD, 24 put to 16");
     CHECK(wbgap_smod_depth(f, sizeof f - 4, 8, &old) == 0, "a cut SCRM: not touched");

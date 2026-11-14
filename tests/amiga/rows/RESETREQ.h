@@ -12,6 +12,7 @@ struct wbgap_resetreq {
     int runner;            /* the runner's own Shell window is on the Workbench (WBGapTest.script): it stays in the
                             * reset's way, so the requester can't go by itself; it is answered with Cancel instead,
                             * and the row is SKIP when that works (the reset half needs amiga_run, no Shell window) */
+    int mine_failed;       /* the row's own window didn't open: a test fault, not the desktop's */
 };
 int wbgap_resetreq_judge(const struct wbgap_resetreq *r, char *why, unsigned cap);
 /* A screenmode.prefs' SCRM depth (big-endian UWORD at the chunk's data + 24) put to depth; the old one in *old.
