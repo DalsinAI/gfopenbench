@@ -257,7 +257,7 @@ int wbgap_report_line(struct wbgap_report *r, const char *line)
     while (*why == ' ') why++;
     for (wl = strlen(why); wl && (why[wl - 1] == '\n' || why[wl - 1] == '\r' || why[wl - 1] == ' '); wl--) {}
     if (key[n - 1] == '*') {   /* "FAIL M* why": the mode's checks didn't run, for each of its M rows with no line yet;
-                                 * the mode is the first M row's that has one (M1's MENUS, A3's API) */
+                                 * the mode is the first M row's that has one (M1's MENUS, A1's APPWIN) */
         const char *mode = NULL;
         for (i = 0; i < NROWS && !mode; i++)
             if (rows[i].mode && !strncmp(rows[i].id, key, n - 1) && rows[i].id[n - 1] >= '0' && rows[i].id[n - 1] <= '9')
