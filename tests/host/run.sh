@@ -27,6 +27,8 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/w
 "$OUT/test_wbgap_index"
 # guest-index.sh: tests/amiga/build-amiga.sh fetches amicradle-guest's tools/openindex for WBGapIndex (row X2)
 sh "$HERE/tests/host/test_guest_index.sh"
+# the WBGap ARexx scripts close the drawer windows they make (W2, X3)
+sh "$HERE/tests/host/test_rexx_drawers.sh"
 "$OUT/test_wbgap_rows"
 "$OUT/test_spyfmt"
 

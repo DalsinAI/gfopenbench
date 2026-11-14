@@ -37,6 +37,11 @@ IF RC ~= 0 THEN DO
   EXIT 5
 END
 SAY 'INFO X3 the desktop answers:' RESULT
+/* W2: X3's drawer window not left open for the rows after it (Amiga+Tab found it still there, 14 November 2026);
+   the drawer goes too */
+WINDOW 'RAM:WBGapX3d' CLOSE
+ADDRESS COMMAND 'Delete RAM:WBGapX3d QUIET >NIL:'
+ADDRESS OPENBENCH
 /* On AmiCradle the drawer often opens even with every piece of exec's memory taken (the lab, 13 November 2026):
    then nothing failed and there was nothing to ask, which passes too */
 IF seen & opened THEN SAY 'PASS X3 requester, and Retry opened the drawer'
