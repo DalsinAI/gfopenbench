@@ -367,7 +367,7 @@ static long read_all(const char *path, char *buf, long n);
 static int icons_have(const char *row, const char *win, const char *name)
 {
     static char list[8192];
-    char cmd[400], rexx[256], out[48];
+    char cmd[400], rexx[256], out[48], args[200];
     long n;
     BPTR l;
     int rexx_up;
@@ -375,7 +375,11 @@ static int icons_have(const char *row, const char *win, const char *name)
     *PathPart((STRPTR)rexx) = 0;
     AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
     snprintf(out, sizeof out, "RAM:wbgap-root-%s", row);
-    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s %s %s", rexx, row, out, win);
+    snprintf(args, sizeof args, "%s %s %s", row, out, win);
+    if (!wbgap_rx_line(cmd, sizeof cmd, rexx, args)) {
+        printf("INFO %s WBGapRoot.rexx not run: its path \"%s\" has a space (rx can't be given one)\n", row, rexx);
+        return -1;
+    }
     if (!(l = Lock((CONST_STRPTR)"SYS:Rexxc/rx", ACCESS_READ))) return -1;
     UnLock(l);
     Forbid();
@@ -1865,12 +1869,16 @@ static int diskio_has(const char *vol, const char *when) { return diskio_has_row
 static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
-    char cmd[400], rexx[256];
+    char cmd[400], rexx[256], args[64];
     long n;
     snprintf(rexx, sizeof rexx, "%s", dragtest);
     *PathPart((STRPTR)rexx) = 0;
     AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
-    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s RAM:wbgap-root-d1", rexx, row);
+    snprintf(args, sizeof args, "%s RAM:wbgap-root-d1", row);
+    if (!wbgap_rx_line(cmd, sizeof cmd, rexx, args)) {
+        printf("INFO %s WBGapRoot.rexx not run: its path \"%s\" has a space (rx can't be given one)\n", row, rexx);
+        return -1;
+    }
     run(cmd);
     n = read_all("RAM:wbgap-root-d1", list, sizeof list);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-root-d1");
@@ -3103,7 +3111,6 @@ static int do_desk(const char *what)
         }
         DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
-        desk_told();
         if (WorkbenchBase) CloseWorkbenchObjectA((STRPTR)"RAM:WBGapI/Sub", NULL);   /* if WBGapDesk.rexx left it open */
         {   /* RAM:WBGapI and its icons gone */
             static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
@@ -3115,6 +3122,9 @@ static int do_desk(const char *what)
             int k;
             for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
         }
+        /* told last, so the desktop reads RAM: again with the five icons' files gone as well as their .backdrop
+         * lines (told before the delete, Ivanova's 0658 lab still showed them on the desktop a minute later) */
+        desk_told();
         return 0;
     }
     printf("unknown: LAUNCHDESK %s\n", what);
