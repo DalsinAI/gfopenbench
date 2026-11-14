@@ -41,6 +41,8 @@ int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack
 void wbt_norm(char *d, const char *s, int n);
 const char *wbt_item_text(struct MenuItem *it);
 int wbt_icons_have(const char *row, const char *win, const char *name);
+unsigned long wbt_icon_stack(const char *path);                 /* the STACK= in path's icon's tool types (0: none) */
+void wbt_check_stack_alone(const char *file, unsigned long want); /* STARTUP's I12c: the LAUNCHREC line in file judged */
 /* DRAGFILE's: the drawer dir with first snapshotted at 20,10 in it; the window titled title made w x h and put in a
  * corner clear of avoid (NULL: the top-left), or NULL; an object made in the drawer dir (its window w open) at x,y,
  * told to the desktop, and its box in the window's inside found where the inside changed: 1, or 0 in 5 s */
