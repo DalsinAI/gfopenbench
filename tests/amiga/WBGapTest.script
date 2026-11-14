@@ -29,6 +29,7 @@ If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP D2 no rx" >>RAM:wbgap-results
   Echo "SKIP D5r no rx" >>RAM:wbgap-results
   Echo "SKIP D1 no rx" >>RAM:wbgap-results
+  Echo "SKIP P7 no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
   Wait 1
@@ -43,6 +44,7 @@ Else
   WBGapTest DISKS >>RAM:wbgap-results
   WBGapTest MOUNTICON RAD: >>RAM:wbgap-results
   WBGapTest DISKIO RAD: >>RAM:wbgap-results
+  WBGapTest PREFSWB >>RAM:wbgap-results
 EndIf
 WBGapTest WBCONTROL >>RAM:wbgap-results
 WBGapTest TITLES >>RAM:wbgap-results

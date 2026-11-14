@@ -36,4 +36,19 @@ void infosave_plan(void)
     CHECK(!got[0], "N4: no tool types: empty");
     wbgap_join_tooltypes(two, got, 5);
     CHECK(!strcmp(got, "a=3,"), "N4: cut to the room there is: \"%s\"", got);
+    /* N6: the stack field saved into the icon */
+    CHECK(wbgap_infosave_stack(8192, 8192, why, sizeof why) == WBGAP_PASS && !why[0], "N6: stack 8192: PASS");
+    CHECK(wbgap_infosave_stack(4096, 8192, why, sizeof why) == WBGAP_FAIL && strstr(why, "4096") && strstr(why, "8192"),
+          "N6: the old stack kept: FAIL, \"%s\"", why);
+    CHECK(wbgap_infosave_stack(0, 8192, NULL, 0) == WBGAP_FAIL, "N6: no stack: FAIL, no room for a reason");
+    /* N7: Hold (0x80) and Pure (0x20) set, nothing else moved */
+    CHECK(wbgap_infosave_hp(0, 0xa0, why, sizeof why) == WBGAP_PASS && !why[0], "N7: both set from none: PASS");
+    CHECK(wbgap_infosave_hp(0x50, 0xf0, why, sizeof why) == WBGAP_PASS, "N7: Script and Archive kept: PASS");
+    CHECK(wbgap_infosave_hp(0, 0x80, why, sizeof why) == WBGAP_FAIL && strstr(why, "Pure not set"), "N7: Hold only: FAIL, \"%s\"", why);
+    CHECK(wbgap_infosave_hp(0, 0x20, why, sizeof why) == WBGAP_FAIL && strstr(why, "Hold not set"), "N7: Pure only: FAIL, \"%s\"", why);
+    CHECK(wbgap_infosave_hp(0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "neither"), "N7: nothing saved: FAIL, \"%s\"", why);
+    CHECK(wbgap_infosave_hp(0, 0xa1, why, sizeof why) == WBGAP_FAIL && strstr(why, "other bits"),
+          "N7: Deletable lost on the way: FAIL, \"%s\"", why);
+    CHECK(wbgap_infosave_hp(0x10, 0xa0, why, sizeof why) == WBGAP_FAIL, "N7: Archive dropped: FAIL");
+    CHECK(wbgap_infosave_hp(0xa0, 0xa0, NULL, 0) == WBGAP_PASS, "N7: already set and kept: PASS, no room needed");
 }

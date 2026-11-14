@@ -30,6 +30,9 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest PREFSWB           row P7 (rows/PREFSWB.c): Workbench prefs with RAM: hidden and the default stack 65536
+ *                               (GFOS: the ENV file written; 3.2.3: Prefs/Workbench FROM USE): the RAM Disk's icon must go and
+ *                               WBCTRLA_GetDefaultStackSize give 65536; the old file back, the icon must come back
  *   WBGapTest WBCONTROL         row A5 (rows/WBCONTROL.c): WorkbenchControlA's stack, restart time, global flags and
  *                               hidden devices, each set, read back and put back
  *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
@@ -59,7 +62,7 @@
  *                               reads what OpenT got (RAM:wbgap-launchopen) and whether Sub's window opened
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
- *   WBGapTest INFOSAVE          rows N2-N5: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
+ *   WBGapTest INFOSAVE          rows N2-N7: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
  *                               off, a comment, a default tool, tool types a=1 edited to a=3, d=4 deleted, b=2
  *                               added, Save; then the file's protection and comment and its icon are read back.
  *                               GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3

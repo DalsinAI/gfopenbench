@@ -1,7 +1,8 @@
-/* ---- INFOSAVE: rows N2-N5, the Information window's Save, driven as a hand does ----
+/* ---- INFOSAVE: rows N2-N7, the Information window's Save, driven as a hand does ----
  * RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable off, a comment, a default tool, tool
  * types a=1 edited to a=3, d=4 deleted, b=2 added, Save; then the file's protection and comment and its icon are
- * read back. GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3.
+ * read back. Then RAM:WBGapN/t's (a project, stack 4096, no Hold or Pure), in a window of its own so a miss in one
+ * doesn't take the other's rows: Stack 8192 (N6), Hold and Pure in the Advanced section ticked (N7), Save. GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +29,8 @@ WBGAP_ROWMODE(N2, INFOSAVE)
 WBGAP_ROWMODE(N3, INFOSAVE)
 WBGAP_ROWMODE(N4, INFOSAVE)
 WBGAP_ROWMODE(N5, INFOSAVE)
+WBGAP_ROWMODE(N6, INFOSAVE)
+WBGAP_ROWMODE(N7, INFOSAVE)
 
 static int note_file(const char *path, const char *text)
 {
@@ -103,19 +106,106 @@ static int set_string(struct Window *w, UWORD id, const char *t, int ret)
     return 1;
 }
 
+/* RAM:WBGapN/name's Information window, opened by WBInfo as a hand's Icons > Information does; NULL in 3 s */
+static struct Window *open_info(const char *name)
+{
+    struct Window *iw = NULL;
+    struct Screen *wb;
+    char title[64];
+    BPTR dir;
+    int t;
+    snprintf(title, sizeof title, "Information: %s", name);
+    dir = Lock((CONST_STRPTR)"RAM:WBGapN", ACCESS_READ);
+    wb = LockPubScreen((CONST_STRPTR)"Workbench");
+    if (dir && wb && WBInfo(dir, (CONST_STRPTR)name, wb))
+        for (t = 0; t < 30 && !(iw = wbt_find_window(title)); t++) Delay(10);
+    if (wb) UnlockPubScreen(NULL, wb);
+    if (dir) UnLock(dir);
+    if (iw) {
+        Delay(50);   /* drawn */
+        printf("INFO INFOSAVE %s %ldx%ld at %ld,%ld\n", title, (long)iw->Width, (long)iw->Height, (long)iw->LeftEdge,
+               (long)iw->TopEdge);
+    }
+    return iw;
+}
+
+/* the window titled title gone in 3 s (Save took): 1; else it is closed unsaved with Ctrl-C and 0 */
+static int saved(const char *title, int done)
+{
+    struct Window *iw;
+    int t;
+    for (t = 0; t < 30 && wbt_find_window(title); t++) Delay(10);
+    if (!(iw = wbt_find_window(title))) return 1;
+    printf("INFO INFOSAVE %s still open after Save%s\n", title, done ? "" : " (a gadget wasn't found)");
+    if (iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+    return 0;
+}
+
+/* a file's protection bits, -1 if it can't be examined */
+static long prot_of(const char *path)
+{
+    struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+    BPTR l = fib ? Lock((CONST_STRPTR)path, ACCESS_READ) : 0;
+    long p = -1;
+    if (l && Examine(l, fib)) p = fib->fib_Protection;
+    if (l) UnLock(l);
+    if (fib) FreeDosObject(DOS_FIB, fib);
+    return p;
+}
+
+/* N6 N7: RAM:WBGapN/t, a project with stack 4096 and no Hold or Pure: Stack made 8192, Hold and Pure ticked, Save */
+static void infobits_row(void)
+{
+    struct DiskObject *dob;
+    struct Window *iw;
+    char why[120];
+    const char *miss;
+    long before, after;
+    int done;
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/t", 0);
+    note_file("RAM:WBGapN/t", "WBGapTest INFOSAVE N6 N7\n");
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/t", 0);
+    before = prot_of("RAM:WBGapN/t");
+    if (before < 0 || !wbt_put_icon_stack("RAM:WBGapN/t", WBPROJECT, NULL, 4096)) {
+        wbt_fail("N6", "RAM:WBGapN/t or its icon could not be written");
+        wbt_fail("N7", "RAM:WBGapN/t or its icon could not be written");
+        return;
+    }
+    if (!(iw = open_info("t"))) {
+        wbt_fail("N6", "WBInfo opened no Information window for RAM:WBGapN/t");
+        wbt_fail("N7", "WBInfo opened no Information window for RAM:WBGapN/t");
+        return;
+    }
+    done = set_string(iw, G_STACK, "8192", 0)
+        && click_gad(iw, G_HOLD, -1) && click_gad(iw, G_PURE, -1)
+        && click_gad(iw, G_SAVE, -1);
+    if (!saved("Information: t", done)) {
+        miss = done ? "Save didn't close the Information window" : "the Stack field, Hold, Pure or Save wasn't found";
+        wbt_fail("N6", miss);
+        wbt_fail("N7", miss);
+        return;
+    }
+    if ((dob = GetDiskObject((CONST_STRPTR)"RAM:WBGapN/t"))) {
+        wbt_say("N6", wbgap_infosave_stack((long)dob->do_StackSize, 8192, why, sizeof why), why);
+        FreeDiskObject(dob);
+    } else wbt_fail("N6", "RAM:WBGapN/t.info can't be read");
+    if ((after = prot_of("RAM:WBGapN/t")) >= 0) wbt_say("N7", wbgap_infosave_hp(before, after, why, sizeof why), why);
+    else wbt_fail("N7", "RAM:WBGapN/t can't be examined");
+}
+
 static int infosave_row(void)
 {
     static const char *const rows[] = { "N2", "N3", "N4", "N5" };
     static char *tt[] = { (char *)"a=1", (char *)"d=4", NULL };
     struct FileInfoBlock *fib;
     struct DiskObject *dob;
-    struct Screen *wb;
-    struct Window *iw = NULL;
+    struct Window *iw;
     char why[120];
-    BPTR dir, l;
-    int t, i, done;
+    BPTR l;
+    int i, done;
     if (!wbt_is_gfos()) {
-        for (i = 0; i < 4; i++) wbt_skip(rows[i], "drives GFOpenBench's Information window by its gadget ids; 3.2.3's is checked by hand");
+        static const char *const all[] = { "N2", "N3", "N4", "N5", "N6", "N7" };
+        for (i = 0; i < 6; i++) wbt_skip(all[i], "drives GFOpenBench's Information window by its gadget ids; 3.2.3's is checked by hand");
         return 0;
     }
     /* RAM:WBGapN/n: a project, every protection bit as a new file has it, no comment, no default tool,
@@ -135,18 +225,10 @@ static int infosave_row(void)
         PutDiskObject((CONST_STRPTR)"RAM:WBGapN/n", dob);
         FreeDiskObject(dob);
     }
-    dir = Lock((CONST_STRPTR)"RAM:WBGapN", ACCESS_READ);
-    wb = LockPubScreen((CONST_STRPTR)"Workbench");
-    if (dir && wb && WBInfo(dir, (CONST_STRPTR)"n", wb))
-        for (t = 0; t < 30 && !(iw = wbt_find_window("Information: n")); t++) Delay(10);
-    if (wb) UnlockPubScreen(NULL, wb);
-    if (dir) UnLock(dir);
-    if (!iw) {
+    if (!(iw = open_info("n"))) {
         for (i = 0; i < 4; i++) wbt_fail(rows[i], "WBInfo opened no Information window for RAM:WBGapN/n");
         return 10;
     }
-    Delay(50);   /* drawn */
-    printf("INFO INFOSAVE Information window %ldx%ld at %ld,%ld\n", (long)iw->Width, (long)iw->Height, (long)iw->LeftEdge, (long)iw->TopEdge);
     /* N2: Deletable off. N3: a comment. N5: a default tool. N4: a=1 made a=3, d=4 deleted, b=2 added. */
     done = click_gad(iw, G_PD, -1)
         && set_string(iw, G_COMMENT, "gapnote", 0)
@@ -155,10 +237,7 @@ static int infosave_row(void)
         && click_gad(iw, G_TTLIST, 1) && click_gad(iw, G_TTDEL, -1)
         && click_gad(iw, G_TTNEW, -1) && type_text("b=2") && (wbt_key(0x44), 1)
         && click_gad(iw, G_SAVE, -1);
-    for (t = 0; t < 30 && wbt_find_window("Information: n"); t++) Delay(10);
-    if ((iw = wbt_find_window("Information: n"))) {   /* not saved (a requester?): closed unsaved */
-        printf("INFO INFOSAVE the window is still open after Save%s\n", done ? "" : " (a gadget wasn't found)");
-        if (iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+    if (!saved("Information: n", done)) {
         for (i = 0; i < 4; i++) wbt_fail(rows[i], "Save didn't close the Information window");
         return 10;
     }
@@ -183,7 +262,7 @@ static int infosave_row(void)
         wbt_fail("N4", "RAM:WBGapN/n.info can't be read");
         wbt_fail("N5", "RAM:WBGapN/n.info can't be read");
     }
-    return wbt_fails() ? 10 : 0;
+    return 0;
 }
 
 /* RAM:WBGapN is gone after every run, whichever way it ended (Lyta, #150) */
@@ -193,7 +272,12 @@ int wbt_infosave(int argc, char **argv)
     (void)argc;
     (void)argv;
     rc = infosave_row();
+    if (wbt_is_gfos()) infobits_row();   /* N6 N7 whatever N2-N5 came to: a file and a window of their own */
+    if (wbt_fails()) rc = 10;
     SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);   /* the Save left it not deletable */
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/t", 0);
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/t.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/t");
     DeleteFile((CONST_STRPTR)"RAM:WBGapN/n.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapN/n");
     DeleteFile((CONST_STRPTR)"RAM:WBGapN");
