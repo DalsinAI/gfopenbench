@@ -383,6 +383,18 @@ static void which_plan(void)
     CHECK(wbgap_which_judge(2, NULL, "w", 1, why, sizeof why) == WBGAP_FAIL, "no name given back: FAIL");
     CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty corner"),
           "the empty corner not the drawer: FAIL");
+    {
+        char seen[96];
+        wbgap_which_seen(WBGAP_WHICH_UNSET, WBGAP_WHICH_UNSET, 1, seen, sizeof seen);
+        CHECK(strstr(seen, "drawer's tags untouched") && strstr(seen, "answered WBO_DRAWER"),
+              "no answer for the drawer, the desktop answering: \"%s\"", seen);
+        wbgap_which_seen(0, 0, 0, seen, sizeof seen);
+        CHECK(strstr(seen, "answered the drawer") && strstr(seen, "not WBO_DRAWER"), "both answered WBO_NONE: \"%s\"", seen);
+        wbgap_which_seen(2, WBGAP_WHICH_UNSET, WBGAP_WHICH_UNSET, seen, sizeof seen);
+        CHECK(strstr(seen, "one of the drawer's") && strstr(seen, "window's tag untouched"), "one tag untouched: \"%s\"", seen);
+        wbgap_which_seen(0, 0, -1, seen, sizeof seen);
+        CHECK(strstr(seen, "not asked"), "no desktop window: \"%s\"", seen);
+    }
     CHECK(wbgap_find("A8c") >= 0 && wbgap_row(wbgap_find("A8c"))->mode && !strcmp(wbgap_row(wbgap_find("A8c"))->mode, "API"),
           "A8c's line comes from API");
 }

@@ -137,6 +137,11 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
+/* What the tags show of where the answer stopped: each WBOBJA_Type starts at WBGAP_WHICH_UNSET, and one left
+ * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop
+ * window's (-1: not asked). Into out, for the FAIL line. */
+#define WBGAP_WHICH_UNSET 0xFFFFUL
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap);
 
 /* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send
  * the AppMessage. A box (left, top, width, height) of w x h for a window or a drawer, in a corner of a screen
