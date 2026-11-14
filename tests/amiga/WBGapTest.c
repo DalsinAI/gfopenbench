@@ -79,6 +79,9 @@
 
 #include "wbgap_menu.h"
 #include "wbgap_rows.h"
+#if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
+typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_WBO_DRAWER && WBO_ICON == WBGAP_WBO_ICON) ? 1 : -1];
+#endif
 
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
@@ -329,6 +332,37 @@ static int check_keys(void)
     return bad;
 }
 
+/* a window's icons now, through WBGapRoot.rexx (beside this program) into RAM:wbgap-root-<row>; -1 if not read, else
+ * whether name is among them (I14) */
+static int run(const char *cmd);
+static long read_all(const char *path, char *buf, long n);
+static int icons_have(const char *row, const char *win, const char *name)
+{
+    static char list[8192];
+    char cmd[400], rexx[256], out[48];
+    long n;
+    BPTR l;
+    int rexx_up;
+    snprintf(rexx, sizeof rexx, "%s", dragtest);
+    *PathPart((STRPTR)rexx) = 0;
+    AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
+    snprintf(out, sizeof out, "RAM:wbgap-root-%s", row);
+    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s %s %s", rexx, row, out, win);
+    if (!(l = Lock((CONST_STRPTR)"SYS:Rexxc/rx", ACCESS_READ))) return -1;
+    UnLock(l);
+    Forbid();
+    rexx_up = FindPort((CONST_STRPTR)"REXX") != NULL;
+    Permit();
+    if (!rexx_up) {                         /* MENUDRIVE runs before the script starts RexxMast */
+        run("Run >NIL: SYS:System/RexxMast >NIL:");
+        Delay(50);
+    }
+    run(cmd);
+    n = read_all(out, list, sizeof list);
+    DeleteFile((CONST_STRPTR)out);
+    return n < 0 ? -1 : wbgap_root_has_name(list, name);
+}
+
 static int do_menus(int dump)
 {
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
@@ -444,20 +478,30 @@ static struct Window *open_drawer(const char *path, const char *title, int secs,
 static int clear_drawer(const char *path, const char *title, const char *row)
 {
     struct Window *w;
-    long box[4];
+    long box[4], mw = 0, mh = 0, sw = 0, sh = 0;
     int t, at = 0, r;
+    ULONG lock;
     if (!find_window(title)) return WBGAP_CL_GONE;
     CloseWorkbenchObjectA((STRPTR)path, NULL);
     for (t = 0; t < 50 && find_window(title); t++) Delay(5);
+    lock = LockIBase(0);                            /* the window's fields read while Intuition can't change them */
     if ((w = find_window(title))) {
-        long mw = w->MinWidth ? w->MinWidth : w->BorderLeft + w->BorderRight + 40;
-        long mh = w->MinHeight ? w->MinHeight : w->BorderTop + w->BorderBottom + 20;
-        wbgap_park_box(w->WScreen->Width, w->WScreen->Height, mw, mh, box);
+        mw = w->MinWidth ? w->MinWidth : w->BorderLeft + w->BorderRight + 40;
+        mh = w->MinHeight ? w->MinHeight : w->BorderTop + w->BorderBottom + 20;
+        sw = w->WScreen->Width;
+        sh = w->WScreen->Height;
+    }
+    UnlockIBase(lock);
+    if (w) {
+        wbgap_park_box(sw, sh, mw, mh, box);
         ChangeWindowBox(w, box[0], box[1], box[2], box[3]);
-        for (t = 0; t < 20; t++) {
+        for (t = 0; t < 20 && !at; t++) {
             Delay(5);
-            if (!(w = find_window(title))) break;
-            if (w->LeftEdge == box[0] && w->TopEdge == box[1] && w->Width == box[2] && w->Height == box[3]) { at = 1; break; }
+            lock = LockIBase(0);
+            if ((w = find_window(title)))
+                at = w->LeftEdge == box[0] && w->TopEdge == box[1] && w->Width == box[2] && w->Height == box[3];
+            UnlockIBase(lock);
+            if (!w) break;
         }
     }
     r = wbgap_clear_result(!find_window(title), at);
@@ -660,7 +704,7 @@ static int do_api(void)
                    (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
             if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
             else fail("A8c", why);
-            CloseWorkbenchObjectA((STRPTR)"RAM:WBGapW", NULL);
+            clear_drawer("RAM:WBGapW", "WBGapW", "A8c");   /* closed, else parked off the desktop rows */
         }
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w");
@@ -978,7 +1022,7 @@ static int do_menudrive(void)
     struct Window *w = drawer_window(), *was[MAXWINS], *nw;
     struct Screen *s;
     ULONG before;
-    int r, nwas, k, n0, n1;
+    int r, nwas, k, n0, n1, i14_only;
     static char d0[32][32], d1[32][32];
     if (!w) {
         int how;
@@ -1006,10 +1050,19 @@ static int do_menudrive(void)
     /* M15 Show > All Files: RAM:WBGap/noicon, a file with no icon, comes; then Only Icons */
     write_file("RAM:WBGap/noicon", "WBGapTest M15\n");
     Delay(50);
+    i14_only = icons_have("I14", "RAM:WBGap", "noicon");
     before = inside_sum(w);
-    if ((r = pick(w, "*:show/all files|show all files")) <= 0) not_picked("M15", r);
-    else if (changes_within(w, before, 3)) pass("M15");
-    else fail("M15", "Show All Files: nothing in the window changed (RAM:WBGap/noicon has no icon)");
+    if ((r = pick(w, "*:show/all files|show all files")) <= 0) { not_picked("M15", r); skip("I14", "Show All Files not picked (M15)"); }
+    else {
+        char why[64];
+        int v;
+        if (changes_within(w, before, 3)) pass("M15");
+        else fail("M15", "Show All Files: nothing in the window changed (RAM:WBGap/noicon has no icon)");
+        v = wbgap_showall_judge(i14_only, icons_have("I14", "RAM:WBGap", "noicon"), why, sizeof why);
+        if (v == WBGAP_PASS) pass("I14");
+        else if (v == WBGAP_SKIP) skip("I14", why);
+        else fail("I14", why);
+    }
     pick(w, "*:show/only icons|show only icons");
     Delay(25);
 
