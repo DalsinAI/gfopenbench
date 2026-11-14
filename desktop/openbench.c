@@ -304,7 +304,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.66"
+#define OPENBENCH_VERSION "0.1.67"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -5330,8 +5330,32 @@ static int wbreq_open_args(const char *path, const char *const *args, int n)
     return ok;
 }
 
+/* WhichWorkbenchObjectA (gap row A8c; Ivanova's 0.1.65 run, 14 November 2026: WBO_NONE on an icon, as nothing
+ * answered it): what w has at (x, y) in it, asked as a drop asks (drop_drawer_at, desk_icon_at). The desktop's own
+ * space is the Workbench's drawer space, path "" (WBO_DRAWER, no name). */
+static int wbreq_which(struct Window *w, LONG x, LONG y, char *out, int n)
+{
+    WORD sx, sy;
+    int i, at;
+    if (n > 0) out[0] = 0;
+    if (!root || !w) return OB_WBP_AT_NONE;
+    sx = (WORD)(w->LeftEdge + x);
+    sy = (WORD)(w->TopEdge + y);
+    if (w == root) {
+        if (x < 0 || y < 0 || x >= w->Width || y >= w->Height) return OB_WBP_AT_NONE;
+        if (desk_icon_at(sx, sy, out, n) != OB_DESK_NONE) return OB_WBP_AT_ICON;
+        if (n > 0) out[0] = 0;
+        return OB_WBP_AT_SPACE;
+    }
+    if ((i = drawer_of_window(w)) < 0) return OB_WBP_AT_NONE;
+    at = ob_dt_at(drawers[i], sx, sy, out, n);
+    if (at == WB_AT_DRAWER || at == WB_AT_FILE) return OB_WBP_AT_ICON;
+    if (at == WB_AT_SPACE) return OB_WBP_AT_SPACE;
+    return OB_WBP_AT_NONE;
+}
+
 static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_show_name, wbreq_window, wbreq_each, wb_changed,
-                                  wbreq_reread, wbreq_info, wbreq_open_args };
+                                  wbreq_reread, wbreq_info, wbreq_open_args, wbreq_which };
 
 /* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
 

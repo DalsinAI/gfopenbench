@@ -630,6 +630,17 @@ static int tools_item_within(const char *item, int want, int ticks)
     }
 }
 
+/* "FAIL <id> why" for each row of mode whose id starts with letter: the mode's checks didn't run. Named row by
+ * row, not "FAIL A*", whose mode is the first A row's that has one, and A1 (APPWIN, rows/APPWIN.c) is that now */
+static void fail_mode_rows(const char *mode, char letter, const char *why)
+{
+    int i;
+    for (i = 0; i < wbgap_row_count(); i++) {
+        const struct wbgap_row *r = wbgap_row(i);
+        if (r->mode && !strcmp(r->mode, mode) && r->id[0] == letter) fail(r->id, why);
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -640,7 +651,7 @@ static int do_api(void)
     LONG seen = 0;
     BOOL ok;
     do_setup();
-    if (!port || !dob) { fail("A*", "setup"); return 20; }
+    if (!port || !dob) { fail_mode_rows("API", 'A', "setup"); return 20; }
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
@@ -2029,14 +2040,39 @@ static void drop_clean(void)
     DeleteFile((CONST_STRPTR)"RAM:WBGapD");
 }
 
+/* RAM:WBGapD made afresh with a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty
+ * drawer's window looks otherwise) and nothing moves when d comes at 120,10; its window opened, then d made in it
+ * and found (drop_make_d). The window, or NULL with *stage 1 (the window didn't open) or 2 (d never showed) */
+static struct Window *drop_ready(int *stage)
+{
+    struct DiskObject *d;
+    struct Window *dw;
+    BPTR l;
+    int how;
+    drop_clean();
+    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
+    put_icon("RAM:WBGapD", WBDRAWER, NULL);
+    write_file("RAM:WBGapD/a", "a\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 20;
+        d->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
+        FreeDiskObject(d);
+    }
+    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) { *stage = 1; return NULL; }
+    Delay(50);
+    if (!drop_make_d(dw)) { *stage = 2; return NULL; }
+    *stage = 0;
+    return dw;
+}
+
 static int do_appdrop(void)
 {
     struct MsgPort *port = CreateMsgPort();
-    struct DiskObject *d, *aio = GetDefDiskObject(WBTOOL);
+    struct DiskObject *aio = GetDefDiskObject(WBTOOL);
     struct Window *dw, *mine = NULL;
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
-    BPTR l;
-    int how;
+    int stage;
     long from[2], to[2], box[4];
     char cmd[320], text[80];
     if (!port || !aio || !wb) {
@@ -2045,27 +2081,10 @@ static int do_appdrop(void)
         goto out;
     }
     aio->do_CurrentX = aio->do_CurrentY = NO_ICON_POSITION;   /* the desktop places the AppIcon */
-    drop_clean();
-    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
-    put_icon("RAM:WBGapD", WBDRAWER, NULL);
-    /* a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty drawer's window looks otherwise)
-     * and nothing moves when d comes at 120,10 */
-    write_file("RAM:WBGapD/a", "a\n");
-    if ((d = GetDefDiskObject(WBPROJECT))) {
-        d->do_CurrentX = 20;
-        d->do_CurrentY = 10;
-        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
-        FreeDiskObject(d);
-    }
-    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
-        fail("I9", "RAM:WBGapD's window didn't open");
-        fail("I8", "RAM:WBGapD's window didn't open");
-        goto out;
-    }
-    Delay(50);
-    if (!drop_make_d(dw)) {
-        fail("I9", "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
-        fail("I8", "no icon d to drag");
+    if (!(dw = drop_ready(&stage))) {
+        fail("I9", stage == 1 ? "RAM:WBGapD's window didn't open"
+                              : "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I8", stage == 1 ? "RAM:WBGapD's window didn't open" : "no icon d to drag");
         goto out;
     }
     {   /* I9: our window, in a corner clear of the drawer's, made an AppWindow */
@@ -3061,6 +3080,10 @@ struct Window *wbt_find_window(const char *part) { return find_window(part); }
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how) { return open_drawer(path, title, secs, how); }
 int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
 int wbt_desktop_has_disk(const char *row, const char *vol, const char *when) { return diskio_has_row(row, vol, when); }
+struct Window *wbt_drop_ready(int *stage) { return drop_ready(stage); }
+void wbt_drop_from(struct Window *w, long xy[2]) { drop_from(w, xy); }
+void wbt_drop_drag(const long from[2], const long to[2], const char *row) { drop_drag(from, to, row); }
+void wbt_drop_clean(void) { drop_clean(); }
 
 int main(int argc, char **argv)
 {
