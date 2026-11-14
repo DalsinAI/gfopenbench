@@ -323,6 +323,30 @@ int wbgap_backdrop_done(int have_was, int have_made)
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
 }
 
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
+{
+    long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
+    if (sw < 1) sw = 1;
+    if (sh < 1) sh = 1;
+    if (w > sw) w = sw;
+    if (h > sh) h = sh;
+    box[0] = sw - w;
+    box[1] = sh - h;
+    box[2] = w;
+    box[3] = h;
+}
+
+int wbgap_clear_result(int gone, int at_park_box)
+{
+    if (gone) return WBGAP_CL_GONE;
+    return at_park_box ? WBGAP_CL_PARKED : WBGAP_CL_STUCK;
+}
+
+int wbgap_desk_clickable(int clear_result)
+{
+    return clear_result == WBGAP_CL_GONE || clear_result == WBGAP_CL_PARKED;
+}
+
 void wbgap_volume_name(const char *path, char *out, unsigned cap)
 {
     unsigned k = 0;
@@ -354,6 +378,7 @@ int wbgap_root_has_disk(const char *list, const char *vol)
         while (*e && *e != '\n') e++;
         n = (size_t)(e - p);
         while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 6 && p[n - 1] == ':') n--;          /* the WORKBENCH port names a disk "RAM Disk:" */
         if (n > 5 && same_nocase(p, "DISK ", 5)) {
             name = p + 5;
             if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
@@ -406,6 +431,16 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
+}
+
+int wbgap_has_nocase(const char *text, const char *word)
+{
+    size_t wn = word ? strlen(word) : 0;
+    const char *p;
+    if (!text || !wn) return 0;
+    for (p = text; *p; p++)
+        if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
+    return 0;
 }
 
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
