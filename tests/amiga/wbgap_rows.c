@@ -63,8 +63,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"M34t", "M34", A, INDEX, "Auto-arrange kept per drawer as ARRANGE=, (ARRANGE=) when off (13 Nov)"},
     {"M35", NULL, A, MENUS, "Icons > Eject, any disk (13 Nov)"},
     /* 2. Icons */
-    {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
-    {"I2", NULL, L, NULL, "Shift-click adds to the selection"},
+    {"I1", NULL, A, NULL, "click selects, click elsewhere deselects"},
+    {"I2", NULL, A, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
     {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
     {"I5", NULL, L, NULL, "drag to the backdrop"},
