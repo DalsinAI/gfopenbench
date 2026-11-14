@@ -23,3 +23,12 @@ int wbgap_wingad_zoom_off(const char *look);
  * GFLG_REL* flags as four 0/1 (relright, relbottom, relwidth, relheight), the window being win_w x win_h */
 void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int relbottom, int relwidth,
                          int relheight, long win_w, long win_h, long xy[2]);
+/* Why RAM:WBGapW's window isn't ready for the gadgets: it couldn't be put where the row asked. want and got are
+ * left, top, width, height (want: the top-left under the screen's bar, 400x300 at most the screen's; got: where the
+ * window is 2 s after ChangeWindowBox), lim the window's MinWidth, MinHeight, MaxWidth, MaxHeight, found 0 if the
+ * window went while it was being placed. The text says which, so the gap table can tell the row from the desktop:
+ * outside its own limits (the desktop opened it with a size that can't be had), or within them and moved or sized
+ * back (the desktop set it again after the row's ChangeWindowBox). 1 and why if the box isn't the one asked for (or
+ * the window went), 0 if it is */
+int wbgap_wingad_place_why(const long want[4], const long got[4], const long lim[4], int found, char *why,
+                           unsigned cap);

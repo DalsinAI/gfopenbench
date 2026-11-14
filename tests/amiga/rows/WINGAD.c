@@ -123,8 +123,32 @@ int wbt_wingad(int argc, char **argv)
     if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) { wbt_skip("W1", "no layers.library"); return 0; }
     wg_clean();
     wbt_drawer(WG_DIR, "a");
-    if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, &how) || !(w = wbt_place("WBGapW", NULL, WG_W, WG_H))) {
-        wbt_fail("W1", WG_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
+    if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, &how)) {
+        wbt_fail("W1", how ? WG_DIR "'s window didn't open in 10 s (OpenWorkbenchObjectA refused it; DragTest OPEN too)"
+                           : WG_DIR "'s window didn't open in 10 s (OpenWorkbenchObjectA took it)");
+        goto out;
+    }
+    if (!(w = wbt_place("WBGapW", NULL, WG_W, WG_H))) {
+        long want[4], got[4] = {0, 0, 0, 0}, lim[4] = {0, 0, 0, 0};
+        int found = 0;
+        ULONG ib = LockIBase(0);   /* the box asked for worked out as wbt_place does, and the one it got, read as one */
+        if ((w = wbt_find_window("WBGapW"))) {
+            long top = w->WScreen->BarHeight + 1;
+            want[0] = 0;
+            want[1] = top;
+            want[2] = WG_W > w->WScreen->Width ? w->WScreen->Width : WG_W;
+            want[3] = WG_H > w->WScreen->Height - top ? w->WScreen->Height - top : WG_H;
+            got[0] = w->LeftEdge, got[1] = w->TopEdge, got[2] = w->Width, got[3] = w->Height;
+            lim[0] = w->MinWidth, lim[1] = w->MinHeight, lim[2] = w->MaxWidth, lim[3] = w->MaxHeight;
+            snprintf(why, sizeof why, "%s", w->Title ? (const char *)w->Title : "");
+            found = 1;
+        } else
+            want[0] = 0, want[1] = 0, want[2] = WG_W, want[3] = WG_H;
+        UnlockIBase(ib);
+        if (found) printf("INFO W1 the window found by \"WBGapW\": \"%s\"\n", why);
+        wbgap_wingad_place_why(want, got, lim, found, why, sizeof why);
+        snprintf(cmd, sizeof cmd, WG_DIR "'s window: %s", why);
+        wbt_fail("W1", cmd);
         goto out;
     }
     Delay(50);
