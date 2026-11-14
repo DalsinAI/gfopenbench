@@ -169,6 +169,20 @@ for f in of_req of_dir; do
 done
 # shellcheck disable=SC2086
 "$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$FA" -I"$W" -I"$L" -c -o "$TMP/ob_drop.o" "$HERE/ob_drop.c"
+# Icons > Recover deleted... and Put back (0.1.68, Dale 13 Nov 2026): ob_recover_core.c (plain C, tests/host) over the
+# engine's of_gone_list and of_undelete (gfopenfiles.library 1.1), and its window drawn through GFOpenLayout UI
+# (gfopenlayout.library 10, opened when the window opens) from a gfopenlayout checkout: LAYOUT, default
+# ../../gfopenlayout (master)
+LAYOUT=${LAYOUT:-$HERE/../../gfopenlayout}
+[ -f "$LAYOUT/library/link/gfopenlayout_link.c" ] || { echo "desktop/build.sh: no gfopenlayout at $LAYOUT (set LAYOUT)" >&2; exit 1; }
+grep -q of_gone_list "$E/of_ops.h" || { echo "desktop/build.sh: $FILES has no gfopenfiles.library 1.1 calls (of_gone_list)" >&2; exit 1; }
+# shellcheck disable=SC2086
+"$CC" $FLAGS -DOF_AMIGA -I"$E" -c -o "$TMP/ob_recover_core.o" "$HERE/ob_recover_core.c"
+# shellcheck disable=SC2086
+"$CC" $FLAGS -DOF_AMIGA -I"$E" -I"$LAYOUT/include" -c -o "$TMP/ob_recover.o" "$HERE/ob_recover.c"
+# shellcheck disable=SC2086
+"$CC" $FLAGS -Wno-error -I"$LAYOUT/include" -c -o "$TMP/gfopenlayout_link.o" "$LAYOUT/library/link/gfopenlayout_link.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_recover_core.o $TMP/ob_recover.o $TMP/gfopenlayout_link.o"
 DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
 # workbench.library's Workbench (0.1.56, gap item 4): its calls, programs' AppIcons and AppMenuItems
 # shellcheck disable=SC2086
@@ -231,7 +245,7 @@ fi
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ol_core.o" "$HERE/../launcher/ol_core.c"
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $LV_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_prot.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
+"$CC" $FLAGS $FIND_FLAGS $LV_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -I"$E" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_prot.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
     $BUILTIN_OBJS $DROP_OBJS \
     "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" "$W/wb_keys.c" "$W/wb_sel.c" "$W/wb_tt.c" $FIND_SRC $LV_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga
