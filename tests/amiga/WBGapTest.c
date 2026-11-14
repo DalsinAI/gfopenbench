@@ -1027,6 +1027,8 @@ static int do_infosave(void)
     /* RAM:WBGapN/n: a project, every protection bit as a new file has it, no comment, no default tool,
      * tool types a=1 and d=4 */
     if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapN"))) UnLock(l);
+    /* a rerun: the last run's Save left it not deletable, so clear that before it is written again */
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
     write_file("RAM:WBGapN/n", "WBGapTest INFOSAVE\n");
     SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
     SetComment((CONST_STRPTR)"RAM:WBGapN/n", (CONST_STRPTR)"");
