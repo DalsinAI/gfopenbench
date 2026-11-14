@@ -60,11 +60,57 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* The system bar (gfopenprefs TitleBar, GFOpenTitle 0.9): its row window on the title bar holds, left to right, the
+ * memory and time, the systray, then Prefs and Power, one cell each (Common/traygrid.h's TRAY_CELL). Power's is the
+ * row's last cell: the point (x, y) to click it, from the row's box */
+#define WBGAP_TRAY_CELL 30
+void wbgap_power_point(long left, long top, long width, long height, long xy[2]);
+/* whose list opened, from where it hangs: Power's ends at the row's right edge, Prefs' one cell in from it (a list
+ * pushed to x 0 by a narrow screen can't be told: UNSURE) */
+enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
+int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
+/* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
+ * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
+ * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
+long wbgap_power_height(int sticks, long row_height);
+/* B1 (the three power rows) and B2 (an Eject row for each stick) from the list's height: WBGAP_PASS, WBGAP_FAIL or
+ * WBGAP_SKIP (B2 with no stick mounted) */
+void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2);
+/* A drawer window a row leaves over the desktop (BIG's RAM:WBGapBig, 1000 icons): the next rows click the desktop's
+ * left-out icons, and a click on one of its file icons stops an unattended run on "has no default tool". So it is
+ * closed and waited for; if it stays, it is parked at its smallest size in the screen's bottom-right corner.
+ * The box to park it in (left, top, width, height) on a screen sw x sh, for a window at least minw x minh: */
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4]);
+/* what happened: gone (closed), parked (still open, moved out of the way), or stuck (still open where it was) */
+enum { WBGAP_CL_GONE, WBGAP_CL_PARKED, WBGAP_CL_STUCK };
+int wbgap_clear_result(int gone, int at_park_box);
+/* the desktop rows may click when nothing is stuck over it */
+int wbgap_desk_clickable(int clear_result);
+/* D5: the RAM Disk's icon on the desktop. WBGapRoot.rexx writes the desktop's icons, one "<type> <name>" line each
+ * (the WORKBENCH port's window.icons.all.N.type and .name, NAME 'root'); WBGapTest DISKS reads them.
+ * The volume name from NameFromLock's "Ram Disk:" (the colon and anything after it dropped) into out: */
+void wbgap_volume_name(const char *path, char *out, unsigned cap);
+/* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
+ * trailing colon ("DISK RAM Disk:") doesn't count */
+int wbgap_root_has_disk(const char *list, const char *vol);
+/* I14: 1 if a line of list (as WBGapRoot.rexx writes it) has the name, of any type, case not minded */
+int wbgap_root_has_name(const char *list, const char *name);
+/* I14: RAM:WBGap/noicon (no .info) among the drawer's icons with Only Icons (must not be) and with All Files (must);
+ * each 0, 1, or -1 if not read (SKIP). WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
+int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap);
+/* D1: a disk's icon goes while its file system is inhibited (as for Format) and comes back after. The three answers
+ * of wbgap_root_has_disk: before, while inhibited, after; -1 where the icons weren't read. WBGAP_SKIP if it had no
+ * icon before (nothing to watch) or a read failed (nothing seen), else WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
+/* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
+int wbgap_has_nocase(const char *text, const char *word);
+
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 /* the row from the two answers: on the icon (type, name it gave) and on the window's empty corner (type there).
- * WBO_NONE 0, WBO_DRAWER 1, WBO_ICON 2, as workbench.h. WBGAP_PASS or WBGAP_FAIL, the reason in why */
+ * WBGAP_WBO_* below (workbench.h's WBO_ values). WBGAP_PASS or WBGAP_FAIL, the reason in why */
+enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
