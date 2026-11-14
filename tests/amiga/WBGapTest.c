@@ -3023,6 +3023,12 @@ int wbt_put_icon(const char *path, long type, char **tooltypes) { return put_ico
 struct Window *wbt_find_window(const char *part) { return find_window(part); }
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how) { return open_drawer(path, title, secs, how); }
 int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
+void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
+struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
+int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
+{
+    return drag_make(w, dir, name, (LONG)type, x, y, box);
+}
 int wbt_is_gfos(void) { return is_gfos(); }
 struct Window *wbt_drop_ready(int *stage) { return drop_ready(stage); }
 void wbt_drop_from(struct Window *w, long xy[2]) { drop_from(w, xy); }
