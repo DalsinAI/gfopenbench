@@ -25,6 +25,13 @@ int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4]);
  * of name_w (its image by its name, without its label; 0 when not read) and f_w (f's box, label and all), so a long
  * label under a narrow image doesn't count as a second icon. */
 int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w);
+/* wbgap_trashnote_mapbox: where the Trashcan's icon is in its window when more than it moved (crowded): name, its box
+ * by its name (the drawer's layout frame); f_name and f_drawn, f's box by its name and where its window drew it, which
+ * give the offset between the two frames (GFOpenDrawer's windows alike); changed, where the Trashcan's window changed.
+ * 1, out the Trashcan's box in its window (name's size) whose grab point is inside changed (2 pixels' slack); 0 if
+ * any is missing or the point falls outside (the frames don't line up: the drop could miss). */
+int wbgap_trashnote_mapbox(const long name[4], const long f_name[4], const long f_drawn[4], const long changed[4],
+                           long out[4]);
 #define WBGAP_PUTBACK_NOLIB (-1000)
 #define WBGAP_PUTBACK_NOTRIED (-1001)
 #define WBGAP_PUTBACK_NOCTX (-1002)

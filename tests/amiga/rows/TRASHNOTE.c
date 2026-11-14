@@ -83,9 +83,9 @@ static const char tn_rexx[] =
 /* RAM:Trashcan's icon in the RAM Disk's window by its name (its size, and its place in the drawer's layout),
  * checked against changed: wbgap_trashnote_iconbox's 1, 0 (no rx, no port, not listed: tried 5 times half a second
  * apart) or -1 */
-static int tn_byname(const long *changed, long box[4])
+static int tn_byname_in(const char *win, const char *icon, const long *changed, long box[4])
 {
-    char cmd[240], line[96];
+    char cmd[240], line[96], args[120];
     BPTR l, f;
     LONG n;
     int up, t, v = 0;
@@ -103,7 +103,8 @@ static int tn_byname(const long *changed, long box[4])
     n = (LONG)strlen(tn_rexx);
     up = Write(f, (APTR)tn_rexx, n) == n;
     Close(f);
-    if (!up || !wbgap_rx_line(cmd, sizeof cmd, TN_REXX, TN_POS " RAM: Trashcan")) return 0;
+    snprintf(args, sizeof args, "%s %s %s", TN_POS, win, icon);
+    if (!up || !wbgap_rx_line(cmd, sizeof cmd, TN_REXX, args)) return 0;
     for (t = 0; t < 5 && v != 1; t++) {
         if (t) Delay(25);
         DeleteFile((CONST_STRPTR)TN_POS);
@@ -114,6 +115,8 @@ static int tn_byname(const long *changed, long box[4])
     DeleteFile((CONST_STRPTR)TN_POS);
     return v;
 }
+
+static int tn_byname(const long *changed, long box[4]) { return tn_byname_in("RAM:", "Trashcan", changed, box); }
 
 /* wbt_place, tried 3 times a second apart: a drawer window GFOpenDrawer has just opened may still size itself to fit
  * (14 Nov lab: the drawer's window left at 316x210 when the first ChangeWindowBox raced it) */
@@ -290,6 +293,17 @@ int wbt_trashnote(int argc, char **argv)
                "not used\n", byname[2], byname[3], box_t[0], box_t[1], box_t[2], box_t[3]);
     else
         printf("INFO I6t RAM:Trashcan not found by its name (no rx, no WORKBENCH port, or not listed)\n");
+    if (v == 1 && wbgap_trashnote_crowded(box_t[2], byname[2], box_f[2])) {
+        /* more than the Trashcan moved (RAM: holds the run's other drawers, which sort after it): its own box from
+         * its place by name, put into the window's frame by f's (by name in TN_DIR's window, and where it was drawn) */
+        long fname[4], mapped[4];
+        if (tn_byname_in(TN_DIR, "f", box_f, fname) == 1 && wbgap_trashnote_mapbox(byname, fname, box_f, box_t, mapped)) {
+            printf("INFO I6t RAM:Trashcan's window changed in %ld,%ld %ldx%ld (more than its icon moved); f by its name "
+                   "at %ld,%ld, drawn at %ld,%ld: the Trashcan taken at %ld,%ld %ldx%ld\n", box_t[0], box_t[1], box_t[2],
+                   box_t[3], fname[0], fname[1], box_f[0], box_f[1], mapped[0], mapped[1], mapped[2], mapped[3]);
+            memcpy(box_t, mapped, sizeof mapped);
+        }
+    }
     if (wbgap_trashnote_crowded(box_t[2], v == 1 ? byname[2] : 0, box_f[2])) {   /* the drop could miss it */
         printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two icons (its own %ld, f's %ld): more than its "
                "icon moved\n", box_t[2], box_t[3], v == 1 ? byname[2] : 0L, box_f[2]);

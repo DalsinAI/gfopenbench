@@ -104,3 +104,22 @@ int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w)
     long one = name_w > f_w ? name_w : f_w;
     return one > 0 && changed_w > one * 2;
 }
+
+int wbgap_trashnote_mapbox(const long name[4], const long f_name[4], const long f_drawn[4], const long changed[4],
+                           long out[4])
+{
+    long b[4], xy[2];
+    const long slack = 2;
+    if (!name || !f_name || !f_drawn || !changed || !out) return 0;
+    if (name[2] <= 0 || name[3] <= 0 || changed[2] <= 0 || changed[3] <= 0) return 0;
+    b[0] = name[0] + f_drawn[0] - f_name[0];
+    b[1] = name[1] + f_drawn[1] - f_name[1];
+    b[2] = name[2];
+    b[3] = name[3];
+    wbgap_grab_point(b, xy);
+    if (xy[0] < changed[0] - slack || xy[0] > changed[0] + changed[2] + slack || xy[1] < changed[1] - slack ||
+        xy[1] > changed[1] + changed[3] + slack)
+        return 0;
+    memcpy(out, b, sizeof b);
+    return 1;
+}

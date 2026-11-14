@@ -51,6 +51,19 @@ void trashnote_plan(void)
         CHECK(wbgap_trashnote_crowded(170, 64, 80) == 1, "wider than two of f's: crowded");
         CHECK(wbgap_trashnote_crowded(140, 0, 64) == 1, "not read by name: f's width alone, as before");
         CHECK(wbgap_trashnote_crowded(140, 90, 40) == 0, "the name's image wider than f's box: that is the floor");
+        {   /* the full run's RAM: (14 Nov 17:25 lab): the window changed in 150,58 170x76 when the Trashcan was added */
+            long name[4] = {130, 78, 64, 61}, fname[4] = {130, 78, 64, 61}, fdrawn[4] = {146, 58, 64, 72};
+            long crowd[4] = {150, 58, 170, 76}, out[4] = {0, 0, 0, 0};
+            CHECK(wbgap_trashnote_mapbox(name, fname, fdrawn, crowd, out) == 1 && out[0] == 146 && out[1] == 58 &&
+                  out[2] == 64 && out[3] == 61, "crowded: by name, moved into the window's frame by f's offset");
+            name[0] = 400;
+            CHECK(wbgap_trashnote_mapbox(name, fname, fdrawn, crowd, out) == 0, "its grab point outside what changed: 0");
+            name[0] = 130;
+            name[2] = 0;
+            CHECK(wbgap_trashnote_mapbox(name, fname, fdrawn, crowd, out) == 0, "no size by name: 0");
+            name[2] = 64;
+            CHECK(wbgap_trashnote_mapbox(name, NULL, fdrawn, crowd, out) == 0, "f not read by name: 0");
+        }
     }
 
     /* I6t */
