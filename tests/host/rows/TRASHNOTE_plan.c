@@ -46,6 +46,11 @@ void trashnote_plan(void)
               wbgap_trashnote_iconbox("RESULT RESULT RESULT RESULT", changed, box) == 0,
               "no size, or ARexx's unset RESULTs: 0");
         CHECK(wbgap_trashnote_iconbox("-4 58 64 72", NULL, box) == 0, "a place left of the drawer's own frame: 0");
+        CHECK(wbgap_trashnote_crowded(64, 64, 64) == 0, "the 14 Nov lab: one icon changed");
+        CHECK(wbgap_trashnote_crowded(140, 64, 80) == 0, "a 70-wide label under a 64 image: f's width is the floor");
+        CHECK(wbgap_trashnote_crowded(170, 64, 80) == 1, "wider than two of f's: crowded");
+        CHECK(wbgap_trashnote_crowded(140, 0, 64) == 1, "not read by name: f's width alone, as before");
+        CHECK(wbgap_trashnote_crowded(140, 90, 40) == 0, "the name's image wider than f's box: that is the floor");
     }
 
     /* I6t */
