@@ -64,8 +64,28 @@ int wbt_trash(int argc, char **argv)
     tr_clean();
     wbt_drawer(TR_DIR, "a");
     if (!wbt_open_drawer(TR_DIR, "WBGapT", 10, &how) || !(w = wbt_place("WBGapT", NULL, TR_W, TR_H))) {
-        wbt_fail("I6", TR_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
-        goto out;
+        long want[4] = {0, 0, TR_W, TR_H}, got[4] = {0, 0, 0, 0}, lim[4] = {0, 0, 0, 0};
+        char title[80] = "";
+        int found = 0;
+        ULONG ib = LockIBase(0);   /* what wbt_place asked for and what the window found by the name has, read as one */
+        if ((w = wbt_find_window("WBGapT"))) {
+            long top = w->WScreen->BarHeight + 1;
+            want[1] = top;
+            want[2] = TR_W > w->WScreen->Width ? w->WScreen->Width : TR_W;
+            want[3] = TR_H > w->WScreen->Height - top ? w->WScreen->Height - top : TR_H;
+            got[0] = w->LeftEdge, got[1] = w->TopEdge, got[2] = w->Width, got[3] = w->Height;
+            lim[0] = w->MinWidth, lim[1] = w->MinHeight, lim[2] = w->MaxWidth, lim[3] = w->MaxHeight;
+            snprintf(title, sizeof title, "%s", w->Title ? (const char *)w->Title : "");
+            found = 1;
+        }
+        UnlockIBase(ib);
+        if (found) printf("INFO I6 the window found by \"WBGapT\": \"%s\" (opened by %s)\n", title, how ? "DragTest" : "workbench.library");
+        if (wbgap_trash_open_why(found, title, want, got, lim, why, sizeof why) || !found) {
+            snprintf(cmd, sizeof cmd, TR_DIR "'s window: %s", why);
+            wbt_fail("I6", cmd);
+            goto out;
+        }
+        printf("INFO I6 %s's window %s\n", TR_DIR, why);
     }
     Delay(50);
     if ((l = CreateDir((CONST_STRPTR)TR_CAN))) UnLock(l);   /* wbt_make_icon gives it the trashcan's icon */
