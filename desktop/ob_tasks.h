@@ -226,4 +226,25 @@ typedef struct ob_place {
 } ob_place;
 int ob_place_take(void *ctx, const char *name, int type, int selected, short x, short y);
 
+/* GETATTR window.icons.* in a drawer window: the icons its task shows, as it shows them (Show All Files' files with no
+ * icon too, what is selected, each picture's place), matched to the desktop's own reading of the drawer with every
+ * file. ob_shown_take is ob_dt_each's fn: for each icon handed over it finds that name in the reading (any case;
+ * from where the last match was, so a list in the same order is one pass) and keeps its index, selection and place
+ * in out, up to cap; a name the reading lacks (made since) is counted in missed. Answers 2: selections unchanged.
+ * ob_shown_sort puts out in the reading's order (by name, as it was read). */
+typedef struct ob_shown_icon {
+    int at;                             /* its index in the reading */
+    int selected;
+    long x, y;
+} ob_shown_icon;
+typedef struct ob_shown {
+    const char *(*name_at)(void *ctx, int i);   /* the reading's names, 0 .. n - 1 */
+    void *ctx;
+    int n;
+    ob_shown_icon *out;
+    int cap, count, missed, hint;
+} ob_shown;
+int ob_shown_take(void *ctx, const char *name, int type, int selected, short x, short y);
+void ob_shown_sort(ob_shown *s);
+
 #endif
