@@ -3,8 +3,9 @@
  * there goes in through GFOpenFiles' engine (of_delete), with a line for it and its icon in the Trashcan's note
  * (.GFOpenFiles: name TAB where it came from), and GFOpenFiles puts it back from that note (of_restore).
  * RAM:WBGapR (a snapshotted at 20,10) is opened at the top-left, half the screen wide at most 400, and the RAM Disk's
- * own window beside it, clear of it. RAM:Trashcan is made, with a trashcan's icon, at 200,150 in that window, and f
- * at 120,10 in RAM:WBGapR, each found where its window's inside changed. f is dragged onto the Trashcan with DragTest.
+ * own window beside it, clear of it (found by "RAM: - ", GFOpenDrawer's title, or by the volume's name). RAM:Trashcan
+ * is made, with a trashcan's icon, at 200,150 in that window, and f at 120,10 in RAM:WBGapR, each found where its
+ * window's inside changed. f is dragged onto the Trashcan with DragTest.
  * I6t: f and f.info must leave RAM:WBGapR for RAM:Trashcan, and the note must have a line for each, from
  * ...WBGapR/f and ...WBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
  * back in RAM:WBGapR, out of the Trashcan, and take their lines out of the note.
@@ -38,6 +39,10 @@ WBGAP_ROWMODE(I6p, TRASHNOTE)
 #define TN_W 400
 #define TN_H 300
 #define TN_MINW 320
+/* the RAM Disk's window, found by its title: GFOpenDrawer's is the path it was opened by, then " - n items" ("RAM: -
+ * 3 items", 14 Nov lab), never "RAM:WBGapR - ..."'s; a desktop that titles it with the volume's name ("RAM Disk") is
+ * found by that */
+#define TN_RAMWIN "RAM: - "
 
 static int tn_there(const char *path)
 {
@@ -55,7 +60,7 @@ static int tn_gfos(void)   /* GFOpenBench's ARexx port, as WBGapTest's is_gfos *
     return p != NULL;
 }
 
-/* the RAM Disk's window title: its volume's name ("Ram Disk"), or "" */
+/* RAM:'s volume name ("RAM Disk"), or "" */
 static void tn_ram_title(char *out, long n)
 {
     BPTR l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ);
@@ -135,7 +140,7 @@ int wbt_trashnote(int argc, char **argv)
     struct Library *ofl;
     APTR ctx;
     long box_f[4], box_t[4], rbox[4], from[2], to[2], ww, rc = WBGAP_PUTBACK_NOTRIED;
-    char cmd[320], why[200], title[64];
+    char cmd[320], why[200], title[64], vol[64];
     int how, t, sf, si, df, di, v, can_ours = 0, ram_ours = 0;
     BPTR l;
     (void)argc, (void)argv;
@@ -153,14 +158,15 @@ int wbt_trashnote(int argc, char **argv)
     ww = wb ? wb->Width / 2 : 0;          /* two windows side by side, as DRAGFILE's */
     if (ww > TN_W) ww = TN_W;
     if (wb) UnlockPubScreen(NULL, wb);
-    tn_ram_title(title, sizeof title);
-    if (ww < TN_MINW || !title[0]) {
-        wbt_skip("I6t", !title[0] ? "the RAM Disk's name not read" : "the Workbench screen is narrower than two 320-wide windows");
+    tn_ram_title(vol, sizeof vol);
+    snprintf(title, sizeof title, "%s", TN_RAMWIN);
+    if (ww < TN_MINW || !vol[0]) {
+        wbt_skip("I6t", !vol[0] ? "the RAM Disk's name not read" : "the Workbench screen is narrower than two 320-wide windows");
         wbt_skip("I6p", "not tried (I6t skipped)");
         return wbt_fails() ? 5 : 0;
     }
     tn_clean(0, 0, NULL);
-    ram_ours = !wbt_find_window(title);   /* the RAM Disk's window is closed again after only if it wasn't open */
+    ram_ours = !wbt_find_window(TN_RAMWIN) && !wbt_find_window(vol);   /* closed again after only if it wasn't open */
     can_ours = 1;                         /* from here RAM:Trashcan, if any, is ours */
     wbt_drawer(TN_DIR, "a");
     if (!wbt_open_drawer(TN_DIR, "WBGapR", 10, &how) || !(w = wbt_place("WBGapR", NULL, ww, TN_H))) {
@@ -169,7 +175,10 @@ int wbt_trashnote(int argc, char **argv)
         goto out;
     }
     rbox[0] = w->LeftEdge; rbox[1] = w->TopEdge; rbox[2] = w->Width; rbox[3] = w->Height;
-    if (!wbt_open_drawer("RAM:", title, 10, &how) || !(rw = wbt_place(title, rbox, ww, TN_H))) {
+    if (!wbt_open_drawer("RAM:", TN_RAMWIN, 10, &how) && wbt_find_window(vol))
+        snprintf(title, sizeof title, "%s", vol);   /* a desktop that titles it with the volume's name */
+    printf("INFO I6t the RAM Disk's window is found by \"%s\"\n", title);
+    if (!wbt_find_window(title) || !(rw = wbt_place(title, rbox, ww, TN_H))) {
         wbt_fail("I6t", "the RAM Disk's window didn't open, or couldn't be put clear of " TN_DIR "'s");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
