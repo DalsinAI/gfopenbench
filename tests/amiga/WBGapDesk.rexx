@@ -1,6 +1,8 @@
-/* WBGapDesk: row I11 as a hand does it, on GFOpenBench and on OS 3.2.3's Workbench alike: the desktop's icons
+/* WBGapDesk: rows I3 and I11 as a hand does them, on GFOpenBench and on OS 3.2.3's Workbench alike: the desktop's icons
    LaunchT, p1 and p2 (left out by WBGapTest LAUNCHDESK SETUP) found through the Workbench's ARexx port, then
-   DragTest clicks p1, Shift-clicks p2 and Shift-double-clicks LaunchT. WBGapTest LAUNCHDESK CHECK reads what
+   DragTest first drags a lasso over p1 and p2 from the empty desktop (row I3: p1 and p2 selected, LaunchT not,
+   read back through the port), clicks the desktop to clear it, then clicks p1, Shift-clicks p2 and
+   Shift-double-clicks LaunchT. WBGapTest LAUNCHDESK CHECK reads what
    LaunchT got. It prints INFO lines, and a SKIP I11 line only when it can't click (no port, no icons).
    Argument: DragTest's full path (default SYS:T/WBGap/DragTest).
    MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -59,6 +61,40 @@ END
 IF missing ~= '' THEN DO
   SAY 'SKIP I11 not left out on the desktop (RAM:.backdrop):' STRIP(missing)
   EXIT 5
+END
+/* I3 (lasso, icons only; 13 Nov): a box from the empty desktop around p1 and p2, 6 pixels out, kept off LaunchT;
+   what the port says is selected then must be p1 and p2 only. Then a click on the empty desktop clears it. */
+bx0 = MIN(x.1, x.2) - 6; by0 = MIN(y.1, y.2) - 6
+bx1 = MAX(x.1 + w.1, x.2 + w.2) + 6; by1 = MAX(y.1 + h.1, y.2 + h.2) + 6
+IF bx0 < 0 THEN bx0 = 0
+IF by0 < 0 THEN by0 = 0
+IF bx0 < x.3 + w.3 & x.3 < bx1 & by0 < y.3 + h.3 & y.3 < by1 THEN
+  SAY 'SKIP I3 LaunchT lies where a box around p1 and p2 would go'
+ELSE DO
+  ADDRESS COMMAND
+  '"' || drag || '" CLICK' wl + bx0 wt + by0
+  'Wait 1'
+  '"' || drag || '" DRAG' wl + bx0 wt + by0 wl + bx1 wt + by1 'STEPS 8'
+  lrc = RC
+  'Wait 1'
+  ADDRESS WORKBENCH
+  IF lrc ~= 0 THEN SAY 'SKIP I3 DragTest failed dragging the lasso ('lrc')'
+  ELSE DO
+    GETATTR 'window.icons.selected.count' NAME 'root'; ns = RESULT
+    IF RC ~= 0 | ns = '' THEN ns = 0
+    got = ''
+    DO i = 0 TO ns - 1
+      GETATTR 'window.icons.selected.'i'.name' NAME 'root'; got = got RESULT
+    END
+    got = STRIP(got)
+    SAY 'INFO I3 lasso' wl + bx0','wt + by0 'to' wl + bx1','wt + by1': selected' ns '('got')'
+    IF ns = 2 & FIND(got, 'p1') > 0 & FIND(got, 'p2') > 0 THEN SAY 'PASS I3'
+    ELSE SAY 'FAIL I3 the lasso over p1 and p2 selected' ns '('got'), not p1 and p2 only'
+  END
+  ADDRESS COMMAND
+  '"' || drag || '" CLICK' wl + bx0 wt + by0
+  'Wait 1'
+  ADDRESS WORKBENCH
 END
 /* each icon clicked in its picture: across its middle, a third of the way down (above the name) */
 DO j = 1 TO 3
