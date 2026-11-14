@@ -627,6 +627,16 @@ int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int
     return v;
 }
 
+int wbgap_closewb_over(const char *text)
+{
+    const char *p, *want = "INFO C6 done";
+    size_t n = strlen(want);
+    if (!text) return 0;
+    for (p = text; (p = strstr(p, want)); p += n)
+        if ((p == text || p[-1] == '\n') && (p[n] == '\n' || p[n] == '\r' || p[n] == 0)) return 1;
+    return 0;
+}
+
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 {
     xy[0] = bl + cx + 4;
