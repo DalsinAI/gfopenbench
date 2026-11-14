@@ -59,9 +59,17 @@ for f in "$HERE"/rows/*.c; do
   sed -n 's/^WBGAP_MODE(\([A-Z0-9]*\), .*$/WBGAP_GEN_MODENAME("\1")/p' "$f" >> "$names"
   sed -n 's/^WBGAP_ROWMODE(\([A-Za-z0-9]*\), \([A-Z0-9]*\))$/WBGAP_GEN_ROWMODE("\1", "\2")/p' "$f" >> "$rowmodes"
 done
+for f in "$HERE"/rows/*.h; do   # no markers in a header either
+  [ -e "$f" ] || continue
+  if grep -q '^WBGAP_' "$f"; then echo "gen-rows.sh: $f: a WBGAP_ line in a header (put it in the mode file)" >&2; bad=1; fi
+done
 for f in "$HERE"/../host/rows/*.c; do
   [ -e "$f" ] || continue
   check "$f" "$PLAN_RE"
+  if [ "$(grep -c '^WBGAP_PLAN(' "$f" || true)" != 1 ]; then   # a plan file whose checks would never run
+    echo "gen-rows.sh: $f: needs exactly one WBGAP_PLAN(...) line" >&2
+    bad=1
+  fi
   sed -n 's/^WBGAP_PLAN(\([A-Za-z_0-9]*\))$/WBGAP_GEN_PLAN(\1)/p' "$f" >> "$plans"
 done
 if [ "$bad" != 0 ]; then
