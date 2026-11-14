@@ -26,6 +26,7 @@ If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP L1a no rx" >>RAM:wbgap-results
   Echo "SKIP D5 no rx" >>RAM:wbgap-results
   Echo "SKIP D2 no rx" >>RAM:wbgap-results
+  Echo "SKIP D5r no rx" >>RAM:wbgap-results
   Echo "SKIP D1 no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
@@ -53,6 +54,7 @@ If EXISTS SYS:Rexxc/rx
   WBGapTest LAUNCHDESK DONE >NIL:
 Else
   Echo "SKIP I11 no rx" >>RAM:wbgap-results
+  Echo "SKIP I10 no rx" >>RAM:wbgap-results
 EndIf
 If EXISTS WBGapIndex
   WBGapIndex >>RAM:wbgap-results

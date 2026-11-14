@@ -60,6 +60,11 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* I10 (LAUNCHDESK): WBGapDesk.rexx double-clicked OpenT (a tool) and Sub (a drawer) on the desktop. From what it
+ * left: skip (a reason, or NULL), whether a click failed (bad) or all were given (clicked), OpenT's launch record
+ * (NULL: none), and whether a window of Sub opened. 1 PASS, 0 FAIL, -1 SKIP; why (cap bytes) says what failed */
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap);
+
 /* The system bar (gfopenprefs TitleBar, GFOpenTitle 0.9): its row window on the title bar holds, left to right, the
  * memory and time, the systray, then Prefs and Power, one cell each (Common/traygrid.h's TRAY_CELL). Power's is the
  * row's last cell: the point (x, y) to click it, from the row's box */
@@ -69,6 +74,8 @@ void wbgap_power_point(long left, long top, long width, long height, long xy[2])
  * pushed to x 0 by a narrow screen can't be told: UNSURE) */
 enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
 int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
+/* B1: 1 if (x, y) is inside the box l, t, w x h: the Power click's point under the list it opened */
+int wbgap_point_in_box(long x, long y, long l, long t, long w, long h);
 /* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
  * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
  * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
@@ -93,6 +100,8 @@ void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
  * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
+/* D5r: RAM Disk first in the desktop's volume column, from RAM:wbgap-root-pos (wbgap_rows.c) */
+int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap);
 /* I14: 1 if a line of list (as WBGapRoot.rexx writes it) has the name, of any type, case not minded */
 int wbgap_root_has_name(const char *list, const char *name);
 /* I14: RAM:WBGap/noicon (no .info) among the drawer's icons with Only Icons (must not be) and with All Files (must);
