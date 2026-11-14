@@ -114,6 +114,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_wbplan.c" \
   "$HERE/tests/host/test_ob_wbplan.c" -o "$OUT/test_ob_wbplan"
 "$OUT/test_ob_wbplan"
+# ob_sigplan: the shared signal of GFOpenBench's quiet ports, and the signals kept free for requesters (0.1.62)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_sigplan.c" \
+  "$HERE/tests/host/test_ob_sigplan.c" -o "$OUT/test_ob_sigplan"
+"$OUT/test_ob_sigplan"
 "$OUT/test_ob_rexx"
 # ob_tasks: the Workbench task model: supervisor, job queue, low-memory reserve (build plan row 3)
 # shellcheck disable=SC2086

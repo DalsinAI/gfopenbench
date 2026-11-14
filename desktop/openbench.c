@@ -266,6 +266,8 @@
 #include "wb_drawer.h"
 #include "ob_drop.h"
 #include "ob_wb.h"
+#include "ob_port.h"
+#include "ob_sigplan.h"
 #include "ob_wbplan.h"
 #include "ob_show.h"
 #include "ob_snap.h"
@@ -302,8 +304,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.61"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.62"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -5087,7 +5089,7 @@ static void aloha_start(void)
     wb = FindTask((CONST_STRPTR)"Workbench");     /* Hyperion's Workbench has the port: it stays its */
     Permit();
     if (!wb) {
-        if ((aloha_port = CreateMsgPort())) {
+        if ((aloha_port = ob_port_new())) {
             AlohaWorkbench((LONG)aloha_port);
             aloha_on = 1;
         } else no_signal("Intuition's Workbench port");
@@ -5113,7 +5115,7 @@ static void aloha_stop(void)
         aloha_on = 0;
     }
     while (aloha_port && (m = GetMsg(aloha_port))) ReplyMsg(m);
-    if (aloha_port) { DeleteMsgPort(aloha_port); aloha_port = NULL; }
+    if (aloha_port) { ob_port_free(aloha_port); aloha_port = NULL; }
     if (OpenRTGBase) { CloseLibrary(OpenRTGBase); OpenRTGBase = NULL; }
     if (reset_sig >= 0) { FreeSignal(reset_sig); reset_sig = -1; }
 }
@@ -5179,7 +5181,7 @@ static void notify_end(void)
     wbp_notify = pat_notify = lbl_notify = fnt_notify = lay_notify = dic_notify = 0;
     if (nfy_port) {
         notify_take();
-        DeleteMsgPort(nfy_port);
+        ob_port_free(nfy_port);
         nfy_port = NULL;
     }
 }
@@ -5473,7 +5475,7 @@ static int run(void)
     int i, ok = 0, timer = 0;
 
     main_task = FindTask(NULL);
-    if (!(pub = CreateMsgPort())) {
+    if (!(pub = ob_port_new())) {
         no_signal("its port");
         return RETURN_FAIL;
     }
@@ -5482,7 +5484,7 @@ static int run(void)
     Forbid();
     if (FindPort((CONST_STRPTR)PORT_NAME)) {
         Permit();
-        DeleteMsgPort(pub);
+        ob_port_free(pub);
         if (run_shell) PutStr((CONST_STRPTR)"GFOpenBench is already running\n");
         return RETURN_WARN;
     }
@@ -5560,7 +5562,7 @@ static int run(void)
     ok = 1;
 
     /* 0.1.39: the files' notifies, on one port (each had a signal up to 0.1.38) */
-    if (!(nfy_port = CreateMsgPort())) no_signal("the prefs files' notifies");
+    if (!(nfy_port = ob_port_new())) no_signal("the prefs files' notifies");
     wbp_notify = notify_on(&wbp_nr, "ENV:Sys/Workbench.prefs", OB_FILE_WBPREFS);
     pat_notify = notify_on(&pat_nr, "ENV:Sys/WBPattern.prefs", OB_FILE_PATTERN);
     lbl_notify = notify_on(&lbl_nr, "ENV:Sys/IconLabels", OB_FILE_LABELS);
@@ -5610,6 +5612,9 @@ static int run(void)
         if (s < 0) no_signal("the drawers' thumbnails");
         else FreeSignal(s);
     }
+    /* 0.1.62: the windows this task opens itself (About's, Execute Command's and New drawer's requesters, the
+     * low-memory one) each need a signal for their IDCMP port; 0.1.60 had none left (WBGapTest M2, M6, M8, X3) */
+    if (ob_sig_free(main_task->tc_SigAlloc) < OB_SIG_KEEP) no_signal("its requesters (About, Execute Command, New drawer)");
     for (;;) {
         ULONG sigs = Wait(ob_dt_sigmask() | (1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
@@ -5878,7 +5883,7 @@ out:
         RemPort(pub);
         Permit();
         while ((lm = GetMsg(pub))) ReplyMsg(lm);   /* ok stays 0: not opened */
-        DeleteMsgPort(pub);
+        ob_port_free(pub);
     }
     if ((!ok && !loadwb_gave) || quit_to_wb) run_loadwb();   /* never left without a desktop */
     return ok ? RETURN_OK : RETURN_FAIL;

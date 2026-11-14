@@ -50,6 +50,7 @@
 
 #include "ob_rexx.h"
 #include "ob_arexx.h"
+#include "ob_port.h"
 #include "of_ops.h"
 #include "of_fs_amiga.h"
 #include "of_path.h"
@@ -774,13 +775,13 @@ int ob_arexx_start(const ob_rexx_env *e)
             continue;
         }
         Permit();
-        if (!(mp = CreateMsgPort())) continue;
+        if (!(mp = ob_port_new())) continue;
         mp->mp_Node.ln_Name = (char *)ob_rexx_port_names[i];
         mp->mp_Node.ln_Pri = 0;
         Forbid();
         if (FindPort((CONST_STRPTR)ob_rexx_port_names[i])) {    /* taken in between */
             Permit();
-            DeleteMsgPort(mp);
+            ob_port_free(mp);
             continue;
         }
         AddPort(mp);
@@ -840,7 +841,7 @@ void ob_arexx_stop(void)
             }
             ReplyMsg(m);
         }
-        DeleteMsgPort(ports[i]);
+        ob_port_free(ports[i]);
         ports[i] = NULL;
     }
     if (RexxSysBase) {
