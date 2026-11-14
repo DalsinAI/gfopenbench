@@ -22,6 +22,7 @@
 
 WBGAP_MODE(CLOSEWB, wbt_closewb, SCRIPT)
 WBGAP_ROWMODE(C6, CLOSEWB)
+WBGAP_ROWMODE(C6a, CLOSEWB)
 
 /* CLOSEWB's stdout is a file (Run >RAM:wbgap-c6), which stdio holds until
  * exit; each step is flushed, and also appended to WBGAP_C6_STEPS (closed each
@@ -77,7 +78,7 @@ static int closewb_row(void)
     struct Screen *before, *after;
     struct Window *w;
     LONG closed;
-    int how, reopened = 0, t, port = 0, drawer = 0, v;
+    int how, reopened = 0, t, port = 0, drawer = 0, v, cleared;
     char why[96];
     BPTR l;
     DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);
@@ -86,8 +87,16 @@ static int closewb_row(void)
     if (l) UnLock(l);
     wbt_put_icon("RAM:WBGapC", WBDRAWER, NULL);
     step("opening RAM:WBGapC's window");
-    if (!(w = wbt_open_drawer("RAM:WBGapC", "WBGapC", 10, &how))) { wbt_skip("C6", "RAM:WBGapC's window didn't open"); return 0; }
-    if (!(before = wb_screen_now())) { wbt_skip("C6", "no Workbench screen"); return 0; }
+    if (!(w = wbt_open_drawer("RAM:WBGapC", "WBGapC", 10, &how))) {
+        wbt_skip("C6", "RAM:WBGapC's window didn't open");
+        wbt_skip("C6a", "RAM:WBGapC's window didn't open");
+        return 0;
+    }
+    if (!(before = wb_screen_now())) {
+        wbt_skip("C6", "no Workbench screen");
+        wbt_skip("C6a", "no Workbench screen");
+        return 0;
+    }
     step("calling CloseWorkBench()");
     closed = CloseWorkBench();
     printf("INFO C6 CloseWorkBench() gave %ld\n", (long)closed);
@@ -109,11 +118,15 @@ static int closewb_row(void)
     fflush(stdout);
     verdict(v, why);
     step("closing RAM:WBGapC's window");
-    wbt_clear_drawer("RAM:WBGapC", "WBGapC", "C6");
+    cleared = wbt_clear_drawer("RAM:WBGapC", "WBGapC", "C6");
     step("deleting RAM:WBGapC");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");
     step("ending");
+    /* C6a: the clean-up ended, and the window closed (CLOSEWBWAIT gives C6a its FAIL when the clean-up hangs) */
+    if (cleared == WBGAP_CL_GONE) wbt_say("C6a", WBGAP_PASS, "");
+    else wbt_fail("C6a", cleared == WBGAP_CL_PARKED ? "RAM:WBGapC's window wouldn't close (parked)"
+                                                    : "RAM:WBGapC's window wouldn't close or move");
     return wbt_fails() ? 5 : 0;
 }
 
