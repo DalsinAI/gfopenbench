@@ -116,6 +116,11 @@ int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long i
  * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop
  * window's (-1: not asked). Into out, for the FAIL line. */
 #define WBGAP_WHICH_UNSET 0xFFFFUL
+/* The desktop's own window among n windows of a screen (each its width, height and Flags): the largest one that is
+ * both a backdrop and a Workbench window (WFLG_BACKDROP 0x100, WFLG_WBENCHWINDOW 0x2000000). The first such window
+ * isn't it on GFOpenBench: the screen's bar strip (1920 x 24) comes before the desktop in the window list. Its
+ * index, or -1 when there is none */
+int wbgap_pick_desk(const long *w, const long *h, const unsigned long *flags, int n);
 void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap);
 
 /* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send
@@ -125,12 +130,6 @@ void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, un
 int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4]);
 /* the point a drag lets go at: the box's middle */
 void wbgap_drop_point(const long box[4], long xy[2]);
-/* the AppMessage judged: its am_Type and am_ID against those wanted, one argument at least, the first named
- * want_name, in a drawer whose path (NameFromLock of its wa_Lock) ends in ":" or "/" and want_dir. got 0: no message came.
- * WBGAP_PASS or WBGAP_FAIL, the reason in why */
-int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
-                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
-                     unsigned cap);
 /* Where d's icon is in its drawer's window, found the same way on any desktop (a drawer window's toolbar or margins
  * put it elsewhere than its snapshot says): the window's inside sampled every step pixels (gw x gh samples, row by
  * row) before d is made and after; the box (left, top, width, height, from the inside's top-left) round every
@@ -138,9 +137,6 @@ int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsig
 int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4]);
 /* the point to press on to drag the icon in box: across its middle, two-fifths down (on the image, above the label) */
 void wbgap_grab_point(const long box[4], long xy[2]);
-/* "x y w h" (WBGapAppPos.rexx, the AppIcon's box on the screen) into box: 1, or 0 if it isn't four numbers or
- * the width or height isn't above 0 */
-int wbgap_parse_box(const char *text, long box[4]);
 /* I4, I7: a file dragged within one volume is moved, its icon with it (3.2.3). What is where after the drag: the file
  * and its .info at the place it came from (src, src_info) and where it was dropped (dst, dst_info), each 1 if there.
  * name and where for the reason. WBGAP_PASS when both are at dst and neither at src; else WBGAP_FAIL, why says which */
