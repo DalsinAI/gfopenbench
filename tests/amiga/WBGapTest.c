@@ -71,6 +71,7 @@
 
 #include "wbgap_menu.h"
 #include "wbgap_rows.h"
+#include "wbgap_probe.h"
 
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
@@ -430,15 +431,15 @@ static struct Window *open_drawer(const char *path, const char *title, int secs,
     return NULL;
 }
 
-/* the inside of a window, sampled every second pixel, as one number */
+/* the inside of a window, sampled every second pixel (a wider grid in a big window: wbgap_probe.h), as one number */
 static ULONG inside_sum(struct Window *w)
 {
     struct RastPort *rp = w->RPort;
     int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
     ULONG sum = 0;
-    int x, y;
-    for (y = w->BorderTop; y < w->Height - w->BorderBottom; y += 2)
-        for (x = w->BorderLeft; x < w->Width - w->BorderRight; x += 2)
+    int x, y, step = wbg_probe_step(w->Width - w->BorderLeft - w->BorderRight, w->Height - w->BorderTop - w->BorderBottom);
+    for (y = w->BorderTop; y < w->Height - w->BorderBottom; y += step)
+        for (x = w->BorderLeft; x < w->Width - w->BorderRight; x += step)
             sum = sum * 31 + (deep ? rgb_pixel(rp, x, y) : (ULONG)ReadPixel(rp, x, y));
     return sum;
 }
@@ -1083,13 +1084,26 @@ static int do_big(void)
     DateStamp(&a);
     w = open_drawer("RAM:WBGapBig", "WBGapBig", 60, &how);
     if (!w) { fail("X1", "RAM:WBGapBig's window didn't open in 60 s"); return 10; }
-    {   /* drawn: the inside stops changing for a second */
-        ULONG last = inside_sum(w), now;
+    DateStamp(&b);                              /* open; then each change of the inside moves it on */
+    {   /* drawn: the inside stops changing for a second. The time is to the last change seen, so the second of
+         * stillness and the probe's own looks aren't in it (Hudzen, 14 Nov 2026: X1 measured its polls) */
+        struct DateStamp p0, p1;
+        ULONG last, now;
         int still = 0, t;
-        for (t = 0; t < 600 && still < 5; t++) { Delay(10); now = inside_sum(w); still = now == last ? still + 1 : 0; last = now; }
+        long probe;
+        DateStamp(&p0);
+        last = inside_sum(w);
+        DateStamp(&p1);
+        probe = (p1.ds_Minute - p0.ds_Minute) * 3000L + (p1.ds_Tick - p0.ds_Tick);
+        printf("INFO X1 window %ld x %ld, one look %ld ms\n", (long)w->Width, (long)w->Height, probe * 20);
+        for (t = 0; t < 600 && still < 5; t++) {
+            Delay(10);
+            now = inside_sum(w);
+            if (now != last) { DateStamp(&b); still = 0; } else still++;
+            last = now;
+        }
     }
-    DateStamp(&b);
-    ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick) - 50;
+    ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick);
     printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
     if (ticks < 10 * 50) pass("X1"); else fail("X1", "over 10 s");
     /* closed again: left open over the desktop's left-out icons, the next rows' clicks landed on its file icons and

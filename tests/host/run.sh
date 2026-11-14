@@ -22,6 +22,9 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/w
   "$HERE/tests/host/test_wbgap_index.c" -o "$OUT/test_wbgap_index"
 "$OUT/test_wbgap_index"
 "$OUT/test_wbgap_rows"
+# wbgap_probe: how far apart WBGapTest's window probe reads pixels (X1's fitted drawer)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/host/test_wbgap_probe.c" -o "$OUT/test_wbgap_probe"
+"$OUT/test_wbgap_probe"
 "$OUT/test_spyfmt"
 
 # icon_core, with the address and undefined-behaviour checkers where the
