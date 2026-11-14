@@ -186,8 +186,10 @@ static void bd_key_put_away(char *list, long cap)
         struct Screen *s = LockPubScreen((CONST_STRPTR)"Workbench");
         struct Window *w;
         if (s) {
+            ULONG ib = LockIBase(0);   /* the screen's window list held still while it is walked */
             for (w = s->FirstWindow; w && !bd_rw; w = w->NextWindow)
                 if (bd_root(w)) bd_rw = w;
+            UnlockIBase(ib);
             UnlockPubScreen(NULL, s);
         }
     }
