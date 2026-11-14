@@ -77,4 +77,12 @@ long wbgap_power_height(int sticks, long row_height);
  * WBGAP_SKIP (B2 with no stick mounted) */
 void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2);
 
+/* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
+ * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
+void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
+/* the row from the two answers: on the icon (type, name it gave) and on the window's empty corner (type there).
+ * WBO_NONE 0, WBO_DRAWER 1, WBO_ICON 2, as workbench.h. WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
+                      unsigned cap);
+
 #endif
