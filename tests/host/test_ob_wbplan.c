@@ -136,6 +136,32 @@ int main(void)
         CHECK(ob_wbp_open_how(OB_WBP_K_OTHER, 3) == OB_WBP_RUN_OPEN, "other: as usual");
     }
 
+    /* WhichWorkbenchObjectA (gap row A8c): Ivanova's 0.1.65 run, 14 November 2026, got WBO_NONE on RAM:WBGapW's
+     * icon w, because nothing answered it */
+    {
+        char nm[64], tiny[3];
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "RAM:WBGapW/w", nm, sizeof nm) == OB_WBP_WBO_ICON && !strcmp(nm, "w"),
+              "A8c's icon: WBO_ICON \"w\", not %s", nm);
+        CHECK(ob_wbp_which(OB_WBP_AT_SPACE, "RAM:WBGapW", nm, sizeof nm) == OB_WBP_WBO_DRAWER && !strcmp(nm, "WBGapW"),
+              "A8c's empty corner: WBO_DRAWER \"WBGapW\", not %s", nm);
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "Work:", nm, sizeof nm) == OB_WBP_WBO_ICON && !strcmp(nm, "Work"),
+              "a disk's icon is named as the disk: %s", nm);
+        CHECK(ob_wbp_which(OB_WBP_AT_SPACE, "Work:", nm, sizeof nm) == OB_WBP_WBO_DRAWER && !strcmp(nm, "Work"),
+              "a disk's own window's space: %s", nm);
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "Work:a/b/", nm, sizeof nm) == OB_WBP_WBO_ICON && !strcmp(nm, "b"),
+              "a trailing slash: %s", nm);
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "Work:Tools", nm, sizeof nm) == OB_WBP_WBO_ICON && !strcmp(nm, "Tools"),
+              "an icon at the disk's top: %s", nm);
+        strcpy(nm, "old");
+        CHECK(ob_wbp_which(OB_WBP_AT_NONE, "RAM:WBGapW", nm, sizeof nm) == OB_WBP_WBO_NONE && !nm[0],
+              "a frame or heading: WBO_NONE, no name (%s)", nm);
+        CHECK(ob_wbp_which(7, "RAM:x", nm, sizeof nm) == OB_WBP_WBO_NONE && !nm[0], "an unknown place: WBO_NONE");
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, NULL, nm, sizeof nm) == OB_WBP_WBO_NONE && !nm[0], "no path: WBO_NONE");
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "RAM:abcdef", tiny, sizeof tiny) == OB_WBP_WBO_ICON && !strcmp(tiny, "ab"),
+              "a short buffer is cut and ended: %s", tiny);
+        CHECK(ob_wbp_which(OB_WBP_AT_ICON, "RAM:abcdef", NULL, 0) == OB_WBP_WBO_ICON, "no buffer: the type only");
+    }
+
     printf("ob_wbplan: %d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

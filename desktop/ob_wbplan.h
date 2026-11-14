@@ -65,4 +65,18 @@ int ob_wbp_any_tools(const ob_wbp_menu *m, int n);
  * after "Icons" or, with no Icons, the end. -1 when there is nothing to show (no Tools of its own, no items). */
 int ob_wbp_tools_at(const char *const *titles, int nt, int any, int *own);
 
+/* WhichWorkbenchObjectA (gap row A8c): what is at the place asked about, OB_WBP_AT_* (the desktop's own question
+ * of the drawer window or the desktop there, wb_drawer_at or its icons), and the path found there, into the
+ * answer: OB_WBP_WBO_* (workbench.h's WBO_ values) and the object's name in name (at most n - 1 characters).
+ * An icon (a drawer's, a disk's, a tool's or a project's) is WBO_ICON named as its last part ("Work:a/b" is "b",
+ * the disk "Work:" is "Work"); a drawer's own space off its icons is WBO_DRAWER, named as that drawer; anything else
+ * (a frame, a heading, no window of ours) is WBO_NONE with name "". */
+#define OB_WBP_AT_NONE  0
+#define OB_WBP_AT_SPACE 1
+#define OB_WBP_AT_ICON  2
+#define OB_WBP_WBO_NONE   0
+#define OB_WBP_WBO_DRAWER 1
+#define OB_WBP_WBO_ICON   2
+int ob_wbp_which(int at, const char *path, char *name, int n);
+
 #endif
