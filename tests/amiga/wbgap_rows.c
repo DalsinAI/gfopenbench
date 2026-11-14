@@ -423,3 +423,29 @@ int wbgap_parse_box(const char *text, long box[4])
     memcpy(box, b, sizeof b);
     return 1;
 }
+
+int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4])
+{
+    int x, y, x0 = gw, y0 = gh, x1 = -1, y1 = -1;
+    if (!before || !after || gw < 1 || gh < 1 || step < 1) return 0;
+    for (y = 0; y < gh; y++)
+        for (x = 0; x < gw; x++)
+            if (before[y * gw + x] != after[y * gw + x]) {
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
+            }
+    if (x1 < 0) return 0;
+    box[0] = (long)x0 * step;
+    box[1] = (long)y0 * step;
+    box[2] = (long)(x1 - x0 + 1) * step;
+    box[3] = (long)(y1 - y0 + 1) * step;
+    return 1;
+}
+
+void wbgap_grab_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] * 2 / 5;
+}

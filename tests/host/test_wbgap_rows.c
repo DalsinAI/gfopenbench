@@ -179,6 +179,26 @@ static void drop_plan(void)
     CHECK(!wbgap_parse_box("1680 11 64", b) && !wbgap_parse_box("", b) && !wbgap_parse_box(NULL, b), "fewer than four numbers: no box");
     CHECK(!wbgap_parse_box("1 2 0 40", b) && !wbgap_parse_box("1 2 64 40 x", b) && !wbgap_parse_box("RESULT RESULT 1 1", b),
           "no width, something after, or the port's unset RESULT: no box");
+    {
+        unsigned long a[6 * 4], c[6 * 4];
+        memset(a, 0, sizeof a);
+        memcpy(c, a, sizeof c);
+        CHECK(!wbgap_diff_box(a, c, 6, 4, 2, b), "nothing changed: no box");
+        c[1 * 6 + 2] = 7;
+        c[2 * 6 + 4] = 9;
+        CHECK(wbgap_diff_box(a, c, 6, 4, 2, b) && b[0] == 4 && b[1] == 2 && b[2] == 6 && b[3] == 4,
+              "two samples changed: the box round both, in pixels (%ld,%ld %ldx%ld)", b[0], b[1], b[2], b[3]);
+        c[0] = 1;
+        c[23] = 1;
+        CHECK(wbgap_diff_box(a, c, 6, 4, 2, b) && b[0] == 0 && b[1] == 0 && b[2] == 12 && b[3] == 8, "corners: the whole inside");
+        CHECK(!wbgap_diff_box(NULL, c, 6, 4, 2, b) && !wbgap_diff_box(a, c, 0, 4, 2, b) && !wbgap_diff_box(a, c, 6, 4, 0, b),
+              "nothing to compare: no box");
+    }
+    {
+        long ib[4] = {40, 30, 50, 60};
+        wbgap_grab_point(ib, xy);
+        CHECK(xy[0] == 65 && xy[1] == 54, "pressed on the image: across the middle, two-fifths down (%ld,%ld)", xy[0], xy[1]);
+    }
     CHECK(wbgap_find("I8") >= 0 && !strcmp(wbgap_row(wbgap_find("I8"))->mode, "APPDROP") &&
           !strcmp(wbgap_row(wbgap_find("I9"))->mode, "APPDROP"), "I8 and I9 come from APPDROP");
 }

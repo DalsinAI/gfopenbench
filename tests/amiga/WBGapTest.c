@@ -1101,7 +1101,7 @@ static int do_big(void)
 static long read_all(const char *path, char *buf, long n);
 
 /* ---- I8, I9: an icon dragged onto an AppIcon and onto an AppWindow ----
- * RAM:WBGapD's project d, snapshotted at 20,10 in its drawer's window, is dragged with DragTest onto a window of
+ * RAM:WBGapD's project d, made while its drawer's window is open and found where the window changed, is dragged with DragTest onto a window of
  * our own made an AppWindow (I9, id 9), then onto an AppIcon on the desktop (I8, id 8; its place read through the
  * WORKBENCH port by WBGapAppPos.rexx). The desktop must send the AppMessage, naming d in RAM:WBGapD. */
 static int drop_wait(struct MsgPort *port, long want_type, unsigned long want_id, const char *row)
@@ -1135,12 +1135,70 @@ static int drop_wait(struct MsgPort *port, long want_type, unsigned long want_id
     return got;
 }
 
-/* d's place on the screen in RAM:WBGapD's window w: its image's top-left + 4, as A8c asks about it */
+/* d's icon in RAM:WBGapD's window: where its inside changed when d was made (wbgap_diff_box), from the inside's
+ * top-left; the window's toolbar or margins, which differ from desktop to desktop, don't matter */
+#define DROP_STEP 2
+#define DROP_GW 300
+#define DROP_GH 220
+/* the inside of w sampled every DROP_STEP pixels into buf, row by row, at most DROP_GW x DROP_GH; its size in *gw, *gh */
+static void drop_grab(struct Window *w, unsigned long *buf, int *gw, int *gh)
+{
+    struct RastPort *rp = w->RPort;
+    int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
+    int gx, gy;
+    *gw = (w->Width - w->BorderLeft - w->BorderRight) / DROP_STEP;
+    *gh = (w->Height - w->BorderTop - w->BorderBottom) / DROP_STEP;
+    if (*gw > DROP_GW) *gw = DROP_GW;
+    if (*gh > DROP_GH) *gh = DROP_GH;
+    if (*gw < 0) *gw = 0;
+    if (*gh < 0) *gh = 0;
+    for (gy = 0; gy < *gh; gy++)
+        for (gx = 0; gx < *gw; gx++) {
+            UWORD x = w->BorderLeft + gx * DROP_STEP, y = w->BorderTop + gy * DROP_STEP;
+            buf[gy * *gw + gx] = deep ? rgb_pixel(rp, x, y) : (ULONG)ReadPixel(rp, x, y);
+        }
+}
+
+static long d_box[4];
+
+/* the point on the screen to press on d in RAM:WBGapD's window w */
 static void drop_from(struct Window *w, long xy[2])
 {
-    wbgap_which_point(w->BorderLeft, w->BorderTop, 20, 10, xy);
-    xy[0] += w->LeftEdge;
-    xy[1] += w->TopEdge;
+    wbgap_grab_point(d_box, xy);
+    xy[0] += w->LeftEdge + w->BorderLeft;
+    xy[1] += w->TopEdge + w->BorderTop;
+}
+
+/* d made in RAM:WBGapD with its window open, and found: 1, or 0 if its window's inside never changed in 5 s */
+static int drop_make_d(struct Window *w)
+{
+    static unsigned long before[DROP_GW * DROP_GH], after[DROP_GW * DROP_GH];
+    struct DiskObject *d;
+    BPTR dir;
+    long last[4] = {0, 0, 0, 0};
+    int t, same = 0, gw, gh, aw, ah;
+    drop_grab(w, before, &gw, &gh);
+    write_file("RAM:WBGapD/d", "d\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/d", d);
+        FreeDiskObject(d);
+    }
+    if ((dir = Lock((CONST_STRPTR)"RAM:WBGapD", ACCESS_READ))) {
+        UpdateWorkbench((CONST_STRPTR)"d", dir, UPDATEWB_ObjectAdded);
+        UnLock(dir);
+    }
+    for (t = 0; t < 25; t++) {   /* the box the same twice running, 0.2 s apart */
+        Delay(10);
+        drop_grab(w, after, &aw, &ah);
+        if (aw != gw || ah != gh) return 0;   /* the window changed size: no telling */
+        if (!wbgap_diff_box(before, after, gw, gh, DROP_STEP, d_box)) continue;
+        if (!memcmp(last, d_box, sizeof last) && ++same >= 2) break;
+        if (memcmp(last, d_box, sizeof last)) same = 0;
+        memcpy(last, d_box, sizeof last);
+    }
+    if (t == 25 && !wbgap_diff_box(before, after, gw, gh, DROP_STEP, d_box)) return 0;
+    printf("INFO I9 d's icon at %ld,%ld %ldx%ld in RAM:WBGapD's window\n", d_box[0], d_box[1], d_box[2], d_box[3]);
+    return 1;
 }
 
 static void drop_drag(const long from[2], const long to[2], const char *row)
@@ -1181,7 +1239,7 @@ static void drop_clean(void)
 static int do_appdrop(void)
 {
     struct MsgPort *port = CreateMsgPort();
-    struct DiskObject *d, *aio = GetDefDiskObject(WBTOOL);
+    struct DiskObject *aio = GetDefDiskObject(WBTOOL);
     struct Window *dw, *mine = NULL;
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
     BPTR l;
@@ -1197,19 +1255,17 @@ static int do_appdrop(void)
     drop_clean();
     if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
     put_icon("RAM:WBGapD", WBDRAWER, NULL);
-    write_file("RAM:WBGapD/d", "d\n");
-    if ((d = GetDefDiskObject(WBPROJECT))) {
-        d->do_CurrentX = 20;
-        d->do_CurrentY = 10;
-        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/d", d);
-        FreeDiskObject(d);
-    }
     if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
         fail("I9", "RAM:WBGapD's window didn't open");
         fail("I8", "RAM:WBGapD's window didn't open");
         goto out;
     }
-    Delay(25);
+    Delay(50);
+    if (!drop_make_d(dw)) {
+        fail("I9", "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I8", "no icon d to drag");
+        goto out;
+    }
     {   /* I9: our window, in a corner clear of the drawer's, made an AppWindow */
         long dbox[4];
         struct AppWindow *aw = NULL;
