@@ -57,6 +57,12 @@ void wingad_plan(void)
     CHECK(wbgap_wingad_zoom_off("zoom off") == 1, "the last line with no newline");
     CHECK(wbgap_wingad_zoom_off("Classic light\nscrollers auto\n") == 0, "Classic: no zoom line, 0");
     CHECK(wbgap_wingad_zoom_off("zoom on\nzoomoff\nzoom offline\n# zoom off\n") == 0, "zoom on, zoomoff, offline, a comment: 0");
+    CHECK(wbgap_wingad_zoom_off("Open light\nscreen workbench classic\nzoom off\n") == 0,
+          "zoom off but the Workbench screen Classic: its windows keep zoom, 0");
+    CHECK(wbgap_wingad_zoom_off("Open light\nscreen workbench themed\nscreen custom classic\nzoom off\n") == 1,
+          "only custom screens Classic: the Workbench's windows have no zoom, 1");
+    CHECK(wbgap_wingad_zoom_off("zoom off\nScreen  Workbench\tCLASSIC \r\n") == 0, "screen workbench classic, any case and spacing");
+    CHECK(wbgap_wingad_zoom_off("zoom off\nscreen workbench classical\n") == 1, "classical is not classic");
     CHECK(wbgap_wingad_zoom_off(NULL) == 0 && wbgap_wingad_zoom_off("") == 0, "no look: 0");
     m = wg_good(); m.front1 = 0;
     CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && strstr(why, "to the front"),

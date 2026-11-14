@@ -16,8 +16,9 @@ struct wbgap_wingad {
 };
 /* WBGAP_PASS, or WBGAP_FAIL with every part that failed in why ("size: ...; zoom: ...") */
 int wbgap_wingad_judge(const struct wbgap_wingad *m, char *why, unsigned cap);
-/* 1 if the text of ENV:GFOpenGadTools/Look (NULL: none) has a line "zoom off": any case, words split by spaces or
- * tabs, spaces round them and a CR at the end allowed; else 0 */
+/* 1 if the text of ENV:GFOpenGadTools/Look (NULL: none) has a line "zoom off" and no line "screen workbench classic"
+ * (Classic screens keep their zoom gadgets: gfopengadtools DESIGN.md, "How windows behave"): any case, words split by
+ * spaces or tabs, spaces round them and a CR at the end allowed; else 0 */
 int wbgap_wingad_zoom_off(const char *look);
 /* the middle of a window's gadget on the window (its own coordinates), from its Left/TopEdge, Width/Height and its
  * GFLG_REL* flags as four 0/1 (relright, relbottom, relwidth, relheight), the window being win_w x win_h */

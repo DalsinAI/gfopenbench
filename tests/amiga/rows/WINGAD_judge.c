@@ -59,24 +59,33 @@ static int wg_word(const char **p, const char *word)
     return 1;
 }
 
-int wbgap_wingad_zoom_off(const char *look)
+/* 1 if look has a line of just these words (any case, split by spaces or tabs, spaces round them, a CR at the end) */
+static int wg_line(const char *look, const char *const *words)
 {
     const char *s = look;
-    if (!s) return 0;
-    while (*s) {
+    while (s && *s) {
         const char *q = s;
-        while (*q == ' ' || *q == '\t') q++;
-        if (wg_word(&q, "zoom") && (*q == ' ' || *q == '\t')) {
+        int i, ok = 1;
+        for (i = 0; ok && words[i]; i++) {
             while (*q == ' ' || *q == '\t') q++;
-            if (wg_word(&q, "off")) {
-                while (*q == ' ' || *q == '\t' || *q == '\r') q++;
-                if (!*q || *q == '\n') return 1;
-            }
+            ok = wg_word(&q, words[i]) && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q);
+        }
+        if (ok) {
+            while (*q == ' ' || *q == '\t' || *q == '\r') q++;
+            if (!*q || *q == '\n') return 1;
         }
         while (*s && *s != '\n') s++;
         if (*s) s++;
     }
     return 0;
+}
+
+int wbgap_wingad_zoom_off(const char *look)
+{
+    static const char *const zoom_off[] = {"zoom", "off", NULL};
+    static const char *const classic[] = {"screen", "workbench", "classic", NULL};
+    /* gfopengadtools DESIGN.md: Classic screens keep their zoom gadgets, whatever "zoom off" says */
+    return wg_line(look, zoom_off) && !wg_line(look, classic);
 }
 
 void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int relbottom, int relwidth,
