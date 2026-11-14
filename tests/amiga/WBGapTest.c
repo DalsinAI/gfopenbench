@@ -324,6 +324,37 @@ static int check_keys(void)
     return bad;
 }
 
+/* a window's icons now, through WBGapRoot.rexx (beside this program) into RAM:wbgap-root-<row>; -1 if not read, else
+ * whether name is among them (I14) */
+static int run(const char *cmd);
+static long read_all(const char *path, char *buf, long n);
+static int icons_have(const char *row, const char *win, const char *name)
+{
+    static char list[8192];
+    char cmd[400], rexx[256], out[48];
+    long n;
+    BPTR l;
+    int rexx_up;
+    snprintf(rexx, sizeof rexx, "%s", dragtest);
+    *PathPart((STRPTR)rexx) = 0;
+    AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
+    snprintf(out, sizeof out, "RAM:wbgap-root-%s", row);
+    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s %s %s", rexx, row, out, win);
+    if (!(l = Lock((CONST_STRPTR)"SYS:Rexxc/rx", ACCESS_READ))) return -1;
+    UnLock(l);
+    Forbid();
+    rexx_up = FindPort((CONST_STRPTR)"REXX") != NULL;
+    Permit();
+    if (!rexx_up) {                         /* MENUDRIVE runs before the script starts RexxMast */
+        run("Run >NIL: SYS:System/RexxMast >NIL:");
+        Delay(50);
+    }
+    run(cmd);
+    n = read_all(out, list, sizeof list);
+    DeleteFile((CONST_STRPTR)out);
+    return n < 0 ? -1 : wbgap_root_has_name(list, name);
+}
+
 static int do_menus(int dump)
 {
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
@@ -944,7 +975,7 @@ static int do_menudrive(void)
     struct Window *w = drawer_window(), *was[MAXWINS], *nw;
     struct Screen *s;
     ULONG before;
-    int r, nwas, k, n0, n1;
+    int r, nwas, k, n0, n1, i14_only;
     static char d0[32][32], d1[32][32];
     if (!w) {
         int how;
@@ -972,10 +1003,19 @@ static int do_menudrive(void)
     /* M15 Show > All Files: RAM:WBGap/noicon, a file with no icon, comes; then Only Icons */
     write_file("RAM:WBGap/noicon", "WBGapTest M15\n");
     Delay(50);
+    i14_only = icons_have("I14", "RAM:WBGap", "noicon");
     before = inside_sum(w);
-    if ((r = pick(w, "*:show/all files|show all files")) <= 0) not_picked("M15", r);
-    else if (changes_within(w, before, 3)) pass("M15");
-    else fail("M15", "Show All Files: nothing in the window changed (RAM:WBGap/noicon has no icon)");
+    if ((r = pick(w, "*:show/all files|show all files")) <= 0) { not_picked("M15", r); skip("I14", "Show All Files not picked (M15)"); }
+    else {
+        char why[64];
+        int v;
+        if (changes_within(w, before, 3)) pass("M15");
+        else fail("M15", "Show All Files: nothing in the window changed (RAM:WBGap/noicon has no icon)");
+        v = wbgap_showall_judge(i14_only, icons_have("I14", "RAM:WBGap", "noicon"), why, sizeof why);
+        if (v == WBGAP_PASS) pass("I14");
+        else if (v == WBGAP_SKIP) skip("I14", why);
+        else fail("I14", why);
+    }
     pick(w, "*:show/only icons|show only icons");
     Delay(25);
 
