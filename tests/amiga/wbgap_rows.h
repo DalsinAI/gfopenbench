@@ -92,4 +92,8 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
+/* INFOSAVE types into the Information window with DragTest KEY: c's raw key on a US keyboard, or -1 if it has
+ * none here (a-z A-Z 0-9 - = . / and space); *shift is set to 1 for an upper-case letter, else 0 */
+int wbgap_rawkey(int c, int *shift);
+
 #endif

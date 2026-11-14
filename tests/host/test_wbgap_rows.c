@@ -201,6 +201,31 @@ static void which_plan(void)
           "A8c's line comes from API");
 }
 
+/* N2-N5: INFOSAVE drives the Information window; its typing's raw keys (US keyboard) */
+static void infosave_rows(void)
+{
+    static const char *const n[] = { "N2", "N3", "N4", "N5" };
+    int i, sh;
+    for (i = 0; i < 4; i++)
+        CHECK(wbgap_find(n[i]) >= 0 && wbgap_row(wbgap_find(n[i]))->how == WBGAP_AUTO && wbgap_row(wbgap_find(n[i]))->mode
+              && !strcmp(wbgap_row(wbgap_find(n[i]))->mode, "INFOSAVE"), "%s's line comes from INFOSAVE", n[i]);
+    CHECK(wbgap_rawkey('a', &sh) == 0x20 && !sh, "a is 0x20");
+    CHECK(wbgap_rawkey('q', &sh) == 0x10 && wbgap_rawkey('p', &sh) == 0x19, "q 0x10, p 0x19");
+    CHECK(wbgap_rawkey('z', &sh) == 0x31 && wbgap_rawkey('m', &sh) == 0x37, "z 0x31, m 0x37");
+    CHECK(wbgap_rawkey('1', &sh) == 0x01 && wbgap_rawkey('0', &sh) == 0x0A, "1 0x01, 0 0x0A");
+    CHECK(wbgap_rawkey('=', &sh) == 0x0C && wbgap_rawkey('-', &sh) == 0x0B, "= 0x0C, - 0x0B");
+    CHECK(wbgap_rawkey(' ', &sh) == 0x40 && wbgap_rawkey('.', &sh) == 0x39 && wbgap_rawkey('/', &sh) == 0x3A, "space . /");
+    CHECK(wbgap_rawkey('G', &sh) == 0x24 && sh, "G is Shift and g (0x24)");
+    CHECK(wbgap_rawkey(':', &sh) == -1 && !sh && wbgap_rawkey('*', &sh) == -1, "no key for : or * here: -1");
+    {   /* every character INFOSAVE types has a key */
+        static const char *const typed[] = { "gapnote", "dir", "a=3", "b=2" };
+        int k;
+        const char *c;
+        for (k = 0; k < 4; k++)
+            for (c = typed[k]; *c; c++) CHECK(wbgap_rawkey(*c, &sh) > 0, "'%c' of \"%s\" has a key", *c, typed[k]);
+    }
+}
+
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
 static void i11_lines(void)
 {
@@ -336,7 +361,7 @@ static void print_all(void)
     CHECK(!strncmp(line_of("I1"), "SKIP I1 look", 12), "a look row with no line: \"%s\"", line_of("I1"));
     CHECK(!strncmp(line_of("X3"), "SKIP X3 hand", 12), "a hand row: \"%s\"", line_of("X3"));
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
-    CHECK(!strncmp(line_of("N2"), "SKIP N2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N2"));
+    CHECK(!strncmp(line_of("C6"), "SKIP C6 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("C6"));
     CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
     CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
 }
@@ -364,6 +389,7 @@ int main(int argc, char **argv)
     backdrop_plan();
     clear_plan();
     i11_lines();
+    infosave_rows();
     ramdisk_plan();
     which_plan();
     diskio_plan();
