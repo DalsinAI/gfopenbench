@@ -55,7 +55,7 @@ WBGAP_ROWMODE(I6p, TRASHNOTE)
 #define TN_RAMWIN "RAM: - "
 
 static const char tn_rexx[] =
-    "/* WBGapTest TRASHNOTE: out win name: the box of icon name in window win, \"left top width height\", into out.\n"
+    "/* WBGapTest TRASHNOTE: out win icon: the box of icon in window win, \"left top width height\", into out.\n"
     "   MIT, Copyright (c) 2026 AmiCradle Team. */\n"
     "OPTIONS RESULTS\n"
     "PARSE ARG out win icon\n"
@@ -94,7 +94,8 @@ static int tn_byname(const long *changed, long box[4])
     Forbid();
     up = FindPort((CONST_STRPTR)"REXX") != NULL;
     Permit();
-    if (!up) {
+    if (!up) {   /* left running for the rows after: said, so a later "no ARexx" row's log shows why it has one */
+        printf("INFO I6t no REXX port: SYS:System/RexxMast started (left running)\n");
         wbt_run("Run >NIL: SYS:System/RexxMast >NIL:");
         Delay(50);
     }
