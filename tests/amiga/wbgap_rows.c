@@ -86,10 +86,10 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
-    {"N3", NULL, A, "INFOSAVE", "comment saved"},
-    {"N4", NULL, A, "INFOSAVE", "tool types added, edited, deleted, saved"},
-    {"N5", NULL, A, "INFOSAVE", "default tool saved"},
+    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
+    {"N3", NULL, A, NULL, "comment saved"},
+    {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
+    {"N5", NULL, A, NULL, "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
     {"N8", NULL, A, API, "WBInfo from a program opens it"},
@@ -545,6 +545,29 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
+{
+    long iw = w - bl - br, ih = h - bt - bb;
+    if (iw < 8 || ih < 8) return 0;
+    xy[0] = bl + iw * 3 / 4;
+    xy[1] = bt + ih * 3 / 4;
+    if (xy[0] >= ix - 8 && xy[0] < ix + 128 && xy[1] >= iy - 8 && xy[1] < iy + 108) xy[0] = bl + iw / 4;
+    return 1;
+}
+
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap)
+{
+    const char *drawer, *desk;
+    if (t1 == WBGAP_WHICH_UNSET && t2 == WBGAP_WHICH_UNSET) drawer = "the drawer's tags untouched (no answer reached them)";
+    else if (t1 == WBGAP_WHICH_UNSET || t2 == WBGAP_WHICH_UNSET) drawer = "one of the drawer's tags untouched";
+    else drawer = "the desktop answered the drawer";
+    if (t3 < 0) desk = "the desktop window not asked";
+    else if ((unsigned long)t3 == WBGAP_WHICH_UNSET) desk = "the desktop window's tag untouched";
+    else if ((unsigned long)t3 == WBGAP_WBO_DRAWER) desk = "the desktop window answered WBO_DRAWER";
+    else desk = "the desktop window answered, not WBO_DRAWER";
+    snprintf(out, cap, "%s, %s", drawer, desk);
 }
 
 static int boxes_meet(const long a[4], const long b[4])
