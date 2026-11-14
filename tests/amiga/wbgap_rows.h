@@ -132,7 +132,7 @@ int wbgap_closewb_over(const char *text);
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
-/* the row from the two answers: on the icon (type, name it gave) and on the window's empty corner (type there).
+/* the row from the two answers: on the icon (type, name it gave) and on the drawer's empty point (type there).
  * WBGAP_WBO_* below (workbench.h's WBO_ values). WBGAP_PASS or WBGAP_FAIL, the reason in why */
 enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
@@ -141,6 +141,10 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
  * bl bt br bb), past a drawer's bar at the top and short of a scroller or a bar at the bottom. When that is within
  * 128 x 108 of the icon's picture at (ix, iy) (also relative to the window), a quarter across and three quarters
  * down instead. 0 for a window too small to have an inside. */
+/* The second place to ask about the icon when the first (ChangeWorkbenchSelectionA's ism_Left, ism_Top taken as
+ * the window's, as GFOpenBench gives them) isn't it: the same place in the drawer's view, as stock OS 3.x gives it,
+ * from the inside's top-left (borders bl, bt), + 4 into the picture. */
+void wbgap_which_view_point(long bl, long bt, long ix, long iy, long xy[2]);
 int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2]);
 /* What the tags show of where the answer stopped: each WBOBJA_Type starts at WBGAP_WHICH_UNSET, and one left
  * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop

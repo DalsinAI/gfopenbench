@@ -780,6 +780,22 @@ static int do_api(void)
             SetIoErr(0);
             on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
             e1 = IoErr();
+            /* stock OS 3.x gives ism_Left/ism_Top in the drawer's view (from its inside's top-left, not scrolled in a
+             * drawer just opened); GFOpenBench gives the window's. Not the icon at the first: the view's, asked once */
+            if (wf.found && on_icon != WBO_ICON) {
+                long vp[2], vx, vy;
+                ULONG again;
+                wbgap_which_view_point(ww->BorderLeft, ww->BorderTop, wf.x, wf.y, vp);
+                vx = vp[0];
+                vy = vp[1];
+                t1 = WBGAP_WHICH_UNSET;
+                strcpy(name, "?");
+                SetIoErr(0);
+                again = WhichWorkbenchObjectA(ww, vx, vy, tg1);
+                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu\n", (unsigned long)on_icon, vx, vy,
+                       (unsigned long)again);
+                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = IoErr(); }
+            }
             SetIoErr(0);
             on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
             e2 = IoErr();

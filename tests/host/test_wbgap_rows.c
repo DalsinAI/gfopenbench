@@ -381,8 +381,8 @@ static void which_plan(void)
     CHECK(wbgap_which_judge(1, "", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "on the icon"), "the drawer, not the icon: FAIL");
     CHECK(wbgap_which_judge(2, "x", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "\"x\""), "another icon's name: FAIL");
     CHECK(wbgap_which_judge(2, NULL, "w", 1, why, sizeof why) == WBGAP_FAIL, "no name given back: FAIL");
-    CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty corner"),
-          "the empty corner not the drawer: FAIL");
+    CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty point"),
+          "the empty point not the drawer: FAIL");
     {
         long ex[2];
         CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, 30, 60, ex) && ex[0] == 4 + 618 * 3 / 4 && ex[1] == 11 + 385 * 3 / 4,
@@ -390,6 +390,8 @@ static void which_plan(void)
         CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, ex[0] - 20, ex[1] - 20, ex) && ex[0] == 4 + 618 / 4,
               "the icon there: a quarter across instead (%ld)", ex[0]);
         CHECK(!wbgap_which_empty(20, 20, 4, 11, 18, 4, 0, 0, ex), "no inside: 0");
+        wbgap_which_view_point(4, 11, 20, 10, ex);
+        CHECK(ex[0] == 28 && ex[1] == 25, "the view's place: the borders + ism_Left/Top + 4 (%ld,%ld)", ex[0], ex[1]);
     }
     {
         char seen[96];
