@@ -1,10 +1,11 @@
 /* ---- I1, I2: a click selects an icon, a click elsewhere deselects it, Shift-click adds to the selection ----
- * RAM:WBGapS (z snapshotted at 20,10) opened at the top-left, 400x300 or the screen if smaller; a made in it at
- * 120,10 and b at 220,10, each found where the window's inside changed. DragTest then clicks, a second and a half
+ * RAM:WBGapS (a snapshotted at 20,10) opened at the top-left, 400x300 or the screen if smaller; b made in it at
+ * 120,10 and c at 220,10, each found where the window's inside changed. The names sort after a, so a desktop that
+ * lays a drawer out by name (GFOpenBench) adds each at the end and moves nothing else. DragTest then clicks, a second and a half
  * apart (never a double-click), and after each click the window's selected icons are read through the WORKBENCH
  * ARexx port (window.icons.selected, as GFOpenBench and 3.2.3 both answer it):
- *   I1: a click on a: a alone; on b: b alone; on the window's empty corner: nothing.
- *   I2: a click on a, then a Shift-click on b: a and b.
+ *   I1: a click on b: b alone; on c: c alone; on the window's empty corner: nothing.
+ *   I2: a click on b, then a Shift-click on c: b and c.
  * The ARexx reader is written to RAM: by this file, so no other file is needed. Without rx or a WORKBENCH port the
  * rows SKIP. The drawer is cleared afterwards.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -126,7 +127,7 @@ static int sel_step(struct Window *w, const long *at, int shift, const char *row
 static void sel_clean(void)
 {
     static const char *const files[] = {SEL_DIR "/a.info", SEL_DIR "/a", SEL_DIR "/b.info", SEL_DIR "/b",
-                                        SEL_DIR "/z.info", SEL_DIR "/z", SEL_DIR ".info", SEL_DIR};
+                                        SEL_DIR "/c.info", SEL_DIR "/c", SEL_DIR ".info", SEL_DIR};
     unsigned i, pass;
     int t;
     CloseWorkbenchObjectA((STRPTR)SEL_DIR, NULL);
@@ -142,7 +143,7 @@ static void sel_clean(void)
 int wbt_select(int argc, char **argv)
 {
     struct Window *w;
-    long abox[4], bbox[4], a[2], b[2], empty[2];
+    long box_b[4], box_c[4], pb[2], pc[2], empty[2];
     char why[300];
     int how, skipped = 0, ok;
     (void)argc, (void)argv;
@@ -152,29 +153,29 @@ int wbt_select(int argc, char **argv)
         wbt_skip("I2", "no rx (SYS:Rexxc/rx), or " SEL_REXX " not written");
         return wbt_fails() ? 5 : 0;
     }
-    wbt_drawer(SEL_DIR, "z");
+    wbt_drawer(SEL_DIR, "a");
     if (!wbt_open_drawer(SEL_DIR, "WBGapS", 10, &how) || !(w = wbt_place("WBGapS", NULL, SEL_W, SEL_H))) {
         wbt_fail("I1", SEL_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
         wbt_fail("I2", SEL_DIR "'s window didn't open");
         goto out;
     }
     Delay(50);
-    if (!wbt_make_icon(w, SEL_DIR, "a", WBPROJECT, 120, 10, abox) || !(w = wbt_find_window("WBGapS")) ||
-        !wbt_make_icon(w, SEL_DIR, "b", WBPROJECT, 220, 10, bbox) || !(w = wbt_find_window("WBGapS"))) {
-        wbt_fail("I1", "a or b never showed in " SEL_DIR "'s window (5 s after UpdateWorkbench)");
+    if (!wbt_make_icon(w, SEL_DIR, "b", WBPROJECT, 120, 10, box_b) || !(w = wbt_find_window("WBGapS")) ||
+        !wbt_make_icon(w, SEL_DIR, "c", WBPROJECT, 220, 10, box_c) || !(w = wbt_find_window("WBGapS"))) {
+        wbt_fail("I1", "b or c never showed in " SEL_DIR "'s window (5 s after UpdateWorkbench)");
         wbt_fail("I2", "no icons to click");
         goto out;
     }
-    wbgap_grab_point(abox, a);
-    wbgap_grab_point(bbox, b);
+    wbgap_grab_point(box_b, pb);
+    wbgap_grab_point(box_c, pc);
     empty[0] = w->Width - w->BorderLeft - w->BorderRight - 30;    /* the inside's bottom-right corner: no icon there */
     empty[1] = w->Height - w->BorderTop - w->BorderBottom - 30;
-    printf("INFO I1 in %s's window: a at %ld,%ld %ldx%ld, b at %ld,%ld %ldx%ld, empty at %ld,%ld\n", SEL_DIR, abox[0],
-           abox[1], abox[2], abox[3], bbox[0], bbox[1], bbox[2], bbox[3], empty[0], empty[1]);
+    printf("INFO I1 in %s's window: b at %ld,%ld %ldx%ld, c at %ld,%ld %ldx%ld, empty at %ld,%ld\n", SEL_DIR, box_b[0],
+           box_b[1], box_b[2], box_b[3], box_c[0], box_c[1], box_c[2], box_c[3], empty[0], empty[1]);
 
     /* I1 */
-    ok = sel_step(w, a, 0, "I1", "a click on a", "a", why, sizeof why, &skipped) &&
-         (w = wbt_find_window("WBGapS")) && sel_step(w, b, 0, "I1", "a click on b", "b", why, sizeof why, &skipped) &&
+    ok = sel_step(w, pb, 0, "I1", "a click on b", "b", why, sizeof why, &skipped) &&
+         (w = wbt_find_window("WBGapS")) && sel_step(w, pc, 0, "I1", "a click on c", "c", why, sizeof why, &skipped) &&
          (w = wbt_find_window("WBGapS")) &&
          sel_step(w, empty, 0, "I1", "a click on the window's empty corner", "", why, sizeof why, &skipped);
     if (ok) wbt_pass("I1");
@@ -184,8 +185,8 @@ int wbt_select(int argc, char **argv)
 
     /* I2 */
     skipped = 0;
-    ok = (w = wbt_find_window("WBGapS")) && sel_step(w, a, 0, "I2", "a click on a", "a", why, sizeof why, &skipped) &&
-         (w = wbt_find_window("WBGapS")) && sel_step(w, b, 1, "I2", "a Shift-click on b", "a b", why, sizeof why, &skipped);
+    ok = (w = wbt_find_window("WBGapS")) && sel_step(w, pb, 0, "I2", "a click on b", "b", why, sizeof why, &skipped) &&
+         (w = wbt_find_window("WBGapS")) && sel_step(w, pc, 1, "I2", "a Shift-click on c", "b c", why, sizeof why, &skipped);
     if (ok) wbt_pass("I2");
     else if (!w) wbt_fail("I2", SEL_DIR "'s window went");
     else if (skipped) wbt_skip("I2", why);
