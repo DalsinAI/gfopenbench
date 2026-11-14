@@ -1,7 +1,8 @@
 /* ---- I5: a file dragged onto the desktop's own space ----
  * RAM:WBGapB (a snapshotted at 20,10) opened at the top-left, 400x300; the file f made in it at 120,10, found where
  * the window's inside changed (f sorts after a, so a desktop that lays a drawer out by name moves nothing else). f is
- * dragged with DragTest to a point of the desktop's own space: the backdrop window's layer there, and 48 pixels or
+ * dragged with DragTest to a point of the desktop's own space: the desktop's window's layer there (the backdrop, or
+ * the Workbench window where Workbench runs in a window), and 48 pixels or
  * more from every icon on the desktop (their boxes read through the WORKBENCH port). On 3.2.3 that leaves f out
  * there for the run: f and f.info stay in RAM:WBGapB, f's icon is on the desktop and gone from the drawer's window
  * (ob_drop.c's spec, lab t4-dnd). The icon is put away again (Icons > Put Away through ARexx, where the desktop has
@@ -122,6 +123,15 @@ static int bd_on_desk(char *list, long cap)
     return bd_list("root", list, cap) ? wbgap_deskdrop_has(list, "f") : -1;
 }
 
+/* whether w is the desktop's own window: the backdrop, or (Workbench in a window, as 3.2.3's Workbench prefs can set
+ * it) the Workbench's own window titled "Workbench" (a drawer's window is titled with its name) */
+static int bd_root(const struct Window *w)
+{
+    if (!w) return 0;
+    if (w->Flags & WFLG_BACKDROP) return 1;
+    return (w->Flags & WFLG_WBENCHWINDOW) && w->Title && !strcmp((const char *)w->Title, "Workbench");
+}
+
 /* a point of the desktop's own space on screen s, clear of every icon in desk (root's icons): 1 and xy, else 0 */
 static int bd_spot(struct Screen *s, const char *desk, long xy[2])
 {
@@ -135,7 +145,7 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
         ly = WhichLayer(&s->LayerInfo, x, y);
         bw = ly ? (struct Window *)ly->Window : NULL;
         UnlockLayerInfo(&s->LayerInfo);
-        if (!bw || !(bw->Flags & WFLG_BACKDROP)) {   /* a window there, or the screen's bar */
+        if (!bd_root(bw)) {   /* another window there, or the screen's bar */
             printf("INFO I5 %ld,%ld: %s \"%s\" (flags $%lx)\n", x, y, bw ? "a window," : "no window", bw && bw->Title ?
                    (const char *)bw->Title : "", bw ? (unsigned long)bw->Flags : 0UL);
             continue;
