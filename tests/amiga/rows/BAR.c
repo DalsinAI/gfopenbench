@@ -147,7 +147,7 @@ static int bar_rows(void)
            row->LeftEdge, row->TopEdge, row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh, rh, sticks);
     owner = wbgap_bar_menu_owner(rr, ml, mw);
     /* Esc closes it before anything else: nothing in it is picked */
-    snprintf(cmd, sizeof cmd, "%s KEY 0x45", dragtest);
+    snprintf(cmd, sizeof cmd, "%s KEY 0x45", wbt_dragtest());
     wbt_run(cmd);
     for (k = 0; k < 20 && wbt_still_there(s, m); k++) Delay(5);
     if ((esc_left = wbt_still_there(s, m))) {           /* a click on the screen's title, far from the list, closes it */
