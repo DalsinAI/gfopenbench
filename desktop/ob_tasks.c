@@ -578,3 +578,39 @@ int ob_place_take(void *ctx, const char *name, int type, int selected, short x, 
     p->y = y;
     return -1;
 }
+
+int ob_shown_take(void *ctx, const char *name, int type, int selected, short x, short y)
+{
+    ob_shown *s = ctx;
+    int k, i;
+    (void)type;
+    if (!s || !name || !s->name_at) return -1;
+    if (s->hint < 0 || s->hint >= s->n) s->hint = 0;
+    for (k = 0; k < s->n; k++) {
+        const char *at;
+        i = (s->hint + k) % s->n;
+        if (!(at = s->name_at(s->ctx, i)) || !same_name(at, name)) continue;
+        if (s->count < s->cap && s->out) {
+            s->out[s->count].at = i;
+            s->out[s->count].selected = selected != 0;
+            s->out[s->count].x = x;
+            s->out[s->count].y = y;
+            s->count++;
+        }
+        s->hint = i + 1;
+        return 2;
+    }
+    s->missed++;
+    return 2;
+}
+
+void ob_shown_sort(ob_shown *s)
+{
+    int i, j;
+    if (!s || !s->out) return;
+    for (i = 1; i < s->count; i++) {            /* insertion: the drawer's own order is nearly the reading's */
+        ob_shown_icon v = s->out[i];
+        for (j = i; j > 0 && s->out[j - 1].at > v.at; j--) s->out[j] = s->out[j - 1];
+        s->out[j] = v;
+    }
+}

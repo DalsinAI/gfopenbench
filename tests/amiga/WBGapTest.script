@@ -18,6 +18,7 @@ WBGapTest MENUS >RAM:wbgap-results
 WBGapTest MENUDRIVE >>RAM:wbgap-results
 WBGapTest API >>RAM:wbgap-results
 WBGapTest NOTIFY >>RAM:wbgap-results
+WBGapTest INFOSAVE >>RAM:wbgap-results
 If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP R1 no rx" >>RAM:wbgap-results
   Echo "SKIP R2 no rx" >>RAM:wbgap-results
@@ -25,6 +26,7 @@ If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP R2b no rx" >>RAM:wbgap-results
   Echo "SKIP L1a no rx" >>RAM:wbgap-results
   Echo "SKIP D5 no rx" >>RAM:wbgap-results
+  Echo "SKIP D5r no rx" >>RAM:wbgap-results
   Echo "SKIP D1 no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
@@ -40,6 +42,7 @@ Else
   WBGapTest DISKS >>RAM:wbgap-results
   WBGapTest DISKIO RAD: >>RAM:wbgap-results
 EndIf
+WBGapTest TITLES >>RAM:wbgap-results
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BAR >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
@@ -52,6 +55,7 @@ If EXISTS SYS:Rexxc/rx
   WBGapTest LAUNCHDESK DONE >NIL:
 Else
   Echo "SKIP I11 no rx" >>RAM:wbgap-results
+  Echo "SKIP I10 no rx" >>RAM:wbgap-results
 EndIf
 If EXISTS WBGapIndex
   WBGapIndex >>RAM:wbgap-results
