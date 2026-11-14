@@ -17,6 +17,8 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
+ *   WBGapTest BAR               row B1: GFOpenTitle's Power icon clicked, its list looked at (where it hangs, three
+ *                               rows at least) and closed with Esc; nothing in it is picked
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -1054,6 +1056,92 @@ static int do_big(void)
     return fails ? 5 : 0;
 }
 
+/* ---- the system bar: B1, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
+ * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
+ * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
+ * closed with Esc: nothing in it is ever picked (Reboot and Power off are in it). */
+static struct Window *bar_row(struct Screen *s, struct Task *t)
+{
+    struct Window *w, *best = NULL;
+    ULONG lock = LockIBase(0);
+    for (w = s->FirstWindow; w; w = w->NextWindow)
+        if (w->UserPort && w->UserPort->mp_SigTask == t && (w->Flags & WFLG_BORDERLESS) && w->TopEdge == 0 &&
+            w->Height <= s->BarHeight + 1 && (!best || w->LeftEdge + w->Width > best->LeftEdge + best->Width))
+            best = w;
+    UnlockIBase(lock);
+    return best;
+}
+
+/* the active window, if it is t's and wasn't in was[0..n), within secs (GFOpenTitle's list opens active) */
+static struct Window *new_active(struct Window **was, int n, struct Task *t, int secs)
+{
+    int k, j;
+    for (k = 0; k < secs * 10; k++) {
+        struct Window *a;
+        ULONG lock = LockIBase(0);
+        a = IntuitionBase->ActiveWindow;
+        if (a && !(a->UserPort && a->UserPort->mp_SigTask == t)) a = NULL;
+        UnlockIBase(lock);
+        if (a) {
+            for (j = 0; j < n && was[j] != a; j++) {}
+            if (j == n) return a;
+        }
+        Delay(5);
+    }
+    return NULL;
+}
+
+static int do_bar(void)
+{
+    struct Screen *s;
+    struct MsgPort *p;
+    struct Task *t;
+    struct Window *row, *was[MAXWINS], *m;
+    long xy[2], rr, ml, mt, mw, mh, fh;
+    int n, k, owner;
+    char cmd[320];
+    Forbid();
+    p = FindPort((CONST_STRPTR)"GFOpenTitle");
+    t = p ? (struct Task *)p->mp_SigTask : NULL;
+    Permit();
+    if (!t) { skip("B1", "GFOpenTitle isn't running (no GFOpenTitle port)"); return 0; }
+    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("B1", "no Workbench screen"); return 0; }
+    ScreenToFront(s);
+    Delay(25);
+    if (!(row = bar_row(s, t))) {
+        fail("B1", "GFOpenTitle's row on the title bar not found");
+        UnlockPubScreen(NULL, s);
+        return 5;
+    }
+    wbgap_power_point(row->LeftEdge, row->TopEdge, row->Width, row->Height, xy);
+    rr = row->LeftEdge + row->Width;
+    fh = s->Font ? s->Font->ta_YSize : 8;
+    n = windows_now(s, was, MAXWINS);
+    snprintf(cmd, sizeof cmd, "\"%s\" CLICK %ld %ld", dragtest, xy[0], xy[1]);
+    run(cmd);
+    if (!(m = new_active(was, n, t, 2))) {
+        fail("B1", "a click on Power opened no list");
+        UnlockPubScreen(NULL, s);
+        return 5;
+    }
+    ml = m->LeftEdge; mt = m->TopEdge; mw = m->Width; mh = m->Height;
+    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld\n", row->LeftEdge, row->TopEdge,
+           row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh);
+    owner = wbgap_bar_menu_owner(rr, ml, mw);
+    /* Esc closes it before anything else: nothing in it is picked */
+    snprintf(cmd, sizeof cmd, "%s KEY 0x45", dragtest);
+    run(cmd);
+    for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
+    if (still_there(s, m)) fail("B1", "Esc left the list open");
+    else if (owner == WBGAP_BAR_PREFS) fail("B1", "a click on Power's cell opened Prefs' list");
+    else if (owner == WBGAP_BAR_OTHER) fail("B1", "the window that opened doesn't hang from Power");
+    else if (!wbgap_power_rows_fit(mh, fh)) fail("B1", "Power's list is shorter than Reboot, Restart and Power off");
+    else if (owner == WBGAP_BAR_UNSURE) skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told");
+    else pass("B1");
+    UnlockPubScreen(NULL, s);
+    return fails ? 5 : 0;
+}
+
 /* ---- WBStartup ---- */
 static void stamp(const char *what, const char *name)
 {
@@ -1667,6 +1755,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
+    else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);

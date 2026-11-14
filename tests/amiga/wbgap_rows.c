@@ -164,6 +164,8 @@ static const struct wbgap_row rows[] = {
     {"L1a", "L1", A, "WBGapLayout.rexx", "grouped tools, then projects, then drawers, by name in each"},
     {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
+    /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
+    {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
@@ -321,4 +323,25 @@ int wbgap_backdrop_done(int have_was, int have_made)
 {
     if (have_was) return WBGAP_BD_RESTORE;
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
+}
+
+void wbgap_power_point(long left, long top, long width, long height, long xy[2])
+{
+    long cell = width < WBGAP_TRAY_CELL ? width : WBGAP_TRAY_CELL;
+    xy[0] = left + width - (cell + 1) / 2;
+    xy[1] = top + height / 2;
+}
+
+int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
+{
+    long right = menu_left + menu_width;
+    if (right == row_right) return WBGAP_BAR_POWER;
+    if (right == row_right - WBGAP_TRAY_CELL) return WBGAP_BAR_PREFS;
+    if (menu_left == 0 && right < row_right) return WBGAP_BAR_UNSURE;   /* x clamped to 0: Power or Prefs */
+    return WBGAP_BAR_OTHER;
+}
+
+int wbgap_power_rows_fit(long menu_height, long font_height)
+{
+    return font_height > 0 && menu_height >= 3 * font_height;
 }

@@ -60,4 +60,16 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* The system bar (gfopenprefs TitleBar, GFOpenTitle 0.9): its row window on the title bar holds, left to right, the
+ * memory and time, the systray, then Prefs and Power, one cell each (Common/traygrid.h's TRAY_CELL). Power's is the
+ * row's last cell: the point (x, y) to click it, from the row's box */
+#define WBGAP_TRAY_CELL 30
+void wbgap_power_point(long left, long top, long width, long height, long xy[2]);
+/* whose list opened, from where it hangs: Power's ends at the row's right edge, Prefs' one cell in from it (a list
+ * pushed to x 0 by a narrow screen can't be told: UNSURE) */
+enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
+int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
+/* Power's list holds at least Reboot, Restart the machine... and Power off...: three rows of the font's height */
+int wbgap_power_rows_fit(long menu_height, long font_height);
+
 #endif

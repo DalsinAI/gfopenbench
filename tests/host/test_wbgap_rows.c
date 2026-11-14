@@ -105,6 +105,25 @@ static void backdrop_plan(void)
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
 }
 
+/* B1: GFOpenTitle's Power cell, and whose list a click opened */
+static void bar_plan(void)
+{
+    long xy[2];
+    wbgap_power_point(400, 0, 240, 11, xy);
+    CHECK(xy[0] == 625 && xy[1] == 5, "Power's cell: the middle of the row's last 30 pixels (%ld,%ld)", xy[0], xy[1]);
+    CHECK(xy[0] >= 640 - WBGAP_TRAY_CELL && xy[0] < 640, "inside the last cell");
+    wbgap_power_point(0, 0, 20, 10, xy);
+    CHECK(xy[0] == 10 && xy[1] == 5, "a row narrower than a cell: its middle");
+    CHECK(wbgap_bar_menu_owner(640, 500, 140) == WBGAP_BAR_POWER, "a list ending at the row's right edge: Power's");
+    CHECK(wbgap_bar_menu_owner(640, 470, 140) == WBGAP_BAR_PREFS, "one cell in: Prefs'");
+    CHECK(wbgap_bar_menu_owner(640, 200, 140) == WBGAP_BAR_OTHER, "anywhere else: another window");
+    CHECK(wbgap_bar_menu_owner(640, 0, 600) == WBGAP_BAR_UNSURE, "pushed to x 0: can't tell");
+    CHECK(wbgap_bar_menu_owner(100, 0, 100) == WBGAP_BAR_POWER, "at x 0 but ending at the row's edge: Power's");
+    CHECK(wbgap_power_rows_fit(36, 12) && wbgap_power_rows_fit(60, 12), "three rows or more fit");
+    CHECK(!wbgap_power_rows_fit(35, 12), "fewer than three rows' height");
+    CHECK(!wbgap_power_rows_fit(36, 0), "no font height: no answer");
+}
+
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
 static void i11_lines(void)
 {
@@ -267,6 +286,7 @@ int main(int argc, char **argv)
     launch_args();
     backdrop_plan();
     i11_lines();
+    bar_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);
