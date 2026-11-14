@@ -9,6 +9,7 @@
 
 #include <exec/types.h>
 #include <intuition/intuition.h>
+#include <intuition/intuitionbase.h>
 #include <workbench/workbench.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
@@ -17,6 +18,8 @@
 #include "wbgap_rows.h"
 #include "wbgap_test.h"
 #include "TRASH.h"
+
+extern struct IntuitionBase *IntuitionBase;
 
 WBGAP_MODE(TRASH, wbt_trash, NEWROWS)
 WBGAP_ROWMODE(I6, TRASH)
@@ -33,6 +36,48 @@ static int tr_there(const char *path)
     return l != 0;
 }
 
+/* RAM:WBGapT's own window: the first whose title passes wbgap_trash_title_ours, never WBGapTest's own (whose title
+ * holds "WBGapT" too and which wbt_find_window can find first in a full run) */
+static struct Window *tr_window(void)
+{
+    const char *titles[32];
+    struct Window *wins[32];
+    struct Screen *s;
+    struct Window *w;
+    int n = 0, i;
+    ULONG lock = LockIBase(0);
+    for (s = IntuitionBase->FirstScreen; s && n < 32; s = s->NextScreen)
+        for (w = s->FirstWindow; w && n < 32; w = w->NextWindow) {
+            titles[n] = w->Title ? (const char *)w->Title : NULL;
+            wins[n++] = w;
+        }
+    i = wbgap_trash_pick(titles, n);
+    UnlockIBase(lock);
+    return i >= 0 ? wins[i] : NULL;
+}
+
+/* that window waited for up to secs, then put at the top-left under the screen's bar, w x h at most the screen's (as
+ * wbt_place does, but on RAM:WBGapT's own window) and waited for 2 s to get there */
+static struct Window *tr_open_place(int secs, long w, long h)
+{
+    struct Window *x = NULL;
+    long box[4];
+    int t;
+    for (t = 0; t < secs * 10 && !(x = tr_window()); t++) Delay(5);
+    if (!x) return NULL;
+    box[1] = x->WScreen->BarHeight + 1;
+    box[0] = 0;
+    box[2] = w > x->WScreen->Width ? x->WScreen->Width : w;
+    box[3] = h > x->WScreen->Height - box[1] ? x->WScreen->Height - box[1] : h;
+    ChangeWindowBox(x, box[0], box[1], box[2], box[3]);
+    for (t = 0; t < 40; t++) {
+        Delay(5);
+        if (!(x = tr_window())) return NULL;
+        if (x->LeftEdge == box[0] && x->TopEdge == box[1] && x->Width == box[2] && x->Height == box[3]) return x;
+    }
+    return NULL;
+}
+
 static void tr_clean(void)
 {
     static const char *const files[] = {TR_CAN "/f.info", TR_CAN "/f", TR_CAN ".info", TR_CAN, TR_DIR "/f.info",
@@ -41,7 +86,7 @@ static void tr_clean(void)
     int t;
     CloseWorkbenchObjectA((STRPTR)TR_CAN, NULL);
     CloseWorkbenchObjectA((STRPTR)TR_DIR, NULL);
-    for (t = 0; t < 40 && wbt_find_window("WBGapT"); t++) Delay(5);
+    for (t = 0; t < 40 && tr_window(); t++) Delay(5);
     for (pass = 0; pass < 2; pass++) {   /* twice: a desktop may write a drawer's .info after the close */
         if (pass) Delay(25);
         for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
@@ -63,12 +108,13 @@ int wbt_trash(int argc, char **argv)
     (void)argc, (void)argv;
     tr_clean();
     wbt_drawer(TR_DIR, "a");
-    if (!wbt_open_drawer(TR_DIR, "WBGapT", 10, &how) || !(w = wbt_place("WBGapT", NULL, TR_W, TR_H))) {
+    wbt_open_drawer(TR_DIR, "WBGapT", 10, &how);   /* its wait can end on WBGapTest's own window: tr_open_place waits for ours */
+    if (!(w = tr_open_place(10, TR_W, TR_H))) {
         long want[4] = {0, 0, TR_W, TR_H}, got[4] = {0, 0, 0, 0}, lim[4] = {0, 0, 0, 0};
         char title[80] = "";
         int found = 0;
         ULONG ib = LockIBase(0);   /* what wbt_place asked for and what the window found by the name has, read as one */
-        if ((w = wbt_find_window("WBGapT"))) {
+        if ((w = tr_window()) || (w = wbt_find_window("WBGapT"))) {
             long top = w->WScreen->BarHeight + 1;
             want[1] = top;
             want[2] = TR_W > w->WScreen->Width ? w->WScreen->Width : TR_W;
@@ -89,8 +135,8 @@ int wbt_trash(int argc, char **argv)
     }
     Delay(50);
     if ((l = CreateDir((CONST_STRPTR)TR_CAN))) UnLock(l);   /* wbt_make_icon gives it the trashcan's icon */
-    if (!wbt_make_icon(w, TR_DIR, "f", WBPROJECT, 120, 10, box_f) || !(w = wbt_find_window("WBGapT")) ||
-        !wbt_make_icon(w, TR_DIR, "trash", WBGARBAGE, 220, 10, box_t) || !(w = wbt_find_window("WBGapT"))) {
+    if (!wbt_make_icon(w, TR_DIR, "f", WBPROJECT, 120, 10, box_f) || !(w = tr_window()) ||
+        !wbt_make_icon(w, TR_DIR, "trash", WBGARBAGE, 220, 10, box_t) || !(w = tr_window())) {
         wbt_fail("I6", "f or the trashcan never showed in " TR_DIR "'s window (5 s after UpdateWorkbench)");
         goto out;
     }

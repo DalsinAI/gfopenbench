@@ -50,3 +50,12 @@ int wbgap_trash_open_why(int found, const char *title, const long want[4], const
     if (why && cap) snprintf(why, cap, "%s", r);
     return 1;
 }
+
+int wbgap_trash_pick(const char *const titles[], int n)
+{
+    int i;
+    if (!titles) return -1;
+    for (i = 0; i < n; i++)
+        if (wbgap_trash_title_ours(titles[i])) return i;
+    return -1;
+}
