@@ -1202,7 +1202,7 @@ static struct Window *drag_place(const char *title, const long *avoid, long w, l
     return NULL;
 }
 
-/* ---- WBStartup ---- */
+/* ---- WBStartup (from_workbench: what each start writes; the STARTUP mode is rows/STARTUP.c) ---- */
 static void stamp(const char *what, const char *name)
 {
     BPTR fh = Open((CONST_STRPTR)"RAM:wbgap-order", MODE_READWRITE);
@@ -1251,270 +1251,6 @@ static int from_workbench(struct WBStartup *wbs)
     Delay(secs * 50);
     stamp("end", name);
     return 0;
-}
-
-/* A10a: the LoadWB switches GFOpenBench says it took (ENV:GFOpenBench/LoadWB, words) are the ones on the
- * Startup-Sequence's line that started the desktop: "SYS:System/OpenBench ..." where that exists, else "LoadWB ..." */
-static const char *const loadwb_switches[] = {"DEBUG", "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SKIP",
-                                              "SIMPLEGELS", "LEGACY"};
-static int stricmp_n(const char *a, const char *b, int n)
-{
-    for (; n > 0; n--, a++, b++) {
-        char x = (*a >= 'a' && *a <= 'z') ? *a - 32 : *a, y = (*b >= 'a' && *b <= 'z') ? *b - 32 : *b;
-        if (x != y) return 1;
-        if (!x) return 0;
-    }
-    return 0;
-}
-static void upper(char *t) { for (; *t; t++) if (*t >= 'a' && *t <= 'z') *t -= 32; }
-static int switches_of(char *text, char *out, int n)   /* the known switches in text, as " A B ", in the template's order */
-{
-    int k, count = 0;
-    char *w;
-    out[0] = 0;
-    upper(text);
-    for (k = 0; k < (int)(sizeof loadwb_switches / sizeof loadwb_switches[0]); k++) {
-        const char *sw = loadwb_switches[k];
-        char tmp[400];
-        snprintf(tmp, sizeof tmp, "%s", text);
-        for (w = strtok(tmp, " \t\r\n"); w; w = strtok(NULL, " \t\r\n"))
-            if (!strcmp(w, sw)) {
-                const char *name = !strcmp(sw, "-DEBUG") ? "DEBUG" : !strcmp(sw, "SKIP") ? "SKIPWBSTARTUP" : sw;
-                if (!strstr(out, name) && (int)(strlen(out) + strlen(name) + 2) < n) { strcat(out, " "); strcat(out, name); count++; }
-            }
-    }
-    return count;
-}
-static void check_loadwb(void)
-{
-    char env[200] = "", seq[400] = "", line[256], want[120], got[120];
-    BPTR fh;
-    if (!is_gfos()) { skip("A10a", "GFOS only: 3.2.3 keeps no record of LoadWB's switches"); return; }
-    if (!(fh = Open((CONST_STRPTR)"ENV:GFOpenBench/LoadWB", MODE_OLDFILE))) { fail("A10a", "no ENV:GFOpenBench/LoadWB"); return; }
-    { long n = Read(fh, env, sizeof env - 1); env[n > 0 ? n : 0] = 0; }
-    Close(fh);
-    {   /* the line that started the desktop: SYS:System/OpenBench's where it exists (Instance-32), else LoadWB's */
-        int ob = exists("SYS:System/OpenBench");
-        const char *cmd = ob ? "SYS:System/OpenBench" : "LoadWB";
-        int cl = (int)strlen(cmd);
-        if ((fh = Open((CONST_STRPTR)"S:Startup-Sequence", MODE_OLDFILE))) {
-            while (FGets(fh, (STRPTR)line, sizeof line)) {
-                char *p = line;
-                for (;;) {   /* leading blanks, "Run" and redirections */
-                    while (*p == ' ' || *p == '\t') p++;
-                    if (!stricmp_n(p, "Run ", 4)) { p += 4; continue; }
-                    if (*p == '>' || *p == '<') { while (*p && *p != ' ' && *p != '\t') p++; continue; }
-                    break;
-                }
-                if (!ob && !stricmp_n(p, "C:LoadWB", 8)) p += 2;
-                if (!stricmp_n(p, cmd, cl) && (p[cl] == ' ' || p[cl] == '\t' || p[cl] == '\n' || !p[cl])) {
-                    snprintf(seq, sizeof seq, "%s", p + cl);
-                    break;
-                }
-            }
-            Close(fh);
-        }
-        printf("INFO A10a the desktop's line (the first %s line in S:Startup-Sequence): %s%s", cmd, cmd, seq[0] ? seq : "\n");
-    }
-    switches_of(seq, want, sizeof want);
-    switches_of(env, got, sizeof got);
-    printf("INFO A10a Startup-Sequence:%s; GFOpenBench took:%s\n", want[0] ? want : " none", got[0] ? got : " none");
-    if (!strcmp(want, got)) pass("A10a"); else fail("A10a", "the switches taken aren't the Startup-Sequence's");
-}
-
-static int do_startup(const char *what)
-{
-    if (!stricmp(what, "SETUP")) {
-        static STRPTR ta[] = {(STRPTR)"STARTPRI=-10", (STRPTR)"STAMPSECS=1", NULL};
-        static STRPTR tb[] = {(STRPTR)"STARTPRI=10", (STRPTR)"DONOTWAIT", (STRPTR)"STAMPSECS=4", NULL};
-        static STRPTR tc[] = {(STRPTR)"STAMPSECS=1", NULL};
-        int ok = put_icon("SYS:WBStartup/WBGapA", WBTOOL, ta) && put_icon("SYS:WBStartup/WBGapB", WBTOOL, tb) &&
-                 put_icon("SYS:WBStartup/WBGapC", WBTOOL, tc);
-        /* S2d: D and E have no STARTPRI either; E was added before C, and C before D, so oldest first is E, C, D
-         * where name order is C, D, E. The date added is the older of the program's and its icon's dates. */
-        if (exists("SYS:WBStartup/WBGapD") && exists("SYS:WBStartup/WBGapE")) {
-            static const char *const names[] = {"SYS:WBStartup/WBGapE", "SYS:WBStartup/WBGapC", "SYS:WBStartup/WBGapD"};
-            struct DateStamp ds;
-            char path[64];
-            int i;
-            ok = ok && put_icon("SYS:WBStartup/WBGapD", WBTOOL, tc) && put_icon("SYS:WBStartup/WBGapE", WBTOOL, tc);
-            for (i = 0; i < 3 && ok; i++) {
-                ds.ds_Days = 7000 + i;   /* 2 March 1997 on, a day apart */
-                ds.ds_Minute = 600;
-                ds.ds_Tick = 0;
-                snprintf(path, sizeof path, "%s.info", names[i]);
-                ok = SetFileDate((CONST_STRPTR)names[i], &ds) && SetFileDate((CONST_STRPTR)path, &ds);
-            }
-        } else printf("INFO no SYS:WBStartup/WBGapD and WBGapE: S2d not set up\n");
-        if (exists("SYS:WBStartup/WBGapF")) {   /* I12a, I12b at WBStartup, which needs no registered Workbench */
-            static char st[24];
-            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)st, (STRPTR)"TOOLPRI=-3",
-                                  (STRPTR)"DONOTWAIT", NULL};
-            unsigned long want = stack_wanted();
-            snprintf(st, sizeof st, "STACK=%lu", want);
-            ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
-        } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
-        if (exists("SYS:WBStartup/WBGapG")) {   /* I12c: STACK= alone, the icon's own field left at the default */
-            static char sg[24];
-            static STRPTR tg[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb2", (STRPTR)sg, (STRPTR)"DONOTWAIT", NULL};
-            snprintf(sg, sizeof sg, "STACK=%lu", stack_wanted());
-            ok = ok && put_icon("SYS:WBStartup/WBGapG", WBTOOL, tg);
-        } else printf("INFO no SYS:WBStartup/WBGapG: I12c not set up\n");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
-        printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
-        return ok ? 0 : 20;
-    }
-    {   /* CHECK: B (10) first, C (0), A (-10) last; B doesn't hold C up; C holds A up */
-        char buf[400];
-        BPTR fh = Open((CONST_STRPTR)"RAM:wbgap-order", MODE_OLDFILE);
-        long n;
-        const char *sb, *sc, *sa, *eb, *ec;
-        if (!fh) { fail("S1", "RAM:wbgap-order not written: nothing in WBStartup ran"); skip("S2", "-"); skip("S3", "-"); return 10; }
-        n = Read(fh, buf, sizeof buf - 1);
-        Close(fh);
-        buf[n > 0 ? n : 0] = 0;
-        printf("INFO order: ");
-        for (n = 0; buf[n]; n++) putchar(buf[n] == '\n' ? ',' : buf[n]);
-        putchar('\n');
-        sa = strstr(buf, "start WBGapA"); sb = strstr(buf, "start WBGapB"); sc = strstr(buf, "start WBGapC");
-        eb = strstr(buf, "end WBGapB"); ec = strstr(buf, "end WBGapC");
-        if (sa && sb && sc) pass("S1"); else fail("S1", "not all three started");
-        if (sa && sb && sc && sb < sc && sc < sa) pass("S2"); else fail("S2", "not in STARTPRI order B, C, A");
-        if (sc && eb && ec && sa && sc < eb && ec < sa) pass("S3"); else fail("S3", "DONOTWAIT or the wait for a program not honoured");
-        {   /* S2d: no STARTPRI, oldest date added first (GFOS); 3.2.3 goes by name */
-            const char *sd = strstr(buf, "start WBGapD"), *se = strstr(buf, "start WBGapE");
-            if (!sd || !se) skip("S2d", "WBGapD or WBGapE didn't start (not set up?)");
-            else if (!is_gfos()) skip("S2d", "a GFOS decision; 3.2.3 orders by name");
-            else if (se < sc && sc < sd) pass("S2d");
-            else fail("S2d", "not by date added E, C, D");
-        }
-        check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
-        check_stack_alone("RAM:wbgap-launchwb2", icon_stack("SYS:WBStartup/WBGapG"));
-        check_loadwb();
-        return fails ? 5 : 0;
-    }
-}
-
-/* ---- row X3: low memory ---- */
-struct eaten { struct eaten *next; ULONG size; };
-
-/* The front screen's low-memory requester (EasyRequest's window, titled "GFOpenBench" and holding "Retry"):
-   where its left-hand button is, in screen pixels; 0 when there is none */
-static int find_retry(int *x, int *y)
-{
-    struct Screen *s;
-    struct Window *w;
-    int found = 0;
-    ULONG lock = LockIBase(0);
-    for (s = IntuitionBase->FirstScreen; s && !found; s = s->NextScreen)
-        for (w = s->FirstWindow; w && !found; w = w->NextWindow) {
-            struct Gadget *g, *left = NULL;
-            if (!w->Title || strcmp((const char *)w->Title, "GFOpenBench")) continue;
-            for (g = w->FirstGadget; g; g = g->NextGadget)
-                if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_BOOLGADGET && !(g->GadgetType & GTYP_SYSGADGET)
-                    && (g->Activation & GACT_RELVERIFY) && !(g->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM))
-                    && (!left || g->LeftEdge < left->LeftEdge))
-                    left = g;
-            if (!left) continue;
-            *x = w->LeftEdge + left->LeftEdge + left->Width / 2;
-            *y = w->TopEdge + left->TopEdge + left->Height / 2;
-            found = 1;
-        }
-    UnlockIBase(lock);
-    return found;
-}
-
-/* GFOpenBench's message (gfopenprefs Common/obmsg.h: keep the layout the same, as DragTest's) */
-struct ob_msg {
-    struct Message m;
-    ULONG magic;
-    LONG ok;
-    char path[256];
-};
-
-static int do_lowmem(int secs, const char *path)
-{
-    struct eaten *list = NULL, *e, **pp;
-    ULONG n, got = 0, kept = 0;
-    int x = 0, y = 0, seen, sent = 0, i;
-    char cmd[300];
-    struct MsgPort *reply = CreateMsgPort(), *ob;
-    struct ob_msg *m = AllocVec(sizeof *m, MEMF_PUBLIC | MEMF_CLEAR);   /* before the memory is taken */
-    if (!reply || !m) { printf("FAIL X3 setup\n"); if (m) FreeVec(m); if (reply) DeleteMsgPort(reply); return 20; }
-    m->m.mn_ReplyPort = reply;
-    m->m.mn_Length = sizeof *m;
-    m->magic = 0x4F424D31UL;
-    strncpy(m->path, path, sizeof m->path - 1);
-    printf("INFO X3 taking the memory for %d s, opening %s\n", secs, path);
-    fflush(stdout);
-    for (n = 1UL << 30; n >= 256;) {                /* the biggest pieces first, down to 256 bytes */
-        if (AvailMem(MEMF_ANY | MEMF_LARGEST) < n || !(e = AllocMem(n, MEMF_ANY))) { n >>= 1; continue; }
-        e->size = n;
-        e->next = list;
-        list = e;
-        got += n;
-    }
-    /* 48 KiB back for the system, in pieces of 4 KiB at most: no program's code fits in one. Every other piece only,
-       so that no two freed pieces lie side by side and join into a bigger one (the first lab run: they did, and the
-       program loaded) */
-    for (pp = &list, i = 0; *pp && kept < 49152;) {
-        e = *pp;
-        if (e->size > 4096 || (i++ & 1)) { pp = &e->next; continue; }
-        *pp = e->next;
-        kept += e->size;
-        FreeMem(e, e->size);
-    }
-    printf("INFO X3 largest free piece now %lu bytes\n", (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
-    {   /* can a program load now at all: it mustn't, for the check to mean anything */
-        BPTR seg = LoadSeg((CONST_STRPTR)path);
-        printf("INFO X3 LoadSeg of %s here: %s\n", path, seg ? "loaded (memory not low enough)" : "failed, as it should");
-        if (seg) UnLoadSeg(seg);
-    }
-    Forbid();
-    if ((ob = FindPort((CONST_STRPTR)"GFOPENBENCH"))) { PutMsg(ob, &m->m); sent = 1; }
-    Permit();
-    /* hold it: whatever another task gives back meanwhile (more than 4 KiB in one piece) is taken too, every half
-       second (the second lab run: something freed enough while it waited, and the program loaded) */
-    for (i = 0; i < secs * 2; i++) {
-        ULONG big;
-        Delay(25);
-        while ((big = AvailMem(MEMF_ANY | MEMF_LARGEST)) > 4096 && (e = AllocMem(big & ~7UL, MEMF_ANY))) {
-            e->size = big & ~7UL;
-            e->next = list;
-            list = e;
-            got += e->size;
-        }
-    }
-    seen = find_retry(&x, &y);
-    {   /* had the drawer opened already, with the memory taken (then there was nothing to ask) */
-        struct Screen *s;
-        struct Window *w;
-        const char *name = (const char *)FilePart((CONST_STRPTR)path);
-        int open = 0;
-        ULONG lock = LockIBase(0);
-        for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen)
-            for (w = s->FirstWindow; w; w = w->NextWindow)
-                if (w->Title && *name && strstr((const char *)w->Title, name)) open = 1;
-        UnlockIBase(lock);
-        printf("INFO X3 %s's window open while the memory was taken: %s\n", name, open ? "yes" : "no");
-    }
-    while ((e = list)) {
-        list = e->next;
-        FreeMem(e, e->size);
-    }
-    printf("INFO X3 took %lu KiB, largest free piece then %lu bytes\n", (unsigned long)(got >> 10),
-           (unsigned long)AvailMem(MEMF_ANY | MEMF_LARGEST));
-    if (seen) {
-        printf("INFO X3 low-memory requester open, Retry at %d,%d\n", x, y);
-        snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
-        SystemTags((CONST_STRPTR)cmd, TAG_DONE);
-    } else printf("FAIL X3 no low-memory requester\n");
-    for (i = 0; sent && i < 100 && !GetMsg(reply); i++) Delay(10);   /* the desktop's answer, 20 s at most */
-    if (!sent) printf("FAIL X3 no GFOPENBENCH port\n");
-    else if (i < 100) printf("INFO X3 the desktop answered the open: ok %ld\n", (long)m->ok);
-    else printf("FAIL X3 the desktop didn't answer the open\n");
-    if (!sent || i < 100) { FreeVec(m); DeleteMsgPort(reply); }   /* else left: the desktop may still reply */
-    return seen ? 0 : 5;
 }
 
 /* ---- launching (row 6's launcher; the LAUNCH mode is rows/LAUNCH.c, STARTUP CHECK uses these too) ---- */
@@ -1849,6 +1585,8 @@ int wbt_put_icon_stack(const char *path, long type, char **tooltypes, long stack
 unsigned long wbt_stack_wanted(void) { return stack_wanted(); }
 int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack) { return check_launchrec(file, args_too, want_stack); }
 int wbt_tools_item_within(const char *item, int want, int ticks) { return tools_item_within(item, want, ticks); }
+unsigned long wbt_icon_stack(const char *path) { return icon_stack(path); }
+void wbt_check_stack_alone(const char *file, unsigned long want) { check_stack_alone(file, want); }
 void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
@@ -1884,8 +1622,6 @@ int main(int argc, char **argv)
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
-    else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
-    else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
