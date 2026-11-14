@@ -272,6 +272,15 @@ static void which_plan(void)
         wbgap_which_seen(0, 0, -1, seen, sizeof seen);
         CHECK(strstr(seen, "not asked"), "no desktop window: \"%s\"", seen);
     }
+    {
+        /* Talkie's lab, 14 November 2026: the bar strip (0,0 1920x24, flags 0a020940) came first, then the
+         * desktop (0,24 1920x1056, flags 0a203b40); a dock window (no backdrop) and a plain window are left out */
+        long w[4] = {1920, 1920, 904, 292}, h[4] = {24, 1056, 89, 157};
+        unsigned long f[4] = {0x0a020940UL, 0x0a203b40UL, 0x0a200800UL, 0x08200840UL};
+        CHECK(wbgap_pick_desk(w, h, f, 4) == 1, "the desktop, not the bar strip before it (%d)", wbgap_pick_desk(w, h, f, 4));
+        CHECK(wbgap_pick_desk(w + 2, h + 2, f + 2, 2) == -1, "no backdrop Workbench window: -1");
+        CHECK(wbgap_pick_desk(w, h, f, 0) == -1, "no windows: -1");
+    }
     CHECK(wbgap_find("A8c") >= 0 && wbgap_row(wbgap_find("A8c"))->mode && !strcmp(wbgap_row(wbgap_find("A8c"))->mode, "API"),
           "A8c's line comes from API");
 }
