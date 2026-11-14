@@ -2253,7 +2253,8 @@ static int drag_settle(struct Window *w, const unsigned long *before, int gw, in
     return wbgap_diff_box(before, after, gw, gh, DROP_STEP, box);
 }
 
-/* an object made in the drawer dir (its window w open) at x,y and told to the desktop; its box found as d's is */
+/* an object made in the drawer dir (its window w open; a volume's root, "RAM:", too) at x,y and told to the desktop;
+ * its box found as d's is. A drawer or a trashcan (WBGARBAGE) is made as a drawer */
 static int drag_make(struct Window *w, const char *dir, const char *name, LONG type, int x, int y, long box[4])
 {
     static unsigned long before[DROP_GW * DROP_GH];
@@ -2262,8 +2263,8 @@ static int drag_make(struct Window *w, const char *dir, const char *name, LONG t
     BPTR l;
     int gw, gh;
     drop_grab(w, before, &gw, &gh);
-    snprintf(path, sizeof path, "%s/%s", dir, name);
-    if (type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+    snprintf(path, sizeof path, "%s%s%s", dir, *dir && dir[strlen(dir) - 1] == ':' ? "" : "/", name);   /* "RAM:" too */
+    if (type == WBDRAWER || type == WBGARBAGE) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
     else write_file(path, "x\n");
     if ((o = GetDefDiskObject(type))) {
         o->do_CurrentX = x;
