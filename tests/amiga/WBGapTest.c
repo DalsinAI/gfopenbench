@@ -838,6 +838,36 @@ static int switch_order(struct Screen *s, unsigned long *ids, int cap)
     return n;
 }
 
+/* A window that came or went across the key: its title, so a FAIL says whose it was. The address is looked
+ * for among the screen's windows under LockIBase, so one that went is only named as gone. */
+static void switch_name_change(struct Screen *s, const unsigned long *before, int nb, const unsigned long *after,
+                               int na, const char *row)
+{
+    int i, j;
+    for (i = 0; i < na; i++) {
+        struct Window *w;
+        char title[64];
+        int ww = 0, wh = 0, wx = 0, wy = 0;
+        unsigned long fl = 0;
+        ULONG lock;
+        for (j = 0; j < nb && before[j] != after[i]; j++) ;
+        if (j < nb) continue;
+        title[0] = 0;
+        lock = LockIBase(0);        /* copied out under the lock; printed after it (no DOS under LockIBase) */
+        for (w = s->FirstWindow; w && (unsigned long)w != after[i]; w = w->NextWindow) ;
+        if (w) {
+            if (w->Title) snprintf(title, sizeof title, "%s", (const char *)w->Title);
+            ww = w->Width; wh = w->Height; wx = w->LeftEdge; wy = w->TopEdge; fl = w->Flags;
+        }
+        UnlockIBase(lock);
+        printf("INFO %s came: \"%s\" %dx%d at %d,%d, flags $%08lx\n", row, title, ww, wh, wx, wy, fl);
+    }
+    for (i = 0; i < nb; i++) {
+        for (j = 0; j < na && after[j] != before[i]; j++) ;
+        if (j == na) printf("INFO %s went: the window at %d from the front\n", row, i);
+    }
+}
+
 static int switch_step(struct Screen *s, int back)
 {
     unsigned long before[MAXWINS], after[MAXWINS], active;
@@ -855,6 +885,7 @@ static int switch_step(struct Screen *s, int back)
     UnlockIBase(lock);
     r = wbgap_switch_judge(back, before, nb, after, na, active, why, sizeof why);
     printf("INFO %s %d windows; %s\n", row, nb, r == WBGAP_PASS ? "as wanted" : why);
+    if (na != nb) switch_name_change(s, before, nb, after, na, row);
     return r;
 }
 
