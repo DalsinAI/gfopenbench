@@ -150,6 +150,10 @@ static void test_shift(void)
     {
         static const int sel[] = {OL_K_PROJECT, OL_K_DRAWER};
         CHECK("a drawer clicked opens as itself", ol_shift_args(sel, 2, 1, &tool, args) == -1);
+        CHECK("kinds: WBTOOL a tool, WBPROJECT a project", ol_kind(3, 0) == OL_K_TOOL && ol_kind(4, 1) == OL_K_PROJECT);
+        CHECK("kinds: a disk, a drawer, the trash, a kick disk open as themselves", ol_kind(1, 0) == OL_K_DRAWER &&
+              ol_kind(2, 0) == OL_K_DRAWER && ol_kind(5, 0) == OL_K_DRAWER && ol_kind(7, 0) == OL_K_DRAWER);
+        CHECK("kinds: no icon, a directory a drawer, a file other", ol_kind(0, 1) == OL_K_DRAWER && ol_kind(0, 0) == OL_K_OTHER);
         CHECK("a click outside the selection is nothing", ol_shift_args(sel, 2, 5, &tool, args) == -1);
     }
 }

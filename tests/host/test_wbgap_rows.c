@@ -67,8 +67,30 @@ static void every_id(void)
           "A8, C2 and I12 are made of parts");
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
     CHECK(wbgap_find("D5r") == wbgap_find("D5") + 1 && wbgap_row(wbgap_find("D5r"))->how == WBGAP_AUTO
-          && !strcmp(wbgap_row(wbgap_find("D5r"))->mode, "WBGapRamFirst.rexx"),
-          "D5r, RAM Disk first on the column, is D5's automatic part, read by WBGapRamFirst.rexx");
+          && !strcmp(wbgap_row(wbgap_find("D5r"))->mode, "DISKS") && !wbgap_row(wbgap_find("D5r"))->parent
+          && !wbgap_has_parts(wbgap_find("D5")),
+          "D5r, RAM Disk first on the column, is a row of its own after D5, checked by DISKS");
+    {   /* wbgap_ram_first: "<left> <top> <width> <name>" a line */
+        char top[40];
+        CHECK(wbgap_ram_first("8 20 64 Ram Disk\n8 100 64 System\n8 180 64 Work\n", "Ram Disk", top, sizeof top) == 1
+              && !strcmp(top, "Ram Disk"), "RAM Disk at the column's top: PASS");
+        CHECK(wbgap_ram_first("8 100 64 Ram Disk\n8 20 64 System\n", "Ram Disk", top, sizeof top) == 0
+              && !strcmp(top, "System"), "System above it: FAIL, naming System");
+        CHECK(wbgap_ram_first("8 100 64 Ram Disk\n300 10 64 Games\n", "Ram Disk", top, sizeof top) == 1,
+              "a disk further right, higher up, is another column");
+        CHECK(wbgap_ram_first("12 100 64 Ram Disk\n40 10 64 USB0\n", "Ram Disk", top, sizeof top) == 0,
+              "a disk less than an icon's width right is in the column");
+        CHECK(wbgap_ram_first("8 20 64 RAM DISK\r\n8 90 64 Work\n", "Ram Disk", top, sizeof top) == 1,
+              "case not minded, CR and blanks ignored");
+        CHECK(wbgap_ram_first("8 20 64 Ram\n", "Ram Disk", top, sizeof top) == 0, "a shorter name isn't it");
+        CHECK(wbgap_ram_first("8 20 64 Work\n8 20 64 Ram Disk\n", "Ram Disk", top, sizeof top) == 0,
+              "a tie on the top edge: the first read wins");
+        CHECK(wbgap_ram_first("", "Ram Disk", top, sizeof top) == -1 && wbgap_ram_first(NULL, "Ram Disk", top, sizeof top) == -1,
+              "no disks read: -1");
+        CHECK(wbgap_ram_first("junk\n8 20 64 Ram Disk\n", "Ram Disk", top, sizeof top) == 1, "a line it can't read is passed over");
+        CHECK(wbgap_ram_first("8 20 4 Ram Disk\n20 10 4 Work\n", "Ram Disk", top, sizeof top) == 0,
+              "a width under 16 counts as 16");
+    }
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
     CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
@@ -106,6 +128,50 @@ static void backdrop_plan(void)
           "a kept copy is put back");
     CHECK(wbgap_backdrop_done(0, 1) == WBGAP_BD_DELETE, "made by SETUP: deleted");
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
+}
+
+/* D5: the RAM Disk's icon among the desktop's, as WBGapRoot.rexx writes them */
+static void ramdisk_plan(void)
+{
+    char v[32];
+    const char *root = "DISK System\nDISK Ram Disk\nDRAWER WBGapI\nTOOL LaunchT\n";
+    wbgap_volume_name("Ram Disk:", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "NameFromLock's \"Ram Disk:\": the volume \"%s\"", v);
+    wbgap_volume_name("Ram Disk:T/x", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "anything after the colon dropped");
+    wbgap_volume_name("A very long volume name:", v, 7);
+    CHECK(!strcmp(v, "A very"), "cut to the room given: \"%s\"", v);
+    wbgap_volume_name(NULL, v, sizeof v);
+    CHECK(!v[0], "no path: empty");
+    CHECK(wbgap_root_has_disk(root, "Ram Disk"), "the RAM Disk's icon on the desktop");
+    CHECK(wbgap_root_has_disk(root, "RAM DISK") && wbgap_root_has_disk("disk ram disk", "Ram Disk"), "case not minded");
+    CHECK(wbgap_root_has_disk("DISK Ram Disk\r\n", "Ram Disk") && wbgap_root_has_disk("DISK Ram Disk  \n", "Ram Disk"),
+          "a line's CR and trailing blanks don't count");
+    CHECK(!wbgap_root_has_disk("DISK System\nDRAWER WBGapI\n", "Ram Disk"), "no RAM Disk icon");
+    CHECK(!wbgap_root_has_disk("DRAWER Ram Disk\n", "Ram Disk"), "a drawer of that name isn't the disk");
+    CHECK(!wbgap_root_has_disk("DISK Ram Disk 2\n", "Ram Disk") && !wbgap_root_has_disk("DISK Ram\n", "Ram Disk"),
+          "a longer or shorter name isn't it");
+    CHECK(!wbgap_root_has_disk("", "Ram Disk") && !wbgap_root_has_disk(root, "") && !wbgap_root_has_disk(NULL, "Ram Disk"),
+          "nothing read, or no name: no");
+}
+
+/* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
+static void which_plan(void)
+{
+    long xy[2];
+    char why[96];
+    wbgap_which_point(4, 11, 20, 10, xy);
+    CHECK(xy[0] == 28 && xy[1] == 25, "the icon's image's top-left + 4, from the window's corner (%ld,%ld)", xy[0], xy[1]);
+    CHECK(wbgap_which_judge(2, "w", "w", 1, why, sizeof why) == WBGAP_PASS && !why[0], "WBO_ICON \"w\", WBO_DRAWER: PASS");
+    CHECK(wbgap_which_judge(0, "", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "type 0"),
+          "WBO_NONE everywhere (no desktop's answer): FAIL, \"%s\"", why);
+    CHECK(wbgap_which_judge(1, "", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "on the icon"), "the drawer, not the icon: FAIL");
+    CHECK(wbgap_which_judge(2, "x", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "\"x\""), "another icon's name: FAIL");
+    CHECK(wbgap_which_judge(2, NULL, "w", 1, why, sizeof why) == WBGAP_FAIL, "no name given back: FAIL");
+    CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty corner"),
+          "the empty corner not the drawer: FAIL");
+    CHECK(wbgap_find("A8c") >= 0 && wbgap_row(wbgap_find("A8c"))->mode && !strcmp(wbgap_row(wbgap_find("A8c"))->mode, "API"),
+          "A8c's line comes from API");
 }
 
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
@@ -270,6 +336,8 @@ int main(int argc, char **argv)
     launch_args();
     backdrop_plan();
     i11_lines();
+    ramdisk_plan();
+    which_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);

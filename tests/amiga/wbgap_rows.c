@@ -102,7 +102,7 @@ static const struct wbgap_row rows[] = {
     {"A8", NULL, A, NULL, "the object calls"},
     {"A8a", "A8", A, API, "MakeWorkbenchObjectVisibleA"},
     {"A8b", "A8", A, API, "ChangeWorkbenchSelectionA"},
-    {"A8c", "A8", A, NULL, "WhichWorkbenchObjectA"},
+    {"A8c", "A8", A, API, "WhichWorkbenchObjectA"},
     {"A9", NULL, A, API, "WBInfo"},
     {"A10", NULL, A, NULL, "LoadWB switches as 3.2.3 (13 Nov)"},
     {"A10a", "A10", A, "STARTUP CHECK", "the switches GFOpenBench took (ENV:GFOpenBench/LoadWB) are the Startup-Sequence's"},
@@ -123,8 +123,8 @@ static const struct wbgap_row rows[] = {
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
-    {"D5", NULL, A, NULL, "RAM Disk icon"},
-    {"D5r", "D5", A, "WBGapRamFirst.rexx", "RAM Disk first in the desktop's volume column (14 Nov)"},
+    {"D5", NULL, A, "DISKS", "RAM Disk icon"},
+    {"D5r", NULL, A, "DISKS", "RAM Disk first in the desktop's volume column (14 Nov)"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
     {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},
@@ -322,4 +322,115 @@ int wbgap_backdrop_done(int have_was, int have_made)
 {
     if (have_was) return WBGAP_BD_RESTORE;
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
+}
+
+void wbgap_volume_name(const char *path, char *out, unsigned cap)
+{
+    unsigned k = 0;
+    if (!cap) return;
+    while (path && path[k] && path[k] != ':' && k + 1 < cap) { out[k] = path[k]; k++; }
+    out[k] = 0;
+}
+
+static int same_nocase(const char *a, const char *b, size_t n)
+{
+    size_t i;
+    for (i = 0; i < n; i++) {
+        int x = (unsigned char)a[i], y = (unsigned char)b[i];
+        if (x >= 'a' && x <= 'z') x -= 32;
+        if (y >= 'a' && y <= 'z') y -= 32;
+        if (x != y) return 0;
+    }
+    return 1;
+}
+
+int wbgap_root_has_disk(const char *list, const char *vol)
+{
+    size_t vn = vol ? strlen(vol) : 0;
+    const char *p = list;
+    if (!list || !vn) return 0;
+    while (*p) {
+        const char *e = p, *name;
+        size_t n;
+        while (*e && *e != '\n') e++;
+        n = (size_t)(e - p);
+        while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 5 && same_nocase(p, "DISK ", 5)) {
+            name = p + 5;
+            if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    return 0;
+}
+
+/* D5r: pos holds the desktop's disk icons, "<left> <top> <width> <name>" a line (WBGapRoot.rexx's
+ * RAM:wbgap-root-pos). The column is the disks whose left edge is less than one icon's width (16 at least) right of
+ * the leftmost; its topmost (the first read wins a tie) must be vol, case not minded. top gets that icon's name.
+ * 1: RAM Disk first; 0: another first; -1: no disk read. */
+int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap)
+{
+    long minx = 0, cw = 16, besty = 0;
+    int pass, have = 0;
+    const char *p;
+    size_t vn = vol ? strlen(vol) : 0;
+    if (cap) top[0] = 0;
+    if (!pos) return -1;
+    for (p = pos; *p; ) {                                   /* the leftmost disk and its width */
+        long x, y, w;
+        int used = 0;
+        if (sscanf(p, "%ld %ld %ld %n", &x, &y, &w, &used) == 3 && used) {
+            if (!have || x < minx) { minx = x; cw = w < 16 ? 16 : w; }
+            have = 1;
+        }
+        while (*p && *p != '\n') p++;
+        if (*p) p++;
+    }
+    if (!have) return -1;
+    have = 0;
+    for (p = pos; *p; ) {                                   /* the column's topmost */
+        long x, y, w;
+        int used = 0;
+        const char *e = p;
+        while (*e && *e != '\n') e++;
+        if (sscanf(p, "%ld %ld %ld %n", &x, &y, &w, &used) == 3 && used && x - minx < cw && (!have || y < besty)) {
+            size_t n = (size_t)(e - (p + used));
+            while (n && (p[used + n - 1] == '\r' || p[used + n - 1] == ' ')) n--;
+            if (cap) {
+                if (n >= cap) n = cap - 1;
+                memcpy(top, p + used, n);
+                top[n] = 0;
+            }
+            besty = y;
+            have = 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    pass = vn && strlen(top) == vn && same_nocase(top, vol, vn);
+    return pass;
+}
+
+void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
+{
+    xy[0] = bl + cx + 4;
+    xy[1] = bt + cy + 4;
+}
+
+int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
+                      unsigned cap)
+{
+    if (on_icon != 2) {
+        snprintf(why, cap, "on the icon: type %lu, not WBO_ICON", on_icon);
+        return WBGAP_FAIL;
+    }
+    if (!name || !want || strcmp(name, want)) {
+        snprintf(why, cap, "on the icon: named \"%s\", not \"%s\"", name ? name : "", want ? want : "");
+        return WBGAP_FAIL;
+    }
+    if (on_empty != 1) {
+        snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
 }

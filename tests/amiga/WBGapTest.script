@@ -1,5 +1,5 @@
 ; WBGapTest.script: amicradle-teams designs/OPENBENCH-GAPS-20261112.md's automatic rows, in a lab, on
-; GFOpenBench and on OS 3.2.3's Workbench alike. Needs WBGapTest, WBGapRexx.rexx, WBGapLayout.rexx, WBGapDesk.rexx, WBGapRamFirst.rexx,
+; GFOpenBench and on OS 3.2.3's Workbench alike. Needs WBGapTest, WBGapRexx.rexx, WBGapLayout.rexx, WBGapDesk.rexx,
 ; WBGapCheck.script and DragTest in SYS:T/WBGap (from build.sh's out dir). MENUS reads with RAM:WBGap's
 ; drawer window open, so the drawer menus are in it. It prints PASS, FAIL, SKIP and INFO lines, and saves them to RAM:wbgap-results.
 ; RAM:wbgap-report is the same as one PASS, FAIL or SKIP line per gap id (WBGapTest REPORT).
@@ -24,6 +24,8 @@ If NOT EXISTS SYS:Rexxc/rx
   Echo "SKIP R1b no rx" >>RAM:wbgap-results
   Echo "SKIP R2b no rx" >>RAM:wbgap-results
   Echo "SKIP L1a no rx" >>RAM:wbgap-results
+  Echo "SKIP D5 no rx" >>RAM:wbgap-results
+  Echo "SKIP D5r no rx" >>RAM:wbgap-results
 Else
   Run >NIL: SYS:System/RexxMast >NIL:
   Wait 1
@@ -34,7 +36,8 @@ Else
   SYS:Rexxc/rx SYS:T/WBGap/WBGapF3.rexx >>RAM:wbgap-results
   WBGapTest LAYOUT >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapLayout.rexx >>RAM:wbgap-results
-  SYS:Rexxc/rx SYS:T/WBGap/WBGapRamFirst.rexx >>RAM:wbgap-results
+  SYS:Rexxc/rx SYS:T/WBGap/WBGapRoot.rexx >>RAM:wbgap-results
+  WBGapTest DISKS >>RAM:wbgap-results
 EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results

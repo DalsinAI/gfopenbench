@@ -104,6 +104,16 @@ void *ol_port_locked(const ol_port_ops *ops, void *ctx, int tries)
     return 0;
 }
 
+int ol_kind(int do_type, int is_dir)
+{
+    switch (do_type) {
+    case 0: return is_dir ? OL_K_DRAWER : OL_K_OTHER;
+    case 3: return OL_K_TOOL;                    /* WBTOOL */
+    case 4: return OL_K_PROJECT;                 /* WBPROJECT */
+    default: return OL_K_DRAWER;                 /* WBDISK, WBDRAWER, WBGARBAGE and the rest: opens as itself */
+    }
+}
+
 static const char *const ol_words[] = { "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SIMPLEGELS" };
 #define OL_NWORDS (int)(sizeof ol_words / sizeof ol_words[0])
 

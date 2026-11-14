@@ -6,7 +6,7 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9 (A8c: WhichWorkbenchObjectA on RAM:WBGapW), N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
  *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
@@ -17,6 +17,8 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
+ *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons, and is first in the volume column,
+ *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -589,6 +591,48 @@ static int do_api(void)
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) pass("A8b"); else printf("FAIL A8b ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)\n", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), fails++;
+    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, snapshotted at 20,10, asked about on its image and on the
+         * window's empty bottom-right corner (WBO_ICON named "w", then WBO_DRAWER) */
+#ifdef WBOBJA_Name
+        BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW");
+        struct DiskObject *d;
+        struct Window *ww;
+        int how;
+        if (l) UnLock(l);
+        put_icon("RAM:WBGapW", WBDRAWER, NULL);
+        write_file("RAM:WBGapW/w", "w\n");
+        if ((d = GetDefDiskObject(WBPROJECT))) {
+            d->do_CurrentX = 20;
+            d->do_CurrentY = 10;
+            PutDiskObject((CONST_STRPTR)"RAM:WBGapW/w", d);
+            FreeDiskObject(d);
+        }
+        if (!(ww = open_drawer("RAM:WBGapW", "WBGapW", 10, &how))) fail("A8c", "RAM:WBGapW's window didn't open");
+        else {
+            char name[64] = "", why[96];
+            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, t1 = WBO_NONE, t2 = WBO_NONE;
+            long xy[2];
+            struct TagItem tg1[] = {{WBOBJA_Type, (ULONG)&t1}, {WBOBJA_Name, (ULONG)name}, {WBOBJA_NameSize, sizeof name},
+                                    {TAG_DONE, 0}};
+            struct TagItem tg2[] = {{WBOBJA_Type, (ULONG)&t2}, {TAG_DONE, 0}};
+            Delay(25);
+            wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
+            on_empty = WhichWorkbenchObjectA(ww, ww->Width - ww->BorderRight - 6, ww->Height - ww->BorderBottom - 6, tg2);
+            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\"); on the empty corner: %lu (type %lu)\n", xy[0], xy[1],
+                   (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
+            if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
+            else fail("A8c", why);
+            CloseWorkbenchObjectA((STRPTR)"RAM:WBGapW", NULL);
+        }
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW/w");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW.info");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW");
+#else
+        skip("A8c", "built without workbench.h's WBOBJA_ tags");
+#endif
+    }
     ok = CloseWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6b"); else printf("FAIL A6b CloseWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     FreeDiskObject(dob);
@@ -1051,6 +1095,57 @@ static int do_big(void)
     /* closed again: left open over the desktop's left-out icons, the next rows' clicks landed on its file icons and
      * stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
     CloseWorkbenchObjectA((STRPTR)"RAM:WBGapBig", NULL);
+    return fails ? 5 : 0;
+}
+
+static long read_all(const char *path, char *buf, long n);
+
+/* ---- D5: the RAM Disk's icon on the desktop ----
+ * WBGapRoot.rexx wrote the desktop's icons to RAM:wbgap-root ("<type> <name>" a line); RAM:'s volume name comes from
+ * NameFromLock ("Ram Disk:"). */
+static int do_disks(void)
+{
+    static char list[8192];
+    char path[108], vol[40];
+    BPTR l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ);
+    long n;
+    if (!l || !NameFromLock(l, (STRPTR)path, sizeof path)) {
+        if (l) UnLock(l);
+        fail("D5", "RAM: has no volume name");
+        fail("D5r", "RAM: has no volume name");
+        return 5;
+    }
+    UnLock(l);
+    wbgap_volume_name(path, vol, sizeof vol);
+    if ((n = read_all("RAM:wbgap-root", list, sizeof list)) < 0) {
+        skip("D5", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
+        skip("D5r", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
+        return 0;
+    }
+    printf("INFO D5 RAM: is \"%s\"; %ld bytes of the desktop's icons\n", vol, n);
+    if (wbgap_root_has_disk(list, vol)) pass("D5");
+    else {
+        char why[128];
+        if (strstr(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
+        else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
+        fail("D5", why);
+    }
+    DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
+    /* D5r: RAM Disk first in the volume column (Dale, 11 Nov), from the disks' places WBGapRoot.rexx wrote */
+    if ((n = read_all("RAM:wbgap-root-pos", list, sizeof list)) < 0)
+        skip("D5r", "the disks' places not read (WBGapRoot.rexx)");
+    else {
+        char top[40], why[128];
+        int r = wbgap_ram_first(list, vol, top, sizeof top);
+        printf("INFO D5r the column's top disk is \"%s\"\n", top);
+        if (r > 0) pass("D5r");
+        else if (r < 0) fail("D5r", "no disk icon's place read");
+        else {
+            snprintf(why, sizeof why, "the column starts with \"%s\", not \"%s\"", top, vol);
+            fail("D5r", why);
+        }
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-root-pos");
+    }
     return fails ? 5 : 0;
 }
 
@@ -1667,6 +1762,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
+    else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
