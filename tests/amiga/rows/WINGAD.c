@@ -109,6 +109,32 @@ static void wg_clean(void)
     }
 }
 
+/* The drawer's window opened and placed at the top-left, WG_W x WG_H; a second go 10 s later when the first fails
+ * (the first run after a boot: the desktop can take longer than open_drawer's 10 s, and a run 10 s later passed).
+ * Without it, NULL and why says which step failed, open or place. */
+static struct Window *wg_open(int *how, char *why, size_t n)
+{
+    struct Window *w;
+    int go;
+    for (go = 0; go < 2; go++) {
+        if (go) {
+            printf("INFO W1 %s, once: again in 10 s\n", why);
+            wg_clean();
+            Delay(500);
+            wbt_drawer(WG_DIR, "a");
+        }
+        if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, how))
+            snprintf(why, n, WG_DIR "'s window didn't open in 10 s");
+        else if (!(w = wbt_place("WBGapW", NULL, WG_W, WG_H)))
+            snprintf(why, n, WG_DIR "'s window opened but couldn't be sized %dx%d and put at the top-left",
+                     WG_W, WG_H);
+        else
+            return w;
+    }
+    if (strlen(why) + 24 < n) strcat(why, ", and again 10 s later");
+    return NULL;
+}
+
 int wbt_wingad(int argc, char **argv)
 {
     struct wbgap_wingad m;
@@ -123,8 +149,8 @@ int wbt_wingad(int argc, char **argv)
     if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) { wbt_skip("W1", "no layers.library"); return 0; }
     wg_clean();
     wbt_drawer(WG_DIR, "a");
-    if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, &how) || !(w = wbt_place("WBGapW", NULL, WG_W, WG_H))) {
-        wbt_fail("W1", WG_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
+    if (!(w = wg_open(&how, why, sizeof why))) {
+        wbt_fail("W1", why);
         goto out;
     }
     Delay(50);
