@@ -276,12 +276,29 @@ static void print_empty(void)
     CHECK(skips == wbgap_row_count(), "nothing run: every row a SKIP (%d of %d)", skips, wbgap_row_count());
 }
 
+static void x1_split(void)
+{
+    char b[128];
+    wbgap_x1_line(b, sizeof b, 25, 48, 2);
+    CHECK(!strcmp(b, "INFO X1 split: window open at 0.50 s, last change at 0.96 s, 2 changes: opening"), "%s", b);
+    wbgap_x1_line(b, sizeof b, 60, 846, 37);
+    CHECK(strstr(b, "1.20 s") && strstr(b, "16.92 s") && strstr(b, ": redrawing"), "%s", b);
+    wbgap_x1_line(b, sizeof b, 60, 846, 3);
+    CHECK(strstr(b, ": drawing"), "%s", b);
+    wbgap_x1_line(b, sizeof b, 500, 100, 0);
+    CHECK(strstr(b, "last change at 10.00 s") && strstr(b, ": opening"), "no change after the window: the open time; %s", b);
+    wbgap_x1_line(b, 12, 60, 846, 3);
+    CHECK(strlen(b) == 11, "cut to the buffer");
+    wbgap_x1_line(NULL, 0, 1, 2, 3);
+}
+
 int main(int argc, char **argv)
 {
     list_shape();
     every_id();
     if (argc > 1) from_doc(argv[1]);
     lines();
+    x1_split();
     wildcard();
     launch_args();
     backdrop_plan();

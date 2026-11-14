@@ -68,4 +68,10 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
+/* X1's split (14 November 2026, from 0.96 s on 13 Nov to 17 s): where the time goes. Ticks (50 a second) from the
+ * open call to the window being there, and to the inside's last change; changes: how often the inside changed while
+ * it was watched (every 0.2 s). The INFO line in out (cap bytes), with what it points at: "opening" (the window took
+ * most of it), "redrawing" (the inside changed 10 times or more: drawn again and again) or "drawing". */
+void wbgap_x1_line(char *out, unsigned cap, long open_ticks, long last_ticks, int changes);
+
 #endif

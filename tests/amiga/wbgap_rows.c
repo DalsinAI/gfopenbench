@@ -347,3 +347,14 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     if (cap) why[0] = 0;
     return WBGAP_PASS;
 }
+
+void wbgap_x1_line(char *out, unsigned cap, long open_ticks, long last_ticks, int changes)
+{
+    const char *at;
+    if (open_ticks < 0) open_ticks = 0;
+    if (last_ticks < open_ticks) last_ticks = open_ticks;
+    at = open_ticks * 2 > last_ticks ? "opening" : changes >= 10 ? "redrawing" : "drawing";
+    if (!out || !cap) return;
+    snprintf(out, cap, "INFO X1 split: window open at %ld.%02ld s, last change at %ld.%02ld s, %d changes: %s",
+             open_ticks / 50, (open_ticks % 50) * 2, last_ticks / 50, (last_ticks % 50) * 2, changes, at);
+}

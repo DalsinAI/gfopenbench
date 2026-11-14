@@ -1067,10 +1067,11 @@ static int do_big(void)
 {
     char path[64];
     struct Window *w;
-    struct DateStamp a, b;
+    struct DateStamp a, b, t_open, t_last;
     BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapBig");
-    int i, how;
+    int i, how, changes = 0;
     long ticks;
+    char split[128];
     if (l) UnLock(l);
     put_icon("RAM:WBGapBig", WBDRAWER, NULL);
     for (i = 0; i < 1000; i++) {
@@ -1081,14 +1082,25 @@ static int do_big(void)
     DateStamp(&a);
     w = open_drawer("RAM:WBGapBig", "WBGapBig", 60, &how);
     if (!w) { fail("X1", "RAM:WBGapBig's window didn't open in 60 s"); return 10; }
+    DateStamp(&t_open);
+    t_last = t_open;
     {   /* drawn: the inside stops changing for a second */
         ULONG last = inside_sum(w), now;
         int still = 0, t;
-        for (t = 0; t < 600 && still < 5; t++) { Delay(10); now = inside_sum(w); still = now == last ? still + 1 : 0; last = now; }
+        for (t = 0; t < 600 && still < 5; t++) {
+            Delay(10);
+            now = inside_sum(w);
+            if (now == last) still++;
+            else { still = 0; changes++; DateStamp(&t_last); }
+            last = now;
+        }
     }
     DateStamp(&b);
-    ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick) - 50;
+#define X1_TICKS(p, q) (((q).ds_Days - (p).ds_Days) * 24L * 60 * 3000 + ((q).ds_Minute - (p).ds_Minute) * 3000L + ((q).ds_Tick - (p).ds_Tick))
+    ticks = X1_TICKS(a, b) - 50;
     printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
+    wbgap_x1_line(split, sizeof split, X1_TICKS(a, t_open), X1_TICKS(a, t_last), changes);
+    printf("%s\n", split);
     if (ticks < 10 * 50) pass("X1"); else fail("X1", "over 10 s");
     /* closed again: left open over the desktop's left-out icons, the next rows' clicks landed on its file icons and
      * stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
