@@ -69,6 +69,8 @@ int main(void)
     room = 1;
     n = 0;
     CHECK(ob_rc_fill(&c, "Work:", add, NULL, msg, sizeof msg) == 1 && n == 1);
+    /* the window holds 256 rows: past that the status line still counts every kept file, and says how many show */
+    CHECK(!strcmp(msg, "2 deleted files kept on Work:, the newest 1 shown. Pick one, then Put back."));
     room = 8;
 
     puts("Put back: where it was; a name in use gets another");
