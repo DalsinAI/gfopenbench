@@ -72,8 +72,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I6t", "I6", A, NULL, "onto its volume's own Trashcan: filed there with a note of where it came from (GFOS, 14 Nov)"},
     {"I6p", "I6", A, NULL, "put back from the Trashcan to where it came from (GFOS, gfopenfiles.library, 14 Nov)"},
     {"I7", NULL, A, "DRAGFILE", "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
-    {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
-    {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
+    {"I8", NULL, A, NULL, "drag onto an AppIcon"},
+    {"I9", NULL, A, NULL, "drag onto an AppWindow"},
     {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
@@ -553,6 +553,16 @@ void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, un
     snprintf(out, cap, "%s, %s", drawer, desk);
 }
 
+int wbgap_pick_desk(const long *w, const long *h, const unsigned long *flags, int n)
+{
+    int i, best = -1;
+    for (i = 0; i < n; i++) {
+        if ((flags[i] & 0x2000100UL) != 0x2000100UL || w[i] <= 0 || h[i] <= 0) continue;
+        if (best < 0 || w[i] * h[i] > w[best] * h[best]) best = i;
+    }
+    return best;
+}
+
 static int boxes_meet(const long a[4], const long b[4])
 {
     return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
@@ -604,53 +614,6 @@ int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *n
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
-}
-
-int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
-                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
-                     unsigned cap)
-{
-    size_t dn = dir ? strlen(dir) : 0, wn = want_dir ? strlen(want_dir) : 0;
-    if (!got) {
-        snprintf(why, cap, "no AppMessage came");
-        return WBGAP_FAIL;
-    }
-    if (type != want_type || id != want_id) {
-        snprintf(why, cap, "an AppMessage of type %ld id %lu, not type %ld id %lu", type, id, want_type, want_id);
-        return WBGAP_FAIL;
-    }
-    if (nargs < 1) {
-        snprintf(why, cap, "the AppMessage has no arguments (am_NumArgs %ld)", nargs);
-        return WBGAP_FAIL;
-    }
-    if (!name || !want_name || strcmp(name, want_name)) {
-        snprintf(why, cap, "its first argument is \"%s\", not \"%s\"", name ? name : "", want_name ? want_name : "");
-        return WBGAP_FAIL;
-    }
-    if (!wn || dn <= wn || strcmp(dir + dn - wn, want_dir) || (dir[dn - wn - 1] != ':' && dir[dn - wn - 1] != '/')) {
-        snprintf(why, cap, "its first argument's drawer is \"%s\", not ...%s", dir ? dir : "", want_dir ? want_dir : "");
-        return WBGAP_FAIL;
-    }
-    if (cap) why[0] = 0;
-    return WBGAP_PASS;
-}
-
-int wbgap_parse_box(const char *text, long box[4])
-{
-    long b[4];
-    char *e;
-    const char *p = text;
-    int k;
-    if (!p) return 0;
-    for (k = 0; k < 4; k++) {
-        b[k] = strtol(p, &e, 10);
-        if (e == p) return 0;
-        p = e;
-    }
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-    if (*p || b[2] < 1 || b[3] < 1) return 0;
-    memcpy(box, b, sizeof b);
-    return 1;
 }
 
 int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4])
