@@ -1,8 +1,8 @@
 /* ---- W1: a drawer window's size, zoom and depth gadgets ----
  * RAM:WBGapW (a snapshotted at 20,10) opened at the top-left, 400x300. A window of our own, "W1 cover", is opened
  * over the middle of it (clear of its gadgets) and left in front. Then, each with DragTest at the middle of the
- * window's own gadget (GTYP_SIZING, GTYP_WZOOM, GTYP_WDEPTH in its gadget list; with no Intuition zoom gadget, a
- * custom gadget of its own in the title bar is tried as the zoom):
+ * window's gadget (GTYP_SIZING, GTYP_WZOOM, GTYP_WDEPTH in its gadget list; a sizing gadget of the window's own
+ * counts, as Intuition sizes through it all the same):
  *   - the size gadget is dragged 80,60: the window must grow;
  *   - the zoom gadget is clicked: its size must change; clicked again: the size must come back;
  *   - the depth gadget is clicked: the window must come in front of the cover; again: go behind it.
@@ -53,21 +53,6 @@ static int wg_gadget(struct Window *w, UWORD type, long xy[2])
     struct Gadget *g;
     for (g = w->FirstGadget; g; g = g->NextGadget)
         if ((g->GadgetType & GTYP_SYSTYPEMASK) == type && ((g->GadgetType & GTYP_SYSGADGET) || type == GTYP_SIZING)) {
-            wg_middle(w, g, xy);
-            return 1;
-        }
-    return 0;
-}
-
-/* no Intuition zoom gadget: a gadget of the window's own in the title bar, right of the middle, that is none of the
- * system ones (a desktop that draws its own zoom button there): 1 and xy, or 0 */
-static int wg_own_zoom(struct Window *w, long xy[2])
-{
-    struct Gadget *g;
-    for (g = w->FirstGadget; g; g = g->NextGadget)
-        if (!(g->GadgetType & GTYP_SYSGADGET) && (g->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET &&
-            (g->Flags & GFLG_RELRIGHT) && !(g->Flags & GFLG_RELBOTTOM) && g->TopEdge + g->Height <= w->BorderTop &&
-            g->Width > 0 && g->Height > 0) {
             wg_middle(w, g, xy);
             return 1;
         }
@@ -151,16 +136,12 @@ int wbt_wingad(int argc, char **argv)
     /* zoom: clicked twice */
     m.zoom0[0] = w->Width;
     m.zoom0[1] = w->Height;
-    m.has_zoom = wg_gadget(w, GTYP_WZOOM, xy);
-    if (!m.has_zoom && (m.has_zoom = wg_own_zoom(w, xy)))
-        printf("INFO W1 no Intuition zoom gadget; the window's own gadget in its title bar at %ld,%ld tried as one\n",
-               xy[0], xy[1]);
-    if (m.has_zoom) {
+    if ((m.has_zoom = wg_gadget(w, GTYP_WZOOM, xy))) {
         wg_click(xy);
         if (!(w = wbt_find_window("WBGapW"))) { wbt_fail("W1", "the drawer's window went after the zoom click"); goto out; }
         m.zoom1[0] = w->Width;
         m.zoom1[1] = w->Height;
-        if (wg_gadget(w, GTYP_WZOOM, xy) || wg_own_zoom(w, xy)) wg_click(xy);   /* where it is now: a zoom moves it */
+        if (wg_gadget(w, GTYP_WZOOM, xy)) wg_click(xy);   /* where it is now: a zoom moves it */
         if (!(w = wbt_find_window("WBGapW"))) { wbt_fail("W1", "the drawer's window went after the zoom click"); goto out; }
         m.zoom2[0] = w->Width;
         m.zoom2[1] = w->Height;
