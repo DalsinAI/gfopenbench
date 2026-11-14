@@ -141,6 +141,59 @@ static void bar_plan(void)
     CHECK(!strcmp(wbgap_row(wbgap_find("B3"))->mode, "BAR"), "B3's line comes from BAR");
 }
 
+/* BIG's RAM:WBGapBig off the desktop before the rows that click it */
+static void clear_plan(void)
+{
+    long b[4];
+    wbgap_park_box(640, 512, 120, 60, b);
+    CHECK(b[0] == 520 && b[1] == 452 && b[2] == 120 && b[3] == 60, "parked in the bottom-right corner at its smallest");
+    CHECK(b[0] + b[2] == 640 && b[1] + b[3] == 512, "its edges on the screen's");
+    wbgap_park_box(320, 200, 400, 300, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 320 && b[3] == 200, "no bigger than the screen, never off it");
+    wbgap_park_box(640, 480, 0, 0, b);
+    CHECK(b[2] == 1 && b[3] == 1 && b[0] == 639 && b[1] == 479, "no minimum given: one pixel, still on the screen");
+    wbgap_park_box(0, 0, 10, 10, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 1 && b[3] == 1, "a screen of no size: nothing negative");
+    CHECK(wbgap_clear_result(1, 0) == WBGAP_CL_GONE && wbgap_clear_result(1, 1) == WBGAP_CL_GONE, "closed: gone");
+    CHECK(wbgap_clear_result(0, 1) == WBGAP_CL_PARKED, "still open but in the corner: parked");
+    CHECK(wbgap_clear_result(0, 0) == WBGAP_CL_STUCK, "still open where it was: stuck");
+    CHECK(wbgap_desk_clickable(WBGAP_CL_GONE) && wbgap_desk_clickable(WBGAP_CL_PARKED), "gone or parked: the desktop is clicked");
+    CHECK(!wbgap_desk_clickable(WBGAP_CL_STUCK), "stuck: no clicks (they'd land on its icons)");
+}
+
+/* D5: the RAM Disk's icon among the desktop's, as WBGapRoot.rexx writes them */
+static void ramdisk_plan(void)
+{
+    char v[32];
+    const char *root = "DISK System\nDISK Ram Disk\nDRAWER WBGapI\nTOOL LaunchT\n";
+    wbgap_volume_name("Ram Disk:", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "NameFromLock's \"Ram Disk:\": the volume \"%s\"", v);
+    wbgap_volume_name("Ram Disk:T/x", v, sizeof v);
+    CHECK(!strcmp(v, "Ram Disk"), "anything after the colon dropped");
+    wbgap_volume_name("A very long volume name:", v, 7);
+    CHECK(!strcmp(v, "A very"), "cut to the room given: \"%s\"", v);
+    wbgap_volume_name(NULL, v, sizeof v);
+    CHECK(!v[0], "no path: empty");
+    CHECK(wbgap_root_has_disk(root, "Ram Disk"), "the RAM Disk's icon on the desktop");
+    CHECK(wbgap_root_has_disk(root, "RAM DISK") && wbgap_root_has_disk("disk ram disk", "Ram Disk"), "case not minded");
+    CHECK(wbgap_root_has_disk("DISK Ram Disk\r\n", "Ram Disk") && wbgap_root_has_disk("DISK Ram Disk  \n", "Ram Disk"),
+          "a line's CR and trailing blanks don't count");
+    CHECK(wbgap_root_has_disk("DISK RAM Disk:\n", "Ram Disk") && wbgap_root_has_disk("DISK System:\nDISK RAM Disk: \r\n", "Ram Disk"),
+          "the port's \"RAM Disk:\" (a trailing colon, as Ivanova's lab gave) is the disk");
+    CHECK(!wbgap_root_has_disk("DISK RAM Disk::\n", "Ram Disk") && !wbgap_root_has_disk("DISK :\n", ""),
+          "only one colon is the port's");
+    CHECK(wbgap_has_nocase("DRAWER RAM DISK\n", "Ram Disk") && wbgap_has_nocase("x ram disk", "RAM Disk"),
+          "the hint's search: case not minded");
+    CHECK(!wbgap_has_nocase("DISK System\n", "Ram Disk") && !wbgap_has_nocase("Ram Dis", "Ram Disk") &&
+          !wbgap_has_nocase(NULL, "x") && !wbgap_has_nocase("x", ""), "the hint's search: not there, or nothing to look for");
+    CHECK(!wbgap_root_has_disk("DISK System\nDRAWER WBGapI\n", "Ram Disk"), "no RAM Disk icon");
+    CHECK(!wbgap_root_has_disk("DRAWER Ram Disk\n", "Ram Disk"), "a drawer of that name isn't the disk");
+    CHECK(!wbgap_root_has_disk("DISK Ram Disk 2\n", "Ram Disk") && !wbgap_root_has_disk("DISK Ram\n", "Ram Disk"),
+          "a longer or shorter name isn't it");
+    CHECK(!wbgap_root_has_disk("", "Ram Disk") && !wbgap_root_has_disk(root, "") && !wbgap_root_has_disk(NULL, "Ram Disk"),
+          "nothing read, or no name: no");
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -321,9 +374,10 @@ int main(int argc, char **argv)
     wildcard();
     launch_args();
     backdrop_plan();
+    clear_plan();
     i11_lines();
     bar_plan();
-
+    ramdisk_plan();
     which_plan();
     print_all();
     print_empty();

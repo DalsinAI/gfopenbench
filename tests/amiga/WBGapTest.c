@@ -20,6 +20,8 @@
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
  *                               its height: Reboot, Restart, Power off, and an Eject row for each USB stick mounted)
  *                               and closed with Esc; nothing in it is picked
+ *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
+ *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -431,6 +433,35 @@ static struct Window *open_drawer(const char *path, const char *title, int secs,
         Delay(5);
     }
     return NULL;
+}
+
+/* A drawer's window off the desktop before rows that click it (wbgap_rows.h): closed through workbench.library and
+ * waited for 5 s; still there, parked at its smallest in the screen's bottom-right corner and waited for 2 s more.
+ * An INFO line for row says which. WBGAP_CL_* */
+static int clear_drawer(const char *path, const char *title, const char *row)
+{
+    struct Window *w;
+    long box[4];
+    int t, at = 0, r;
+    if (!find_window(title)) return WBGAP_CL_GONE;
+    CloseWorkbenchObjectA((STRPTR)path, NULL);
+    for (t = 0; t < 50 && find_window(title); t++) Delay(5);
+    if ((w = find_window(title))) {
+        long mw = w->MinWidth ? w->MinWidth : w->BorderLeft + w->BorderRight + 40;
+        long mh = w->MinHeight ? w->MinHeight : w->BorderTop + w->BorderBottom + 20;
+        wbgap_park_box(w->WScreen->Width, w->WScreen->Height, mw, mh, box);
+        ChangeWindowBox(w, box[0], box[1], box[2], box[3]);
+        for (t = 0; t < 20; t++) {
+            Delay(5);
+            if (!(w = find_window(title))) break;
+            if (w->LeftEdge == box[0] && w->TopEdge == box[1] && w->Width == box[2] && w->Height == box[3]) { at = 1; break; }
+        }
+    }
+    r = wbgap_clear_result(!find_window(title), at);
+    printf("INFO %s %s's window %s\n", row, path,
+           r == WBGAP_CL_GONE ? "closed" : r == WBGAP_CL_PARKED ? "would not close: parked in the bottom-right corner"
+                                                                 : "would not close or move: still over the desktop");
+    return r;
 }
 
 /* the inside of a window, sampled every second pixel, as one number */
@@ -1085,7 +1116,11 @@ static int do_big(void)
     }
     DateStamp(&a);
     w = open_drawer("RAM:WBGapBig", "WBGapBig", 60, &how);
-    if (!w) { fail("X1", "RAM:WBGapBig's window didn't open in 60 s"); return 10; }
+    if (!w) {
+        fail("X1", "RAM:WBGapBig's window didn't open in 60 s");
+        clear_drawer("RAM:WBGapBig", "WBGapBig", "X1");   /* in case it opens late, over the desktop */
+        return 10;
+    }
     {   /* drawn: the inside stops changing for a second */
         ULONG last = inside_sum(w), now;
         int still = 0, t;
@@ -1095,9 +1130,45 @@ static int do_big(void)
     ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick) - 50;
     printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
     if (ticks < 10 * 50) pass("X1"); else fail("X1", "over 10 s");
-    /* closed again: left open over the desktop's left-out icons, the next rows' clicks landed on its file icons and
-     * stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
-    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapBig", NULL);
+    /* closed again, and waited for: left open over the desktop's left-out icons, the next rows' clicks landed on its
+     * file icons and stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
+    clear_drawer("RAM:WBGapBig", "WBGapBig", "X1");
+    return fails ? 5 : 0;
+}
+
+static long read_all(const char *path, char *buf, long n);
+
+/* ---- D5: the RAM Disk's icon on the desktop ----
+ * WBGapRoot.rexx wrote the desktop's icons to RAM:wbgap-root ("<type> <name>" a line); RAM:'s volume name comes from
+ * NameFromLock ("Ram Disk:"). */
+static int do_disks(void)
+{
+    static char list[8192];
+    char path[108], vol[40];
+    BPTR l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ);
+    long n;
+    if (!l || !NameFromLock(l, (STRPTR)path, sizeof path)) {
+        if (l) UnLock(l);
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
+        fail("D5", "RAM: has no volume name");
+        return 5;
+    }
+    UnLock(l);
+    wbgap_volume_name(path, vol, sizeof vol);
+    if ((n = read_all("RAM:wbgap-root", list, sizeof list)) < 0) {
+        skip("D5", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
+        return 0;
+    }
+    printf("INFO D5 RAM: is \"%s\"; %ld bytes of the desktop's icons\n", vol, n);
+    if (wbgap_root_has_disk(list, vol)) pass("D5");
+    else {
+        char why[128];
+        if (n == 0) snprintf(why, sizeof why, "the port gave no icons");
+        else if (wbgap_has_nocase(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
+        else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
+        fail("D5", why);
+    }
+    DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
     return fails ? 5 : 0;
 }
 
@@ -1729,6 +1800,13 @@ static int do_desk(const char *what)
         DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
         DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-bad");
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-covered");
+        /* nothing over the desktop before WBGapDesk.rexx clicks it: BIG's window, if a run left it */
+        if (!wbgap_desk_clickable(clear_drawer("RAM:WBGapBig", "WBGapBig", "I11"))) {
+            write_file("RAM:wbgap-desk-covered", "RAM:WBGapBig's window stays over the desktop\n");
+            skip("I11", "RAM:WBGapBig's window stays over the desktop: no clicks");
+            return 0;
+        }
         n = read_all("RAM:.backdrop", was, sizeof was);
         if (n < 0) was[0] = 0;
         /* markers for DONE: wbgap-backdrop-was, the copy to put back; wbgap-backdrop-made, SETUP made the file */
@@ -1760,6 +1838,10 @@ static int do_desk(const char *what)
     if (!stricmp(what, "CHECK")) {
         char buf[400];
         int t;
+        if (read_all("RAM:wbgap-desk-covered", buf, sizeof buf) >= 0) {   /* SETUP said SKIP already */
+            skip("I11", "RAM:WBGapBig's window stays over the desktop: no clicks");
+            return 0;
+        }
         for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
         if (read_all("RAM:wbgap-desk-bad", buf, sizeof buf) >= 0) {   /* a click failed: whatever started, no result */
             skip("I11", "a click failed (WBGapDesk.rexx)");
@@ -1792,7 +1874,7 @@ static int do_desk(const char *what)
         {   /* RAM:WBGapI and its icons gone */
             static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
                                                "RAM:WBGapI/p1", "RAM:WBGapI/p2.info", "RAM:WBGapI/p2", "RAM:WBGapI",
-                                               "RAM:wbgap-desk-clicked", "RAM:wbgap-desk-bad"};
+                                               "RAM:wbgap-desk-clicked", "RAM:wbgap-desk-bad", "RAM:wbgap-desk-covered"};
             int k;
             for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
         }
@@ -1861,6 +1943,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
+    else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);

@@ -76,6 +76,25 @@ long wbgap_power_height(int sticks, long row_height);
 /* B1 (the three power rows) and B2 (an Eject row for each stick) from the list's height: WBGAP_PASS, WBGAP_FAIL or
  * WBGAP_SKIP (B2 with no stick mounted) */
 void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2);
+/* A drawer window a row leaves over the desktop (BIG's RAM:WBGapBig, 1000 icons): the next rows click the desktop's
+ * left-out icons, and a click on one of its file icons stops an unattended run on "has no default tool". So it is
+ * closed and waited for; if it stays, it is parked at its smallest size in the screen's bottom-right corner.
+ * The box to park it in (left, top, width, height) on a screen sw x sh, for a window at least minw x minh: */
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4]);
+/* what happened: gone (closed), parked (still open, moved out of the way), or stuck (still open where it was) */
+enum { WBGAP_CL_GONE, WBGAP_CL_PARKED, WBGAP_CL_STUCK };
+int wbgap_clear_result(int gone, int at_park_box);
+/* the desktop rows may click when nothing is stuck over it */
+int wbgap_desk_clickable(int clear_result);
+/* D5: the RAM Disk's icon on the desktop. WBGapRoot.rexx writes the desktop's icons, one "<type> <name>" line each
+ * (the WORKBENCH port's window.icons.all.N.type and .name, NAME 'root'); WBGapTest DISKS reads them.
+ * The volume name from NameFromLock's "Ram Disk:" (the colon and anything after it dropped) into out: */
+void wbgap_volume_name(const char *path, char *out, unsigned cap);
+/* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
+ * trailing colon ("DISK RAM Disk:") doesn't count */
+int wbgap_root_has_disk(const char *list, const char *vol);
+/* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
+int wbgap_has_nocase(const char *text, const char *word);
 
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
