@@ -273,6 +273,7 @@
 #include "ob_snap.h"
 #include "ob_notify.h"
 #include "ob_vols.h"
+#include "ob_wbprefs.h"
 #include "ob_order.h"
 #include "ol_core.h"                         /* the launcher's rules (Workbench build plan row 6) */
 #include "ol_lib.h"                          /* gfopenlaunch.library, the launcher module */
@@ -749,44 +750,37 @@ static int root_picture(char *out, int n)
  * Workbench), the ones the desktop has a use for: the default stack size (the WBNC chunk's first long word),
  * which a tool gets when its icon asks for less, and the hidden devices (a WBHD chunk each, the device's
  * name), whose volumes get no icon. Before 0.1.19 GFOpenBench read none of it. */
-#define MAX_HIDDEN 16
+#define MAX_HIDDEN OB_WBP_MAX_HIDDEN
 static ULONG wb_stack = 8192;
-static char wb_hidden[MAX_HIDDEN][32];
+static char wb_hidden[MAX_HIDDEN][OB_WBP_NAME];
 static int wb_nhidden;
 
-static ULONG be32(const UBYTE *p)
-{
-    return ((ULONG)p[0] << 24) | ((ULONG)p[1] << 16) | ((ULONG)p[2] << 8) | p[3];
-}
-
+/* The prefs' default stack is set in workbench.library too, as Prefs/Workbench's Use does on 3.2.3
+ * (WBCTRLA_SetDefaultStackSize): before, only GFOpenBench's own launches followed it (WBGapTest P7) */
 static void wb_prefs_load(void)
 {
     BPTR f = Open((CONST_STRPTR)"ENV:Sys/Workbench.prefs", MODE_OLDFILE);
-    UBYTE buf[2048];
-    LONG len, i;
+    static UBYTE buf[2048];
+    static ob_wbprefs p;
+    LONG len;
+    ULONG lib;
+    int i;
     wb_stack = 8192;
     wb_nhidden = 0;
     if (!f) return;
     len = Read(f, buf, sizeof buf);
     Close(f);
-    if (len < 12 || be32(buf) != 0x464F524DUL || be32(buf + 8) != 0x50524546UL) return;   /* FORM, PREF */
-    for (i = 12; i + 8 <= len; ) {
-        ULONG id = be32(buf + i), sz = be32(buf + i + 4);
-        const UBYTE *d = buf + i + 8;
-        if (sz > (ULONG)(len - i - 8)) break;
-        if (id == 0x57424E43UL && sz >= 4) {                /* WBNC: wbp_DefaultStackSize first */
-            ULONG st = be32(d);
-            if (st > wb_stack && st <= 1024 * 1024) wb_stack = st;
-        } else if (id == 0x57424844UL && sz > 1 && wb_nhidden < MAX_HIDDEN) {   /* WBHD: a device's name */
-            int k = 0;
-            while (k < (int)sz && k < (int)sizeof wb_hidden[0] - 1 && d[k] && d[k] != ':') {
-                wb_hidden[wb_nhidden][k] = (char)d[k];
-                k++;
-            }
-            wb_hidden[wb_nhidden][k] = 0;
-            if (k) wb_nhidden++;
-        }
-        i += 8 + sz + (sz & 1);
+    if (!ob_wbprefs_parse(buf, len, &p)) return;
+    wb_stack = ob_wbprefs_min_stack(&p);
+    for (i = 0; i < p.nhidden; i++) strcpy(wb_hidden[i], p.hidden[i]);
+    wb_nhidden = p.nhidden;
+    if ((lib = ob_wbprefs_lib_stack(&p)) && WorkbenchBase && WorkbenchBase->lib_Version >= 44) {
+        struct TagItem t[2];
+        t[0].ti_Tag = WBCTRLA_SetDefaultStackSize;
+        t[0].ti_Data = lib;
+        t[1].ti_Tag = TAG_DONE;
+        t[1].ti_Data = 0;
+        WorkbenchControlA(NULL, t);
     }
 }
 
