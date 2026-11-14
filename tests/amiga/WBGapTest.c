@@ -74,6 +74,9 @@
 
 #include "wbgap_menu.h"
 #include "wbgap_rows.h"
+#if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
+typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_WBO_DRAWER && WBO_ICON == WBGAP_WBO_ICON) ? 1 : -1];
+#endif
 
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
@@ -439,20 +442,30 @@ static struct Window *open_drawer(const char *path, const char *title, int secs,
 static int clear_drawer(const char *path, const char *title, const char *row)
 {
     struct Window *w;
-    long box[4];
+    long box[4], mw = 0, mh = 0, sw = 0, sh = 0;
     int t, at = 0, r;
+    ULONG lock;
     if (!find_window(title)) return WBGAP_CL_GONE;
     CloseWorkbenchObjectA((STRPTR)path, NULL);
     for (t = 0; t < 50 && find_window(title); t++) Delay(5);
+    lock = LockIBase(0);                            /* the window's fields read while Intuition can't change them */
     if ((w = find_window(title))) {
-        long mw = w->MinWidth ? w->MinWidth : w->BorderLeft + w->BorderRight + 40;
-        long mh = w->MinHeight ? w->MinHeight : w->BorderTop + w->BorderBottom + 20;
-        wbgap_park_box(w->WScreen->Width, w->WScreen->Height, mw, mh, box);
+        mw = w->MinWidth ? w->MinWidth : w->BorderLeft + w->BorderRight + 40;
+        mh = w->MinHeight ? w->MinHeight : w->BorderTop + w->BorderBottom + 20;
+        sw = w->WScreen->Width;
+        sh = w->WScreen->Height;
+    }
+    UnlockIBase(lock);
+    if (w) {
+        wbgap_park_box(sw, sh, mw, mh, box);
         ChangeWindowBox(w, box[0], box[1], box[2], box[3]);
-        for (t = 0; t < 20; t++) {
+        for (t = 0; t < 20 && !at; t++) {
             Delay(5);
-            if (!(w = find_window(title))) break;
-            if (w->LeftEdge == box[0] && w->TopEdge == box[1] && w->Width == box[2] && w->Height == box[3]) { at = 1; break; }
+            lock = LockIBase(0);
+            if ((w = find_window(title)))
+                at = w->LeftEdge == box[0] && w->TopEdge == box[1] && w->Width == box[2] && w->Height == box[3];
+            UnlockIBase(lock);
+            if (!w) break;
         }
     }
     r = wbgap_clear_result(!find_window(title), at);
@@ -655,7 +668,7 @@ static int do_api(void)
                    (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
             if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
             else fail("A8c", why);
-            CloseWorkbenchObjectA((STRPTR)"RAM:WBGapW", NULL);
+            clear_drawer("RAM:WBGapW", "WBGapW", "A8c");   /* closed, else parked off the desktop rows */
         }
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w");

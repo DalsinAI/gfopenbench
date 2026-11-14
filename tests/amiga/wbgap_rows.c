@@ -420,7 +420,7 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap)
 {
-    if (on_icon != 2) {
+    if (on_icon != WBGAP_WBO_ICON) {
         snprintf(why, cap, "on the icon: type %lu, not WBO_ICON", on_icon);
         return WBGAP_FAIL;
     }
@@ -428,7 +428,7 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
         snprintf(why, cap, "on the icon: named \"%s\", not \"%s\"", name ? name : "", want ? want : "");
         return WBGAP_FAIL;
     }
-    if (on_empty != 1) {
+    if (on_empty != WBGAP_WBO_DRAWER) {
         snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
         return WBGAP_FAIL;
     }

@@ -189,7 +189,9 @@ static void which_plan(void)
     char why[96];
     wbgap_which_point(4, 11, 20, 10, xy);
     CHECK(xy[0] == 28 && xy[1] == 25, "the icon's image's top-left + 4, from the window's corner (%ld,%ld)", xy[0], xy[1]);
-    CHECK(wbgap_which_judge(2, "w", "w", 1, why, sizeof why) == WBGAP_PASS && !why[0], "WBO_ICON \"w\", WBO_DRAWER: PASS");
+    CHECK(WBGAP_WBO_NONE == 0 && WBGAP_WBO_DRAWER == 1 && WBGAP_WBO_ICON == 2, "workbench.h's WBO_ values");
+    CHECK(wbgap_which_judge(WBGAP_WBO_ICON, "w", "w", WBGAP_WBO_DRAWER, why, sizeof why) == WBGAP_PASS && !why[0],
+          "WBO_ICON \"w\", WBO_DRAWER: PASS");
     CHECK(wbgap_which_judge(0, "", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "type 0"),
           "WBO_NONE everywhere (no desktop's answer): FAIL, \"%s\"", why);
     CHECK(wbgap_which_judge(1, "", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "on the icon"), "the drawer, not the icon: FAIL");
