@@ -2,6 +2,7 @@
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "wbgap_rows.h"
 
@@ -65,12 +66,12 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
     {"I2", NULL, L, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
-    {"I4", NULL, L, NULL, "drag between drawer windows"},
+    {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
     {"I5", NULL, L, NULL, "drag to the backdrop"},
     {"I6", NULL, L, NULL, "drag to the Trashcan"},
-    {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
-    {"I8", NULL, A, NULL, "drag onto an AppIcon"},
-    {"I9", NULL, A, NULL, "drag onto an AppWindow"},
+    {"I7", NULL, A, "DRAGFILE", "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
+    {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
+    {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
     {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
@@ -700,6 +701,132 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+static int boxes_meet(const long a[4], const long b[4])
+{
+    return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+}
+
+int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4])
+{
+    int k;
+    if (w < 1 || h < 1 || top < 0 || w > sw || h > sh - top) return 0;
+    for (k = 0; k < 4; k++) {
+        long b[4];
+        b[0] = (k == 0 || k == 1) ? sw - w : 0;
+        b[1] = (k == 1 || k == 2) ? sh - h : top;
+        b[2] = w;
+        b[3] = h;
+        if (avoid && boxes_meet(b, avoid)) continue;
+        memcpy(box, b, sizeof b);
+        return 1;
+    }
+    return 0;
+}
+
+void wbgap_drop_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] / 2;
+}
+
+int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *name, const char *where, char *why,
+                     unsigned cap)
+{
+    if (!name) name = "";
+    if (!where) where = "";
+    if (!dst) {
+        snprintf(why, cap, "%s isn't in %s after the drag%s", name, where, src ? " (still where it was)" : " (and gone from where it was)");
+        return WBGAP_FAIL;
+    }
+    if (src) {
+        snprintf(why, cap, "%s is in %s and still where it was: copied, not moved", name, where);
+        return WBGAP_FAIL;
+    }
+    if (!dst_info) {
+        snprintf(why, cap, "%s moved to %s without its icon (%s.info)%s", name, where, name, src_info ? ", which stayed behind" : "");
+        return WBGAP_FAIL;
+    }
+    if (src_info) {
+        snprintf(why, cap, "%s.info is in %s and still where it was", name, where);
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
+}
+
+int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
+                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
+                     unsigned cap)
+{
+    size_t dn = dir ? strlen(dir) : 0, wn = want_dir ? strlen(want_dir) : 0;
+    if (!got) {
+        snprintf(why, cap, "no AppMessage came");
+        return WBGAP_FAIL;
+    }
+    if (type != want_type || id != want_id) {
+        snprintf(why, cap, "an AppMessage of type %ld id %lu, not type %ld id %lu", type, id, want_type, want_id);
+        return WBGAP_FAIL;
+    }
+    if (nargs < 1) {
+        snprintf(why, cap, "the AppMessage has no arguments (am_NumArgs %ld)", nargs);
+        return WBGAP_FAIL;
+    }
+    if (!name || !want_name || strcmp(name, want_name)) {
+        snprintf(why, cap, "its first argument is \"%s\", not \"%s\"", name ? name : "", want_name ? want_name : "");
+        return WBGAP_FAIL;
+    }
+    if (!wn || dn <= wn || strcmp(dir + dn - wn, want_dir) || (dir[dn - wn - 1] != ':' && dir[dn - wn - 1] != '/')) {
+        snprintf(why, cap, "its first argument's drawer is \"%s\", not ...%s", dir ? dir : "", want_dir ? want_dir : "");
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
+}
+
+int wbgap_parse_box(const char *text, long box[4])
+{
+    long b[4];
+    char *e;
+    const char *p = text;
+    int k;
+    if (!p) return 0;
+    for (k = 0; k < 4; k++) {
+        b[k] = strtol(p, &e, 10);
+        if (e == p) return 0;
+        p = e;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    if (*p || b[2] < 1 || b[3] < 1) return 0;
+    memcpy(box, b, sizeof b);
+    return 1;
+}
+
+int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4])
+{
+    int x, y, x0 = gw, y0 = gh, x1 = -1, y1 = -1;
+    if (!before || !after || gw < 1 || gh < 1 || step < 1) return 0;
+    for (y = 0; y < gh; y++)
+        for (x = 0; x < gw; x++)
+            if (before[y * gw + x] != after[y * gw + x]) {
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
+            }
+    if (x1 < 0) return 0;
+    box[0] = (long)x0 * step;
+    box[1] = (long)y0 * step;
+    box[2] = (long)(x1 - x0 + 1) * step;
+    box[3] = (long)(y1 - y0 + 1) * step;
+    return 1;
+}
+
+void wbgap_grab_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] * 2 / 5;
 }
 
 int wbgap_rawkey(int c, int *shift)
