@@ -42,6 +42,8 @@ IF n2 ~= n1 THEN DO
   ADDRESS COMMAND 'Type T:GFOpenBench-X4.log'
 END
 ELSE SAY 'INFO F3 the crashing drawer closed for good after its restarts'
+/* the crashing drawer's window, if it is still there (the FAIL above), not left for the rows after F3 */
+WINDOW 'RAM:WBGapCrash' CLOSE
 WINDOW 'RAM:WBGapD1' CLOSE
 ADDRESS COMMAND 'Wait 1'
 OPEN 'RAM:WBGapD1'
