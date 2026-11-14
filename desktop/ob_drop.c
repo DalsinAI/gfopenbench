@@ -69,6 +69,7 @@
 #include <proto/icon.h>
 
 #include "ob_drop.h"
+#include "ob_port.h"
 #include "ob_guard.h"
 #include "ob_tasks.h"
 #include "of_ops.h"
@@ -1146,9 +1147,9 @@ int ob_drop_start(const ob_drop_env *e)
     stopping = 0;
     ob_jobq_init(&jobq, OB_JOBS_AT_ONCE);
     jobs_live = NULL;
-    if (!(done_port = CreateMsgPort())) return 0;
-    if (!(app_port = CreateMsgPort())) {
-        DeleteMsgPort(done_port);
+    if (!(done_port = ob_port_new())) return 0;
+    if (!(app_port = ob_port_new())) {
+        ob_port_free(done_port);
         done_port = NULL;
         return 0;
     }
@@ -1228,9 +1229,9 @@ void ob_drop_stop(void)
         if (jobs_running) Delay(5);
     }
     ob_drop_handle();
-    DeleteMsgPort(done_port);
+    ob_port_free(done_port);
     done_port = NULL;
-    if (!apps_out) DeleteMsgPort(app_port);
+    if (!apps_out) ob_port_free(app_port);
     else app_port->mp_Flags = PA_IGNORE;        /* left: a late reply goes to a port still there, and signals
                                                  * no one */
     app_port = NULL;

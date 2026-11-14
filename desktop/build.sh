@@ -175,6 +175,10 @@ DROP_OBJS="$DROP_OBJS $TMP/ob_drop.o"
 "$CC" $FLAGS -I"$W" -I"$L" -c -o "$TMP/ob_wb.o" "$HERE/ob_wb.c"
 "$CC" $FLAGS -c -o "$TMP/ob_wbplan.o" "$HERE/ob_wbplan.c"
 DROP_OBJS="$DROP_OBJS $TMP/ob_wb.o $TMP/ob_wbplan.o"
+# 0.1.62: the quiet ports on one shared signal, so requesters get one (WBGapTest M2, M6, M8, X3)
+"$CC" $FLAGS -c -o "$TMP/ob_port.o" "$HERE/ob_port.c"
+"$CC" $FLAGS -c -o "$TMP/ob_sigplan.o" "$HERE/ob_sigplan.c"
+DROP_OBJS="$DROP_OBJS $TMP/ob_port.o $TMP/ob_sigplan.o"
 # The ARexx ports WORKBENCH and OPENBENCH (0.1.53): ob_rexx.c (the commands, plain C) and ob_arexx.c (the ports and
 # what each command does; NEWDRAWER, RENAME and DELETE through the same GFOpenFiles engine)
 "$CC" $FLAGS -c -o "$TMP/ob_rexx.o" "$HERE/ob_rexx.c"

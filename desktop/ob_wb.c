@@ -34,6 +34,7 @@
 #include <proto/icon.h>
 
 #include "ob_wb.h"
+#include "ob_port.h"
 #include "ob_wbplan.h"
 
 /* ob_wbplan's numbers are workbench.h's */
@@ -169,9 +170,9 @@ int ob_wb_start(const ob_wb_env *e)
 {
     env = *e;
     if (!wb_ok()) return 0;
-    if (!(req_port = CreateMsgPort())) return 0;
-    if (!(app_port = CreateMsgPort())) {
-        DeleteMsgPort(req_port);
+    if (!(req_port = ob_port_new())) return 0;
+    if (!(app_port = ob_port_new())) {
+        ob_port_free(req_port);
         req_port = NULL;
         return 0;
     }
@@ -224,7 +225,7 @@ void ob_wb_stop(void)
         rq->or_IoErr = ERROR_OBJECT_NOT_FOUND;
         ReplyMsg(m);
     }
-    DeleteMsgPort(req_port);
+    ob_port_free(req_port);
     req_port = NULL;
     for (i = 0; i < 500 && apps_out; i++) {         /* the programs get ten seconds to answer */
         while ((m = GetMsg(app_port))) {
@@ -233,7 +234,7 @@ void ob_wb_stop(void)
         }
         if (apps_out) Delay(1);
     }
-    if (!apps_out) DeleteMsgPort(app_port);
+    if (!apps_out) ob_port_free(app_port);
     else app_port->mp_Flags = PA_IGNORE;            /* left: a late reply goes to a port still there */
     app_port = NULL;
 }
