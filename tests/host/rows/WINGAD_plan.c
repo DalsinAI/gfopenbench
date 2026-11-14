@@ -44,6 +44,20 @@ void wingad_plan(void)
     CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL, "3 pixels off after zoom twice: FAIL");
     m = wg_good(); m.has_zoom = 0;
     CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && strstr(why, "no zoom gadget"), "no zoom gadget: FAIL");
+    m = wg_good(); m.has_zoom = 0; m.zoom_off = 1;
+    CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_PASS && !why[0], "no zoom gadget, the look says zoom off: PASS");
+    m = wg_good(); m.has_zoom = 0; m.zoom_off = 1; m.has_depth = 0;
+    CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && !strstr(why, "zoom:") && strstr(why, "depth:"),
+          "zoom off excuses zoom only: \"%s\"", why);
+    m = wg_good(); m.zoom_off = 1; m.zoom1[0] = m.zoom0[0]; m.zoom1[1] = m.zoom0[1];
+    CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && strstr(why, "didn't change"),
+          "a zoom gadget there that does nothing: FAIL even with zoom off");
+    CHECK(wbgap_wingad_zoom_off("Sky light\nzoom off\nscrollers auto") == 1, "GFOpenUp's look: zoom off");
+    CHECK(wbgap_wingad_zoom_off("Sky light\r\n  ZOOM\tOff \r\n") == 1, "any case, tabs, spaces, CR: zoom off");
+    CHECK(wbgap_wingad_zoom_off("zoom off") == 1, "the last line with no newline");
+    CHECK(wbgap_wingad_zoom_off("Classic light\nscrollers auto\n") == 0, "Classic: no zoom line, 0");
+    CHECK(wbgap_wingad_zoom_off("zoom on\nzoomoff\nzoom offline\n# zoom off\n") == 0, "zoom on, zoomoff, offline, a comment: 0");
+    CHECK(wbgap_wingad_zoom_off(NULL) == 0 && wbgap_wingad_zoom_off("") == 0, "no look: 0");
     m = wg_good(); m.front1 = 0;
     CHECK(wbgap_wingad_judge(&m, why, sizeof why) == WBGAP_FAIL && strstr(why, "to the front"),
           "depth didn't bring it front: FAIL, \"%s\"", why);

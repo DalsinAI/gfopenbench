@@ -25,7 +25,9 @@ int wbgap_wingad_judge(const struct wbgap_wingad *m, char *why, unsigned cap)
         wg_add(r, sizeof r, "size: no size gadget");
     else if (m->size1[0] < m->size0[0] + 60 || m->size1[1] < m->size0[1] + 40)
         wg_add(r, sizeof r, "size: dragging the size gadget 80,60 didn't grow the window");
-    if (!m->has_zoom)
+    if (!m->has_zoom && m->zoom_off)
+        ;                                   /* GFOS's design: no zoom gadget anywhere (WINGAD.h) */
+    else if (!m->has_zoom)
         wg_add(r, sizeof r, "zoom: no zoom gadget");
     else if (m->zoom1[0] == m->zoom0[0] && m->zoom1[1] == m->zoom0[1])
         wg_add(r, sizeof r, "zoom: a click didn't change the window's size");
@@ -43,6 +45,38 @@ int wbgap_wingad_judge(const struct wbgap_wingad *m, char *why, unsigned cap)
         wg_add(r, sizeof r, "depth: a second click didn't send it behind");
     if (why && cap) snprintf(why, cap, "%s", r);
     return r[0] ? WBGAP_FAIL : WBGAP_PASS;
+}
+
+static int wg_word(const char **p, const char *word)
+{
+    const char *s = *p;
+    while (*word) {
+        char c = *s >= 'A' && *s <= 'Z' ? (char)(*s - 'A' + 'a') : *s;
+        if (c != *word) return 0;
+        s++, word++;
+    }
+    *p = s;
+    return 1;
+}
+
+int wbgap_wingad_zoom_off(const char *look)
+{
+    const char *s = look;
+    if (!s) return 0;
+    while (*s) {
+        const char *q = s;
+        while (*q == ' ' || *q == '\t') q++;
+        if (wg_word(&q, "zoom") && (*q == ' ' || *q == '\t')) {
+            while (*q == ' ' || *q == '\t') q++;
+            if (wg_word(&q, "off")) {
+                while (*q == ' ' || *q == '\t' || *q == '\r') q++;
+                if (!*q || *q == '\n') return 1;
+            }
+        }
+        while (*s && *s != '\n') s++;
+        if (*s) s++;
+    }
+    return 0;
 }
 
 void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int relbottom, int relwidth,

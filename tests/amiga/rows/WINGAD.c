@@ -7,12 +7,14 @@
  *   - the zoom gadget is clicked: its size must change; clicked again: the size must come back;
  *   - the depth gadget is clicked: the window must come in front of the cover; again: go behind it.
  * The order of the two is read from the screen's layers. 3.2.3's Workbench windows do all of this through
- * Intuition; the row is about a desktop's drawer windows having the gadgets and them working.
+ * Intuition; the row is about a desktop's drawer windows having the gadgets and them working. No zoom gadget where
+ * ENV:GFOpenGadTools/Look says "zoom off" is GFOS's design (WINGAD.h), an INFO and not a FAIL.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
 
 #include <exec/types.h>
+#include <dos/var.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <graphics/clip.h>
@@ -51,12 +53,25 @@ static void wg_middle(struct Window *w, struct Gadget *g, long xy[2])
 static int wg_gadget(struct Window *w, UWORD type, long xy[2])
 {
     struct Gadget *g;
-    for (g = w->FirstGadget; g; g = g->NextGadget)
+    int found = 0;
+    ULONG ib = LockIBase(0);   /* the gadget list read as Intuition keeps it */
+    for (g = w->FirstGadget; g && !found; g = g->NextGadget)
         if ((g->GadgetType & GTYP_SYSTYPEMASK) == type && ((g->GadgetType & GTYP_SYSGADGET) || type == GTYP_SIZING)) {
             wg_middle(w, g, xy);
-            return 1;
+            found = 1;
         }
-    return 0;
+    UnlockIBase(ib);
+    return found;
+}
+
+/* the desktop's look says "zoom off" (ENV:GFOpenGadTools/Look; WINGAD.h): 1, else 0 (no such file on 3.2.3) */
+static int wg_zoom_off(void)
+{
+    static char look[512];
+    LONG n = GetVar((CONST_STRPTR)"GFOpenGadTools/Look", (STRPTR)look, sizeof look, GVF_GLOBAL_ONLY | GVF_BINARY_VAR);
+    if (n < 0) return 0;
+    look[n < (LONG)sizeof look ? n : (LONG)sizeof look - 1] = 0;
+    return wbgap_wingad_zoom_off(look);
 }
 
 /* a in front of b on screen s: 1, 0, or -1 if either isn't among the screen's layers */
@@ -147,7 +162,9 @@ int wbt_wingad(int argc, char **argv)
         m.zoom2[1] = w->Height;
         printf("INFO W1 zoom: %ldx%ld, %ldx%ld, %ldx%ld\n", m.zoom0[0], m.zoom0[1], m.zoom1[0], m.zoom1[1], m.zoom2[0],
                m.zoom2[1]);
-    }
+    } else if ((m.zoom_off = wg_zoom_off()))
+        printf("INFO W1 zoom: no zoom gadget, and ENV:GFOpenGadTools/Look says \"zoom off\" (GFOS: no zoom anywhere, "
+               "by design): not a FAIL\n");
 
     /* depth: a window of our own over the middle of it, then the gadget twice */
     cover = OpenWindowTags(NULL, WA_PubScreen, (ULONG)s, WA_Left, w->LeftEdge + w->Width / 4,
@@ -168,10 +185,17 @@ int wbt_wingad(int argc, char **argv)
     }
     if (!m.has_size || !m.has_zoom || !m.has_depth) {   /* what the window has instead, for whoever closes the gap */
         struct Gadget *g;
-        int n = 0;
-        for (g = w->FirstGadget; g && n < 24; g = g->NextGadget, n++)
-            printf("INFO W1 gadget %d: type $%04x flags $%04x at %d,%d %dx%d id %u\n", n, (unsigned)g->GadgetType,
-                   (unsigned)g->Flags, g->LeftEdge, g->TopEdge, g->Width, g->Height, (unsigned)g->GadgetID);
+        struct { UWORD type, flags, id; WORD x, y, w, h; } gl[24];
+        int n = 0, i;
+        ULONG ib = LockIBase(0);   /* copied under the lock, printed after it */
+        for (g = w->FirstGadget; g && n < 24; g = g->NextGadget, n++) {
+            gl[n].type = g->GadgetType, gl[n].flags = g->Flags, gl[n].id = g->GadgetID;
+            gl[n].x = g->LeftEdge, gl[n].y = g->TopEdge, gl[n].w = g->Width, gl[n].h = g->Height;
+        }
+        UnlockIBase(ib);
+        for (i = 0; i < n; i++)
+            printf("INFO W1 gadget %d: type $%04x flags $%04x at %d,%d %dx%d id %u\n", i, (unsigned)gl[i].type,
+                   (unsigned)gl[i].flags, gl[i].x, gl[i].y, gl[i].w, gl[i].h, (unsigned)gl[i].id);
     }
     wbt_say("W1", wbgap_wingad_judge(&m, why, sizeof why), why);
 out:
