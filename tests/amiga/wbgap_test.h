@@ -6,6 +6,7 @@
 
 struct Window;
 struct Screen;
+struct MenuItem;
 
 /* markers, each alone on a line at the file's left edge; they expand to nothing.
  * WBGAP_MODE(NAME, fn, NEWROWS): run by "WBGapTest NEWROWS" (the script's one line for every such mode), or SCRIPT:
@@ -35,6 +36,11 @@ int wbt_setup(void);                                          /* WBGapTest SETUP
 int wbt_put_icon_stack(const char *path, long type, char **tooltypes, long stack);
 unsigned long wbt_stack_wanted(void);
 int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack);
+/* MENUDRIVE's: a menu name normalised as MENUS does (lower case, no leading blanks, no trailing dots, blanks or ?); an item's text, NULL if it has none;
+ * a window's icons through WBGapRoot.rexx: whether name is among them, -1 if not read */
+void wbt_norm(char *d, const char *s, int n);
+const char *wbt_item_text(struct MenuItem *it);
+int wbt_icons_have(const char *row, const char *win, const char *name);
 int wbt_tools_item_within(const char *item, int want, int ticks); /* M27: item (normalised) is (want 1) or is not (want 0) in a Workbench window's Tools menu within ticks: 1 */
 unsigned long wbt_icon_stack(const char *path);                 /* the STACK= in path's icon's tool types (0: none) */
 void wbt_check_stack_alone(const char *file, unsigned long want); /* STARTUP's I12c: the LAUNCHREC line in file judged */
