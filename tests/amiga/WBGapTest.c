@@ -755,17 +755,26 @@ static int do_api(void)
              * drawer just opened); GFOpenBench gives the window's. Not the icon at the first: the view's, asked once */
             if (wf.found && on_icon != WBO_ICON) {
                 long vp[2], vx, vy;
-                ULONG again;
+                ULONG again, t1_first = t1;
+                LONG e_again;
+                char name_first[64];
                 wbgap_which_view_point(ww->BorderLeft, ww->BorderTop, wf.x, wf.y, vp);
                 vx = vp[0];
                 vy = vp[1];
+                memcpy(name_first, name, sizeof name_first);
                 t1 = WBGAP_WHICH_UNSET;
                 strcpy(name, "?");
                 SetIoErr(0);
                 again = WhichWorkbenchObjectA(ww, vx, vy, tg1);
-                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu\n", (unsigned long)on_icon, vx, vy,
-                       (unsigned long)again);
-                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = IoErr(); }
+                e_again = IoErr();
+                printf("INFO A8c the window's place gave %lu; the view's (%ld,%ld) gives %lu (type %lu, IoErr %ld)\n",
+                       (unsigned long)on_icon, vx, vy, (unsigned long)again, (unsigned long)t1, (long)e_again);
+                if (again == WBO_ICON) { on_icon = again; xy[0] = vx; xy[1] = vy; e1 = e_again; }
+                else {
+                    /* missed again: the A8c line and wbgap_which_seen tell of the first ask, as on_icon does */
+                    t1 = t1_first;
+                    memcpy(name, name_first, sizeof name_first);
+                }
             }
             SetIoErr(0);
             on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
@@ -1748,7 +1757,7 @@ static int do_lowmem(int secs, const char *path)
     return seen ? 0 : 5;
 }
 
-/* ---- launching (row 6's launcher) ---- */
+/* ---- launching (row 6's launcher; the LAUNCH mode is rows/LAUNCH.c, STARTUP CHECK uses these too) ---- */
 /* the stack the launch tests ask for, in the icon's stack field (3.2.3 starts a tool with that) and as STACK=: 1 MB over the Workbench's default stack and over 1 MB, so neither the
  * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
 static unsigned long stack_wanted(void)
@@ -1818,50 +1827,6 @@ static int check_launchrec(const char *file, int args_too, unsigned long want_st
     else { char why[64]; snprintf(why, sizeof why, "STACK=%lu not given (%ld)", want_stack, stack); fail("I12a", why); }
     if (pri == -3) pass("I12b"); else fail("I12b", "TOOLPRI=-3 not given");
     return 1;
-}
-
-static int do_launch(void)
-{
-    static char st[24];
-    static STRPTR tt[] = {(STRPTR)"LAUNCHREC", (STRPTR)st, (STRPTR)"TOOLPRI=-3", NULL};
-    unsigned long want = stack_wanted();
-    char cmd[320];
-    BPTR dir, fh = 0;
-    BOOL ok;
-    int t;
-    snprintf(st, sizeof st, "STACK=%lu", want);
-    do_setup();
-    {   /* this program, by its full name: a Shell's PROGDIR: is the Shell's */
-        char self[256] = "WBGapTest";
-        BPTR pd = GetProgramDir();
-        if (pd && NameFromLock(pd, (STRPTR)self, sizeof self - 12)) AddPart((STRPTR)self, (CONST_STRPTR)"WBGapTest", sizeof self);
-        snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGap/LaunchT QUIET", self);
-    }
-    if (run(cmd) != 0 || !put_icon_stack("RAM:WBGap/LaunchT", WBTOOL, tt, (LONG)want)) {
-        fail("I11", "RAM:WBGap/LaunchT not made"); skip("I12a", "no LaunchT"); skip("I12b", "no LaunchT"); return 20;
-    }
-    write_file("RAM:WBGap/p1", "p1\n");
-    put_icon("RAM:WBGap/p1", WBPROJECT, NULL);
-    write_file("RAM:WBGap/p2", "p2\n");
-    put_icon("RAM:WBGap/p2", WBPROJECT, NULL);
-    DeleteFile((CONST_STRPTR)"RAM:wbgap-launch");
-    printf("INFO largest free block before the launch: %lu bytes\n", (unsigned long)AvailMem(MEMF_LARGEST));
-    dir = Lock((CONST_STRPTR)"RAM:WBGap", ACCESS_READ);
-    ok = dir && OpenWorkbenchObject((STRPTR)"RAM:WBGap/LaunchT", WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p1",
-                                    WBOPENA_ArgLock, dir, WBOPENA_ArgName, (ULONG)"p2", TAG_DONE);
-    for (t = 0; ok && t < 100 && !(fh = Open((CONST_STRPTR)"RAM:wbgap-launch", MODE_OLDFILE)); t++) Delay(5);
-    if (dir) UnLock(dir);
-    if (!ok) {   /* I12 is checked at WBStartup too (STARTUP CHECK), which needs no registered Workbench */
-        /* not I11's FAIL: I11 is Shift-double-click on the desktop (LAUNCHDESK), which needs no registered Workbench */
-        printf("INFO I11 OpenWorkbenchObjectA on a tool FALSE (IoErr %ld): A6's, see LAUNCHDESK\n", (long)IoErr());
-        skip("I12a", "not launched here (A6); see STARTUP CHECK");
-        skip("I12b", "not launched here (A6); see STARTUP CHECK");
-        return 10;
-    }
-    if (fh) Close(fh);
-    Delay(10);   /* the line written whole */
-    check_launchrec("RAM:wbgap-launch", 1, want);
-    return fails ? 5 : 0;
 }
 
 /* ---- I11 on the desktop: Shift-double-click, as a hand does it (WBGapDesk.rexx clicks) ----
@@ -2117,6 +2082,12 @@ int wbt_write_file(const char *path, const char *text) { return write_file(path,
 unsigned long wbt_inside_sum(struct Window *w) { return inside_sum(w); }
 int wbt_changes_within(struct Window *w, unsigned long before, int secs) { return changes_within(w, before, secs); }
 int wbt_setup(void) { return do_setup(); }
+int wbt_put_icon_stack(const char *path, long type, char **tooltypes, long stack)
+{
+    return put_icon_stack(path, (LONG)type, (STRPTR *)tooltypes, (LONG)stack);
+}
+unsigned long wbt_stack_wanted(void) { return stack_wanted(); }
+int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack) { return check_launchrec(file, args_too, want_stack); }
 void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
@@ -2156,7 +2127,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
-    else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
     else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);

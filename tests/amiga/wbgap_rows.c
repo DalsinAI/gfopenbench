@@ -139,7 +139,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
-    {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
+    {"W1", NULL, A, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
     {"W3", NULL, A, NULL, "window and screen titles"},
     /* 10. Notifications */
