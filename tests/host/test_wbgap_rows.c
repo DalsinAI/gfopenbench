@@ -122,6 +122,14 @@ static void ramdisk_plan(void)
     CHECK(wbgap_root_has_disk(root, "RAM DISK") && wbgap_root_has_disk("disk ram disk", "Ram Disk"), "case not minded");
     CHECK(wbgap_root_has_disk("DISK Ram Disk\r\n", "Ram Disk") && wbgap_root_has_disk("DISK Ram Disk  \n", "Ram Disk"),
           "a line's CR and trailing blanks don't count");
+    CHECK(wbgap_root_has_disk("DISK RAM Disk:\n", "Ram Disk") && wbgap_root_has_disk("DISK System:\nDISK RAM Disk: \r\n", "Ram Disk"),
+          "the port's \"RAM Disk:\" (a trailing colon, as Ivanova's lab gave) is the disk");
+    CHECK(!wbgap_root_has_disk("DISK RAM Disk::\n", "Ram Disk") && !wbgap_root_has_disk("DISK :\n", ""),
+          "only one colon is the port's");
+    CHECK(wbgap_has_nocase("DRAWER RAM DISK\n", "Ram Disk") && wbgap_has_nocase("x ram disk", "RAM Disk"),
+          "the hint's search: case not minded");
+    CHECK(!wbgap_has_nocase("DISK System\n", "Ram Disk") && !wbgap_has_nocase("Ram Dis", "Ram Disk") &&
+          !wbgap_has_nocase(NULL, "x") && !wbgap_has_nocase("x", ""), "the hint's search: not there, or nothing to look for");
     CHECK(!wbgap_root_has_disk("DISK System\nDRAWER WBGapI\n", "Ram Disk"), "no RAM Disk icon");
     CHECK(!wbgap_root_has_disk("DRAWER Ram Disk\n", "Ram Disk"), "a drawer of that name isn't the disk");
     CHECK(!wbgap_root_has_disk("DISK Ram Disk 2\n", "Ram Disk") && !wbgap_root_has_disk("DISK Ram\n", "Ram Disk"),
