@@ -28,6 +28,9 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/w
 # guest-index.sh: tests/amiga/build-amiga.sh fetches amicradle-guest's tools/openindex for WBGapIndex (row X2)
 sh "$HERE/tests/host/test_guest_index.sh"
 "$OUT/test_wbgap_rows"
+# wbgap_probe: how far apart WBGapTest's window probe reads pixels (X1's fitted drawer)
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/host/test_wbgap_probe.c" -o "$OUT/test_wbgap_probe"
+"$OUT/test_wbgap_probe"
 "$OUT/test_spyfmt"
 
 # icon_core, with the address and undefined-behaviour checkers where the

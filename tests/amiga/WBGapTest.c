@@ -113,6 +113,7 @@
 
 #include "wbgap_menu.h"
 #include "wbgap_rows.h"
+#include "wbgap_probe.h"
 #include "wbgap_test.h"
 #if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
 typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_WBO_DRAWER && WBO_ICON == WBGAP_WBO_ICON) ? 1 : -1];
@@ -550,15 +551,15 @@ static int clear_drawer(const char *path, const char *title, const char *row)
     return r;
 }
 
-/* the inside of a window, sampled every second pixel, as one number */
+/* the inside of a window, sampled every second pixel (a wider grid in a big window: wbgap_probe.h), as one number */
 static ULONG inside_sum(struct Window *w)
 {
     struct RastPort *rp = w->RPort;
     int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
     ULONG sum = 0;
-    int x, y;
-    for (y = w->BorderTop; y < w->Height - w->BorderBottom; y += 2)
-        for (x = w->BorderLeft; x < w->Width - w->BorderRight; x += 2)
+    int x, y, step = wbg_probe_step(w->Width - w->BorderLeft - w->BorderRight, w->Height - w->BorderTop - w->BorderBottom);
+    for (y = w->BorderTop; y < w->Height - w->BorderBottom; y += step)
+        for (x = w->BorderLeft; x < w->Width - w->BorderRight; x += step)
             sum = sum * 31 + (deep ? rgb_pixel(rp, x, y) : (ULONG)ReadPixel(rp, x, y));
     return sum;
 }
