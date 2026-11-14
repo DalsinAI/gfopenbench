@@ -1,5 +1,5 @@
 #!/bin/sh
-# GFOpenBenchmark for Cradle's stove_build (target benchmark, stove os32-gcc16-open6): Cradle checks out
+# GFOpenBenchmark for Cradle's stove_build (target benchmark, stove os32-gcc16): Cradle checks out
 # this repository alone and sets STOVE and OUT, so this fetches the two checkouts benchmark/build.sh
 # needs (amicradle-guest's common/sysprobe and accontrol.device's header; gfopenrtg's
 # library/ogles3) at main into $OUT/deps, sparse and shallow, says which commit each was, builds, and
@@ -8,7 +8,7 @@
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT=${OUT:-$HERE/../build/os3}
-STOVE=${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16-open6}
+STOVE=${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}
 DEPS=${DEPS:-$OUT/deps}
 GIT_BASE=${AMIGACHROME_GIT_BASE:-https://github.com/}
 mkdir -p "$DEPS"
