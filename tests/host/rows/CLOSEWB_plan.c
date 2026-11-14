@@ -31,4 +31,25 @@ void closewb_plan(void)
     CHECK(wbgap_closewb_over("SKIP C6 no Workbench screen\nINFO C6 done"), "no newline at the end: over");
     CHECK(wbgap_closewb_over("x\r\nINFO C6 done\r\n"), "CR LF: over");
     CHECK(!wbgap_closewb_over("XINFO C6 done\n") && !wbgap_closewb_over("INFO C6 doner\n"), "only the whole line counts");
+    /* the last step CLOSEWB reached, for CLOSEWBWAIT's FAIL */
+    {
+        char step[64];
+        CHECK(!wbgap_closewb_last_step(NULL, step, sizeof step) && !step[0], "no text: no step");
+        CHECK(!wbgap_closewb_last_step("", step, sizeof step) && !step[0], "nothing written: no step");
+        CHECK(!wbgap_closewb_last_step("[CLI 1]\nINFO workbench.library 47.42\n", step, sizeof step) && !step[0],
+              "Run's line and the version only: no step");
+        CHECK(wbgap_closewb_last_step("INFO C6 step: opening RAM:WBGapC's window\n", step, sizeof step)
+              && !strcmp(step, "opening RAM:WBGapC's window"), "one step, newline dropped: \"%s\"", step);
+        CHECK(wbgap_closewb_last_step("INFO C6 step: opening RAM:WBGapC's window\nINFO C6 step: calling CloseWorkBench()\n",
+                                      step, sizeof step) && !strcmp(step, "calling CloseWorkBench()"), "the last of two: \"%s\"", step);
+        CHECK(wbgap_closewb_last_step("INFO C6 step: calling CloseWorkBench()\r\nINFO C6 CloseWorkBench() gave 0\r\n", step, sizeof step)
+              && !strcmp(step, "calling CloseWorkBench()"), "CR LF, other INFO lines after it: \"%s\"", step);
+        CHECK(wbgap_closewb_last_step("INFO C6 step: waiting for the desktop", step, sizeof step)
+              && !strcmp(step, "waiting for the desktop"), "no newline at the end: \"%s\"", step);
+        CHECK(!wbgap_closewb_last_step("XINFO C6 step: calling CloseWorkBench()\n", step, sizeof step) && !step[0],
+              "only a whole line counts");
+        CHECK(wbgap_closewb_last_step("INFO C6 step: calling CloseWorkBench()\n", step, 8) && !strcmp(step, "calling"),
+              "cut to the room given: \"%s\"", step);
+        CHECK(!wbgap_closewb_last_step("INFO C6 step: x\n", NULL, 0), "no room: 0, nothing written");
+    }
 }

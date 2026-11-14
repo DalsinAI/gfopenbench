@@ -8,3 +8,8 @@ int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int
  * NULL). CLOSEWBWAIT gives the row a FAIL of its own when it isn't over in
  * time, so a CloseWorkBench() that never returns can't hang the run. */
 int wbgap_closewb_over(const char *text);
+/* The last "INFO C6 step: <what>" line CLOSEWB has written so far (it flushes
+ * each one), copied into out without the prefix: 1 when there is one, 0 when
+ * there is none (or text is NULL; out is then ""). CLOSEWBWAIT names it in its
+ * FAIL, so a run shows whether CloseWorkBench() itself or a later step hung. */
+int wbgap_closewb_last_step(const char *text, char *out, unsigned cap);
