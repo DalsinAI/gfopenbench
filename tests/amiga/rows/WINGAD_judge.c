@@ -88,3 +88,30 @@ void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int 
     xy[0] = x + w / 2;
     xy[1] = y + h / 2;
 }
+
+int wbgap_wingad_place_why(const long want[4], const long got[4], const long lim[4], int found, char *why,
+                           unsigned cap)
+{
+    char r[240];
+    size_t n;
+    if (!found) {
+        snprintf(r, sizeof r, "it opened, then went while it was being put at %ld,%ld %ldx%ld", want[0], want[1],
+                 want[2], want[3]);
+    } else if (got[0] == want[0] && got[1] == want[1] && got[2] == want[2] && got[3] == want[3]) {
+        if (why && cap)
+            snprintf(why, cap, "placed late: at %ld,%ld %ldx%ld as asked, but only after the 2 s wait", want[0],
+                     want[1], want[2], want[3]);
+        return 0;
+    } else {
+        snprintf(r, sizeof r, "it opened, but put at %ld,%ld %ldx%ld it is at %ld,%ld %ldx%ld", want[0], want[1],
+                 want[2], want[3], got[0], got[1], got[2], got[3]);
+        n = strlen(r);
+        if (want[2] < lim[0] || want[3] < lim[1] || want[2] > lim[2] || want[3] > lim[3])
+            snprintf(r + n, sizeof r - n, ": outside its limits %ldx%ld to %ldx%ld (the desktop's)", lim[0], lim[1],
+                     lim[2], lim[3]);
+        else
+            snprintf(r + n, sizeof r - n, ", within its limits: the desktop moved or sized it back");
+    }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return 1;
+}
