@@ -52,6 +52,12 @@ struct Window *wbt_drop_ready(int *stage);
 void wbt_drop_from(struct Window *w, long xy[2]);
 void wbt_drop_drag(const long from[2], const long to[2], const char *row);
 void wbt_drop_clean(void);
+/* wbt_grab: w's inside sampled (every 2 pixels, at most WBT_GRAB_N samples) into buf, its size in samples in *gw, *gh;
+ * wbt_settle: what changed in w since before (gw x gh samples) once it has stayed the same 0.4 s, as a box in the
+ * inside: 1, or 0 in 5 s */
+#define WBT_GRAB_N (300 * 220)
+void wbt_grab(struct Window *w, unsigned long *buf, int *gw, int *gh);
+int wbt_settle(struct Window *w, const unsigned long *before, int gw, int gh, long box[4]);
 int wbt_exists(const char *path);                              /* 1 if path locks */
 int wbt_windows_now(struct Screen *s, struct Window **out, int n); /* s's windows into out, front first: how many */
 int wbt_still_there(struct Screen *s, struct Window *w);    /* w still one of s's windows */

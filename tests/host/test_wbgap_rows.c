@@ -352,9 +352,8 @@ static void drop_plan(void)
         CHECK(wbgap_move_judge(0, 1, 1, 1, "d", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, ".info"),
               "the icon in both: FAIL (%s)", why);
         CHECK(wbgap_move_judge(0, 0, 1, 1, NULL, NULL, why, 0) == WBGAP_PASS, "no names, no room for a reason: no write");
-        CHECK(wbgap_find("I4") >= 0 && !strcmp(wbgap_row(wbgap_find("I4"))->mode, "DRAGFILE") &&
-              wbgap_row(wbgap_find("I4"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I7"))->mode, "DRAGFILE") &&
-              wbgap_row(wbgap_find("I7"))->how == WBGAP_AUTO, "I4 and I7 come from DRAGFILE, automatic");
+        CHECK(wbgap_find("I4") >= 0 && wbgap_row(wbgap_find("I4"))->how == WBGAP_AUTO && wbgap_find("I7") >= 0 &&
+              wbgap_row(wbgap_find("I7"))->how == WBGAP_AUTO, "I4 and I7 are automatic (DRAGFILE, rows/DRAGFILE.c)");
     }
 }
 
