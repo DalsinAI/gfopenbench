@@ -44,6 +44,19 @@ WBGAP_ROWMODE(I6p, TRASHNOTE)
  * found by that */
 #define TN_RAMWIN "RAM: - "
 
+/* wbt_place, tried 3 times a second apart: a drawer window GFOpenDrawer has just opened may still size itself to fit
+ * (14 Nov lab: RAM:WBGapR's window left at 316x210 when the first ChangeWindowBox raced it) */
+static struct Window *tn_place(const char *title, const long *avoid, long w, long h)
+{
+    struct Window *x = NULL;
+    int i;
+    for (i = 0; i < 3 && !x; i++) {
+        if (i) Delay(50);
+        x = wbt_place(title, avoid, w, h);
+    }
+    return x;
+}
+
 static int tn_there(const char *path)
 {
     BPTR l = Lock((CONST_STRPTR)path, ACCESS_READ);
@@ -169,7 +182,7 @@ int wbt_trashnote(int argc, char **argv)
     ram_ours = !wbt_find_window(TN_RAMWIN) && !wbt_find_window(vol);   /* closed again after only if it wasn't open */
     can_ours = 1;                         /* from here RAM:Trashcan, if any, is ours */
     wbt_drawer(TN_DIR, "a");
-    if (!wbt_open_drawer(TN_DIR, "WBGapR", 10, &how) || !(w = wbt_place("WBGapR", NULL, ww, TN_H))) {
+    if (!wbt_open_drawer(TN_DIR, "WBGapR", 10, &how) || !(w = tn_place("WBGapR", NULL, ww, TN_H))) {
         wbt_fail("I6t", TN_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
@@ -178,11 +191,13 @@ int wbt_trashnote(int argc, char **argv)
     if (!wbt_open_drawer("RAM:", TN_RAMWIN, 10, &how) && wbt_find_window(vol))
         snprintf(title, sizeof title, "%s", vol);   /* a desktop that titles it with the volume's name */
     printf("INFO I6t the RAM Disk's window is found by \"%s\"\n", title);
-    if (!wbt_find_window(title) || !(rw = wbt_place(title, rbox, ww, TN_H))) {
+    if (!wbt_find_window(title) || !(rw = tn_place(title, rbox, ww, TN_H))) {
         wbt_fail("I6t", "the RAM Disk's window didn't open, or couldn't be put clear of " TN_DIR "'s");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
     }
+    printf("INFO I6t %s's window at %d,%d %dx%d, the RAM Disk's at %d,%d %dx%d\n", TN_DIR, w->LeftEdge, w->TopEdge, w->Width,
+           w->Height, rw->LeftEdge, rw->TopEdge, rw->Width, rw->Height);
     Delay(50);
     if (!wbt_make_icon(rw, "RAM:", "Trashcan", WBGARBAGE, 200, 150, box_t) || !(rw = wbt_find_window(title)) ||
         !(w = wbt_find_window("WBGapR")) || !wbt_make_icon(w, TN_DIR, "f", WBPROJECT, 120, 10, box_f) ||
