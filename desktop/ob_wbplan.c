@@ -51,6 +51,27 @@ int ob_wbp_join(const char *dir, const char *name, char *out, int n)
     return 1;
 }
 
+int ob_wbp_arg_path(const char *dir, const char *name, char *out, int n)
+{
+    size_t nl;
+    if (n <= 0) return 0;
+    out[0] = 0;
+    if (!name || !*name) return 0;
+    if (dir && *dir && !strchr(name, ':')) return ob_wbp_join(dir, name, out, n);
+    nl = strlen(name);
+    if (nl >= (size_t)n) return 0;
+    memcpy(out, name, nl + 1);
+    return 1;
+}
+
+int ob_wbp_open_how(int kind, int nargs)
+{
+    if (nargs <= 0) return OB_WBP_RUN_OPEN;
+    if (kind == OB_WBP_K_TOOL) return OB_WBP_RUN_TOOL;
+    if (kind == OB_WBP_K_PROJECT) return OB_WBP_RUN_PROJECT;
+    return OB_WBP_RUN_OPEN;
+}
+
 static int add(ob_wbp_row *out, int k, int max, int index, int level)
 {
     if (k < max) {

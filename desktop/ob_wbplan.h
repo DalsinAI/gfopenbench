@@ -22,6 +22,25 @@ int ob_wbp_hook_answer(long r);
  * any dir + "" is dir. 1, or 0 when it doesn't fit (out then "") or dir is empty with a name. */
 int ob_wbp_join(const char *dir, const char *name, char *out, int n);
 
+/* OpenWorkbenchObjectA's arguments (WBOPENA_ArgLock and WBOPENA_ArgName, row I11 through LAUNCH): a name as one
+ * path in out (at most n - 1 characters). A name with a ':' is a full path already; with no drawer (no ArgLock
+ * before it) the name is taken as it is; otherwise the name in dir, as ob_wbp_join puts them. 1, or 0 when it
+ * doesn't fit or the name is empty (out then ""). */
+int ob_wbp_arg_path(const char *dir, const char *name, char *out, int n);
+
+/* What OpenWorkbenchObjectA does with the object's kind (OB_WBP_K_*, from its icon) and nargs arguments, as OS 3.2.3:
+ * OB_WBP_RUN_OPEN, opened as it is opened with none (a drawer, a disk, or no arguments); OB_WBP_RUN_TOOL, the tool
+ * started with the arguments; OB_WBP_RUN_PROJECT, the project's default tool started with the project, then the
+ * arguments. */
+#define OB_WBP_K_OTHER   0
+#define OB_WBP_K_TOOL    1
+#define OB_WBP_K_PROJECT 2
+#define OB_WBP_K_DRAWER  3
+#define OB_WBP_RUN_OPEN    0
+#define OB_WBP_RUN_TOOL    1
+#define OB_WBP_RUN_PROJECT 2
+int ob_wbp_open_how(int kind, int nargs);
+
 /* A program's AppMenuItem as the menus are laid out from it (ob_wb_menu's; role OWB_MENU_*: item 0, parent 1,
  * title 2) */
 typedef struct ob_wbp_menu {
