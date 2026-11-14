@@ -93,6 +93,10 @@ void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
  * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
+/* D1: a disk's icon goes while its file system is inhibited (as for Format) and comes back after. The three answers
+ * of wbgap_root_has_disk: before, while inhibited, after; -1 where the icons weren't read. WBGAP_SKIP if it had no
+ * icon before (nothing to watch) or a read failed (nothing seen), else WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
