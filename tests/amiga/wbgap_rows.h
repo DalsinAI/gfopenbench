@@ -67,24 +67,6 @@ int wbgap_backdrop_done(int have_was, int have_made);
  * (NULL: none), and whether a window of Sub opened. 1 PASS, 0 FAIL, -1 SKIP; why (cap bytes) says what failed */
 int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap);
 
-/* The system bar (gfopenprefs TitleBar, GFOpenTitle 0.9): its row window on the title bar holds, left to right, the
- * memory and time, the systray, then Prefs and Power, one cell each (Common/traygrid.h's TRAY_CELL). Power's is the
- * row's last cell: the point (x, y) to click it, from the row's box */
-#define WBGAP_TRAY_CELL 30
-void wbgap_power_point(long left, long top, long width, long height, long xy[2]);
-/* whose list opened, from where it hangs: Power's ends at the row's right edge, Prefs' one cell in from it (a list
- * pushed to x 0 by a narrow screen can't be told: UNSURE) */
-enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
-int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
-/* B1: 1 if (x, y) is inside the box l, t, w x h: the Power click's point under the list it opened */
-int wbgap_point_in_box(long x, long y, long l, long t, long w, long h);
-/* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
- * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
- * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
-long wbgap_power_height(int sticks, long row_height);
-/* B1 (the three power rows) and B2 (an Eject row for each stick) from the list's height: WBGAP_PASS, WBGAP_FAIL or
- * WBGAP_SKIP (B2 with no stick mounted) */
-void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2);
 /* A drawer window a row leaves over the desktop (BIG's RAM:WBGapBig, 1000 icons): the next rows click the desktop's
  * left-out icons, and a click on one of its file icons stops an unattended run on "has no default tool". So it is
  * closed and waited for; if it stays, it is parked at its smallest size in the screen's bottom-right corner.
@@ -121,6 +103,16 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
+/* A8c's empty point, relative to the window: three quarters across and down its inside (window w x h, borders
+ * bl bt br bb), past a drawer's bar at the top and short of a scroller or a bar at the bottom. When that is within
+ * 128 x 108 of the icon's picture at (ix, iy) (also relative to the window), a quarter across and three quarters
+ * down instead. 0 for a window too small to have an inside. */
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2]);
+/* What the tags show of where the answer stopped: each WBOBJA_Type starts at WBGAP_WHICH_UNSET, and one left
+ * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop
+ * window's (-1: not asked). Into out, for the FAIL line. */
+#define WBGAP_WHICH_UNSET 0xFFFFUL
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap);
 
 /* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send
  * the AppMessage. A box (left, top, width, height) of w x h for a window or a drawer, in a corner of a screen

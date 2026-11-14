@@ -104,7 +104,6 @@
 #include <proto/wb.h>
 
 #include "wbgap_menu.h"
-#include "../../desktop/ob_info_ids.h"   /* the Information window's gadget ids (INFOSAVE) */
 #include "wbgap_rows.h"
 #include "wbgap_test.h"
 #if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
@@ -602,6 +601,20 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* A8c: where ChangeWorkbenchSelectionA says the icon named in want[] has its picture (relative to the window) */
+struct which_find { const char *want; long x, y; int found; };
+static LONG which_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), struct IconSelectMsg *ism __asm("a1"))
+{
+    struct which_find *f = (struct which_find *)h->h_Data;
+    (void)reserved;
+    if (ism->ism_Name && !strcmp((const char *)ism->ism_Name, f->want)) {
+        f->x = ism->ism_Left;
+        f->y = ism->ism_Top;
+        f->found = 1;
+    }
+    return ISMACTION_Ignore;
+}
+
 /* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
  * Workbench's windows */
 static int tools_item_within(const char *item, int want, int ticks)
@@ -715,8 +728,10 @@ static int do_api(void)
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) pass("A8b"); else printf("FAIL A8b ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)\n", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), fails++;
-    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, snapshotted at 20,10, asked about on its image and on the
-         * window's empty bottom-right corner (WBO_ICON named "w", then WBO_DRAWER) */
+    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, asked about on its picture and on an empty point of the
+         * drawer's inside (WBO_ICON named "w", then WBO_DRAWER). Where the picture is comes from the Workbench itself
+         * (ChangeWorkbenchSelectionA's ism_Left, ism_Top): a drawer with a bar along its top (GFOpenBench's) or a
+         * fitted layout doesn't put it at the snapshot's 20,10 from the borders. With no answer there, 20,10. */
 #ifdef WBOBJA_Name
         BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW");
         struct DiskObject *d;
@@ -733,20 +748,69 @@ static int do_api(void)
         }
         if (!(ww = open_drawer("RAM:WBGapW", "WBGapW", 10, &how))) fail("A8c", "RAM:WBGapW's window didn't open");
         else {
-            char name[64] = "", why[96];
-            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, t1 = WBO_NONE, t2 = WBO_NONE;
+            /* the tags start at WBGAP_WHICH_UNSET, so the INFO lines say whether the desktop's answer reached them */
+            char name[64] = "?", why[160], seen[96];
+            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, on_desk = WBO_NONE;
+            ULONG t1 = WBGAP_WHICH_UNSET, t2 = WBGAP_WHICH_UNSET, t3 = WBGAP_WHICH_UNSET;
+            LONG e1, e2, e3 = 0;
             long xy[2];
+            struct Window *desk = NULL, *o;
+            struct Task *wt = ww->UserPort ? ww->UserPort->mp_SigTask : NULL;
             struct TagItem tg1[] = {{WBOBJA_Type, (ULONG)&t1}, {WBOBJA_Name, (ULONG)name}, {WBOBJA_NameSize, sizeof name},
                                     {TAG_DONE, 0}};
             struct TagItem tg2[] = {{WBOBJA_Type, (ULONG)&t2}, {TAG_DONE, 0}};
+            struct TagItem tg3[] = {{WBOBJA_Type, (ULONG)&t3}, {TAG_DONE, 0}};
+            struct which_find wf;
+            struct Hook wh;
+            long ex[2];
             Delay(25);
-            wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            memset(&wf, 0, sizeof wf);
+            wf.want = "w";
+            memset(&wh, 0, sizeof wh);
+            wh.h_Entry = (HOOKFUNC)which_hook_fn;
+            wh.h_Data = &wf;
+            ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGapW", &wh, NULL);
+            if (wf.found) { xy[0] = wf.x + 4; xy[1] = wf.y + 4; }
+            else wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            if (!wbgap_which_empty(ww->Width, ww->Height, ww->BorderLeft, ww->BorderTop, ww->BorderRight, ww->BorderBottom,
+                                   xy[0] - 4, xy[1] - 4, ex)) { ex[0] = ww->Width / 2; ex[1] = ww->Height / 2; }
+            printf("INFO A8c w's picture %s at %ld,%ld; the empty point %ld,%ld\n", wf.found ? "(the Workbench says)" : "(not said: 20,10)",
+                   xy[0] - 4, xy[1] - 4, ex[0], ex[1]);
+            SetIoErr(0);
             on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
-            on_empty = WhichWorkbenchObjectA(ww, ww->Width - ww->BorderRight - 6, ww->Height - ww->BorderBottom - 6, tg2);
-            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\"); on the empty corner: %lu (type %lu)\n", xy[0], xy[1],
-                   (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
+            e1 = IoErr();
+            SetIoErr(0);
+            on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
+            e2 = IoErr();
+            printf("INFO A8c window \"%s\" at %d,%d %dx%d, borders %d,%d,%d,%d, task \"%s\"\n",
+                   ww->Title ? (const char *)ww->Title : "", ww->LeftEdge, ww->TopEdge, ww->Width, ww->Height, ww->BorderLeft,
+                   ww->BorderTop, ww->BorderRight, ww->BorderBottom, wt && wt->tc_Node.ln_Name ? wt->tc_Node.ln_Name : "?");
+            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\", IoErr %ld); on the empty point: %lu (type %lu, IoErr %ld)\n",
+                   xy[0], xy[1], (unsigned long)on_icon, (unsigned long)t1, name, (long)e1, (unsigned long)on_empty,
+                   (unsigned long)t2, (long)e2);
+            /* the desktop's own window (backdrop, a Workbench window), asked about its bottom-right corner: INFO
+             * only, it tells a desktop that answers nothing from one that doesn't know this drawer's window */
+            {
+                ULONG lk = LockIBase(0);
+                for (o = ww->WScreen ? ww->WScreen->FirstWindow : NULL; o && !desk; o = o->NextWindow)
+                    if ((o->Flags & WFLG_BACKDROP) && (o->Flags & WFLG_WBENCHWINDOW)) desk = o;
+                UnlockIBase(lk);
+            }
+            if (desk) {
+                SetIoErr(0);
+                on_desk = WhichWorkbenchObjectA(desk, desk->Width - 4, desk->Height - 4, tg3);
+                e3 = IoErr();
+                printf("INFO A8c the desktop's corner: %lu (type %lu, IoErr %ld)\n", (unsigned long)on_desk,
+                       (unsigned long)t3, (long)e3);
+            } else
+                printf("INFO A8c no desktop window (backdrop, Workbench) on the drawer's screen\n");
+            wbgap_which_seen(t1, t2, desk ? (long)t3 : -1L, seen, sizeof seen);
             if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
-            else fail("A8c", why);
+            else {
+                size_t k = strlen(why);
+                snprintf(why + k, sizeof why - k, "; %s", seen);
+                fail("A8c", why);
+            }
             clear_drawer("RAM:WBGapW", "WBGapW", "A8c");   /* closed, else parked off the desktop rows */
         }
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");
@@ -767,8 +831,9 @@ static int do_api(void)
 /* ---- screens ---- */
 static int run(const char *cmd) { return SystemTags((CONST_STRPTR)cmd, TAG_DONE); }
 
-/* a square of a screen's own pixels, as one number: what the screen holds, never the pointer if that is a sprite */
-static ULONG screen_box_sum(struct Screen *s, int cx, int cy, int half)
+/* a square of a screen's own pixels, as one number: what the screen holds, never the pointer if that is a sprite
+ * (SCREENS' P4b, rows/SCREENS.c) */
+unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half)
 {
     struct RastPort *rp = &s->RastPort;
     int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
@@ -780,75 +845,7 @@ static ULONG screen_box_sum(struct Screen *s, int cx, int cy, int half)
     return sum;
 }
 
-/* P4: Intuition's pointer, as 3.2.3 (P4a: it goes where it is moved); on RTG a sprite layer (P4b): with the pointer
- * over a square of the Workbench screen, the screen's own pixels there are what they are with it away */
-static void do_pointer(struct Screen *wb)
-{
-    char cmd[320];
-    int cx = wb->Width / 2, cy = wb->Height / 2, half = 12;
-    ULONG id = GetVPModeID(&wb->ViewPort), away1, over, away2;
-    ScreenToFront(wb);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
-    run(cmd);
-    Delay(25);
-    away1 = screen_box_sum(wb, cx, cy, half);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, cx - 4, cy - 4);
-    run(cmd);
-    Delay(25);
-    if (wb->MouseX >= cx - 5 && wb->MouseX <= cx - 3 && wb->MouseY >= cy - 5 && wb->MouseY <= cy - 3) pass("P4a");
-    else { char why[64]; snprintf(why, sizeof why, "moved to %d,%d, the screen says %d,%d", cx - 4, cy - 4, wb->MouseX, wb->MouseY); fail("P4a", why); }
-    over = screen_box_sum(wb, cx, cy, half);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
-    run(cmd);
-    Delay(25);
-    away2 = screen_box_sum(wb, cx, cy, half);
-    printf("INFO P4 mode $%08lx, box %08lx / %08lx / %08lx\n", (unsigned long)id, (unsigned long)away1, (unsigned long)over, (unsigned long)away2);
-    if (id == INVALID_ID || (id & 0xFFFF1000UL) < 0x00100000UL) skip("P4b", "Workbench is not on an RTG mode (the chipset's sprites)");
-    else if (away1 != away2) skip("P4b", "the screen changed under the square by itself; run again");
-    else if (over != away1) fail("P4b", "the pointer is drawn into the screen's pixels, not a sprite layer");
-    else pass("P4b");
-}
-
-static int do_screens(void)
-{
-    struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench"), *s;
-    struct Gadget *g;
-    char cmd[320];
-    int x = -1, y = -1;
-    if (wb) pass("C4"); else { fail("C4", "LockPubScreen(Workbench) NULL"); return 20; }
-    do_pointer(wb);
-    s = OpenScreenTags(NULL, SA_LikeWorkbench, TRUE, SA_Title, (ULONG)"WBGapScreen", SA_ShowTitle, TRUE, TAG_DONE);
-    if (!s) { fail("C1", "no test screen"); skip("C2", "no test screen"); UnlockPubScreen(NULL, wb); return 10; }
-    ScreenToFront(s);
-    Delay(50);
-    for (g = s->FirstGadget; g; g = g->NextGadget)
-        if ((g->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SDEPTH) {
-            x = ((g->Flags & GFLG_RELRIGHT) ? s->Width - 1 + g->LeftEdge : g->LeftEdge) + g->Width / 2;
-            y = g->TopEdge + g->Height / 2;
-        }
-    if (x < 0) fail("C1", "the screen has no depth gadget");
-    else {
-        snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
-        run(cmd);
-        Delay(50);
-        if (IntuitionBase->FirstScreen != s) pass("C1"); else fail("C1", "the depth gadget left the screen in front");
-    }
-    ScreenToFront(s);
-    Delay(50);
-    snprintf(cmd, sizeof cmd, "%s KEY 0x37 QUAL LAMIGA", dragtest);
-    run(cmd);   /* M: the front screen to the back */
-    Delay(50);
-    if (IntuitionBase->FirstScreen != s) pass("C2a"); else fail("C2a", "Left-Amiga-M left the front screen in front");
-    ScreenToFront(s);
-    Delay(50);
-    snprintf(cmd, sizeof cmd, "%s KEY 0x36 QUAL LAMIGA", dragtest);
-    run(cmd);   /* N: Workbench to the front */
-    Delay(50);
-    if (IntuitionBase->FirstScreen == wb) pass("C2b"); else fail("C2b", "Left-Amiga-N didn't bring Workbench to the front");
-    CloseScreen(s);
-    UnlockPubScreen(NULL, wb);
-    return fails ? 5 : 0;
-}
+unsigned long wbt_mode_id(struct Screen *s) { return GetVPModeID(&s->ViewPort); }
 
 /* ---- the M rows driven: each item picked with the mouse, as a hand picks it, and what it did looked at ----
  * In RAM:WBGap's drawer window (the script opens it). The pointer goes title, item (and sub-item) with the right
@@ -1033,173 +1030,6 @@ static void key(int code)
     Delay(15);
 }
 
-/* ---- INFOSAVE: rows N2-N5, the Information window's Save, driven as a hand does ---- */
-/* the box (window-relative) of every gadget of w with this id, joined: a GadTools listview is more than one */
-static int gad_box(struct Window *w, UWORD id, LONG *x, LONG *y, LONG *gw, LONG *gh)
-{
-    struct Gadget *g;
-    LONG x0 = 0x7fff, y0 = 0x7fff, x1 = -1, y1 = -1;
-    ULONG lock = LockIBase(0);
-    for (g = w->FirstGadget; g; g = g->NextGadget) {
-        LONG l, t;
-        if ((g->GadgetType & GTYP_SYSGADGET) || g->GadgetID != id || g->Width <= 0 || g->Height <= 0) continue;
-        l = (g->Flags & GFLG_RELRIGHT) ? w->Width - 1 + g->LeftEdge : g->LeftEdge;
-        t = (g->Flags & GFLG_RELBOTTOM) ? w->Height - 1 + g->TopEdge : g->TopEdge;
-        if (l < x0) x0 = l;
-        if (t < y0) y0 = t;
-        if (l + g->Width > x1) x1 = l + g->Width;
-        if (t + g->Height > y1) y1 = t + g->Height;
-    }
-    UnlockIBase(lock);
-    if (x1 < 0) return 0;
-    *x = x0, *y = y0, *gw = x1 - x0, *gh = y1 - y0;
-    return 1;
-}
-
-/* a click on gadget id of w: its middle, or (row >= 0, a listview) the middle of that row, near its left */
-static int click_gad(struct Window *w, UWORD id, int row)
-{
-    LONG x, y, gw, gh, fh = w->WScreen->Font ? w->WScreen->Font->ta_YSize : 8;
-    char cmd[300];
-    if (!gad_box(w, id, &x, &y, &gw, &gh)) return 0;
-    if (row >= 0) x += 24, y += 2 + row * fh + fh / 2;
-    else x += gw / 2, y += gh / 2;
-    snprintf(cmd, sizeof cmd, "%s CLICK %ld %ld", dragtest, (long)(w->LeftEdge + x), (long)(w->TopEdge + y));
-    run(cmd);
-    Delay(20);
-    return 1;
-}
-
-static void key_q(int code, const char *qual)
-{
-    char cmd[300];
-    snprintf(cmd, sizeof cmd, "%s KEY 0x%x QUAL %s", dragtest, code, qual);
-    run(cmd);
-    Delay(15);
-}
-
-/* text typed on a US keyboard (wbgap_rawkey: a-z, A-Z with Shift, 0-9 - = . / space); 0 at a character it has no key for */
-static int type_text(const char *t)
-{
-    for (; *t; t++) {
-        int shift, code = wbgap_rawkey((unsigned char)*t, &shift);
-        if (code < 0) return 0;
-        if (shift) key_q(code, "LSHIFT"); else key(code);
-    }
-    return 1;
-}
-
-/* the string gadget id of w emptied (Right-Amiga X) and t typed into it; Return after it when ret */
-static int set_string(struct Window *w, UWORD id, const char *t, int ret)
-{
-    if (!click_gad(w, id, -1)) return 0;
-    key_q(0x32, "RAMIGA");
-    if (!type_text(t)) return 0;
-    if (ret) key(0x44);
-    return 1;
-}
-
-static int infosave_row(void)
-{
-    static const char *const rows[] = { "N2", "N3", "N4", "N5" };
-    static STRPTR tt[] = { (STRPTR)"a=1", (STRPTR)"d=4", NULL };
-    struct FileInfoBlock *fib;
-    struct DiskObject *dob;
-    struct Screen *wb;
-    struct Window *iw = NULL;
-    BPTR dir, l;
-    int t, i, done;
-    if (!is_gfos()) {
-        for (i = 0; i < 4; i++) skip(rows[i], "drives GFOpenBench's Information window by its gadget ids; 3.2.3's is checked by hand");
-        return 0;
-    }
-    /* RAM:WBGapN/n: a project, every protection bit as a new file has it, no comment, no default tool,
-     * tool types a=1 and d=4 */
-    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapN"))) UnLock(l);
-    /* a rerun: the last run's Save left it not deletable, so clear that before it is written again */
-    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
-    write_file("RAM:WBGapN/n", "WBGapTest INFOSAVE\n");
-    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
-    SetComment((CONST_STRPTR)"RAM:WBGapN/n", (CONST_STRPTR)"");
-    if (!put_icon("RAM:WBGapN/n", WBPROJECT, tt)) {
-        for (i = 0; i < 4; i++) fail(rows[i], "RAM:WBGapN/n.info could not be written");
-        return 10;
-    }
-    if ((dob = GetDiskObject((CONST_STRPTR)"RAM:WBGapN/n"))) {   /* a default project icon may name a tool: none here */
-        dob->do_DefaultTool = (STRPTR)"";
-        PutDiskObject((CONST_STRPTR)"RAM:WBGapN/n", dob);
-        FreeDiskObject(dob);
-    }
-    dir = Lock((CONST_STRPTR)"RAM:WBGapN", ACCESS_READ);
-    wb = LockPubScreen((CONST_STRPTR)"Workbench");
-    if (dir && wb && WBInfo(dir, (CONST_STRPTR)"n", wb))
-        for (t = 0; t < 30 && !(iw = find_window("Information: n")); t++) Delay(10);
-    if (wb) UnlockPubScreen(NULL, wb);
-    if (dir) UnLock(dir);
-    if (!iw) {
-        for (i = 0; i < 4; i++) fail(rows[i], "WBInfo opened no Information window for RAM:WBGapN/n");
-        return 10;
-    }
-    Delay(50);   /* drawn */
-    printf("INFO INFOSAVE Information window %ldx%ld at %ld,%ld\n", (long)iw->Width, (long)iw->Height, (long)iw->LeftEdge, (long)iw->TopEdge);
-    /* N2: Deletable off. N3: a comment. N5: a default tool. N4: a=1 made a=3, d=4 deleted, b=2 added. */
-    done = click_gad(iw, G_PD, -1)
-        && set_string(iw, G_COMMENT, "gapnote", 0)
-        && set_string(iw, G_TOOL, "dir", 0)
-        && click_gad(iw, G_TTLIST, 0) && (key_q(0x32, "RAMIGA"), type_text("a=3")) && (key(0x44), 1)
-        && click_gad(iw, G_TTLIST, 1) && click_gad(iw, G_TTDEL, -1)
-        && click_gad(iw, G_TTNEW, -1) && type_text("b=2") && (key(0x44), 1)
-        && click_gad(iw, G_SAVE, -1);
-    for (t = 0; t < 30 && find_window("Information: n"); t++) Delay(10);
-    if ((iw = find_window("Information: n"))) {   /* not saved (a requester?): closed unsaved */
-        printf("INFO INFOSAVE the window is still open after Save%s\n", done ? "" : " (a gadget wasn't found)");
-        if (iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
-        for (i = 0; i < 4; i++) fail(rows[i], "Save didn't close the Information window");
-        return 10;
-    }
-    l = 0;
-    if ((fib = AllocDosObject(DOS_FIB, NULL)) && (l = Lock((CONST_STRPTR)"RAM:WBGapN/n", ACCESS_READ)) && Examine(l, fib)) {
-        LONG p = fib->fib_Protection;
-        if ((p & FIBF_DELETE) && !(p & (FIBF_READ | FIBF_WRITE | FIBF_EXECUTE))) pass("N2");
-        else printf("FAIL N2 protection 0x%lx after Save, not Deletable off with R, W and E on\n", (unsigned long)p), fails++;
-        if (!strcmp((const char *)fib->fib_Comment, "gapnote")) pass("N3");
-        else printf("FAIL N3 the comment is \"%s\" after Save, not \"gapnote\"\n", (const char *)fib->fib_Comment), fails++;
-    } else {
-        fail("N2", "RAM:WBGapN/n can't be examined");
-        fail("N3", "RAM:WBGapN/n can't be examined");
-    }
-    if (l) UnLock(l);
-    if (fib) FreeDosObject(DOS_FIB, fib);
-    if ((dob = GetDiskObject((CONST_STRPTR)"RAM:WBGapN/n"))) {
-        STRPTR *x = dob->do_ToolTypes;
-        char got[160] = "";
-        for (i = 0; x && x[i]; i++) {
-            if (i) strncat(got, ",", sizeof got - strlen(got) - 1);
-            strncat(got, (const char *)x[i], sizeof got - strlen(got) - 1);
-        }
-        if (!strcmp(got, "a=3,b=2")) pass("N4");
-        else printf("FAIL N4 tool types \"%s\" after Save, not \"a=3,b=2\" (a=1 edited, d=4 deleted, b=2 added)\n", got), fails++;
-        if (dob->do_DefaultTool && !strcmp((const char *)dob->do_DefaultTool, "dir")) pass("N5");
-        else printf("FAIL N5 the default tool is \"%s\" after Save, not \"dir\"\n", dob->do_DefaultTool ? (const char *)dob->do_DefaultTool : "(none)"), fails++;
-        FreeDiskObject(dob);
-    } else {
-        fail("N4", "RAM:WBGapN/n.info can't be read");
-        fail("N5", "RAM:WBGapN/n.info can't be read");
-    }
-    return fails ? 10 : 0;
-}
-
-/* RAM:WBGapN is gone after every run, whichever way it ended (Lyta, #150) */
-static int do_infosave(void)
-{
-    int rc = infosave_row();
-    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);   /* the Save left it not deletable */
-    DeleteFile((CONST_STRPTR)"RAM:WBGapN/n.info");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapN/n");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapN");
-    return rc;
-}
-
 /* waits up to secs for w's inside to read as sum again */
 static int back_to(struct Window *w, ULONG sum, int secs)
 {
@@ -1368,180 +1198,11 @@ static int do_menudrive(void)
 
 static long read_all(const char *path, char *buf, long n);
 
-/* ---- the system bar: B1 and B2, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
- * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
- * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
- * closed with Esc: nothing in it is ever picked (Reboot and Power off are in it). */
-static struct Window *bar_row(struct Screen *s, struct Task *t)
-{
-    struct Window *w, *best = NULL;
-    ULONG lock = LockIBase(0);
-    for (w = s->FirstWindow; w; w = w->NextWindow)
-        if (w->UserPort && w->UserPort->mp_SigTask == t && (w->Flags & WFLG_BORDERLESS) && w->TopEdge == 0 &&
-            w->Height <= s->BarHeight + 1 && (!best || w->LeftEdge + w->Width > best->LeftEdge + best->Width))
-            best = w;
-    UnlockIBase(lock);
-    return best;
-}
-
-/* the active window, if it is t's and wasn't in was[0..n), within secs (GFOpenTitle's list opens active) */
-static struct Window *new_active(struct Window **was, int n, struct Task *t, int secs)
-{
-    int k, j;
-    for (k = 0; k < secs * 10; k++) {
-        struct Window *a;
-        ULONG lock = LockIBase(0);
-        a = IntuitionBase->ActiveWindow;
-        if (a && !(a->UserPort && a->UserPort->mp_SigTask == t)) a = NULL;
-        UnlockIBase(lock);
-        if (a) {
-            for (j = 0; j < n && was[j] != a; j++) {}
-            if (j == n) return a;
-        }
-        Delay(5);
-    }
-    return NULL;
-}
-
-/* the USB volumes mounted, as GFOpenTitle counts them for Power's Eject rows: DOS devices on gfopenusbacfs.device or
- * usbdisk.device with a handler running */
-static int usb_sticks_now(void)
-{
-    struct DosList *dl = LockDosList(LDF_DEVICES | LDF_READ), *e = dl;
-    int n = 0;
-    while ((e = NextDosEntry(e, LDF_DEVICES)) != NULL) {
-        struct DeviceNode *dn = (struct DeviceNode *)e;
-        struct FileSysStartupMsg *fssm;
-        const UBYTE *b;
-        char dev[40];
-        int k, len;
-        /* dn_Startup of 1024 or less is a number, not an FSSM (the usual test, as Mount and Info make it): never
-         * read through it, since a wrong guess here reads garbage while the DOS list is locked */
-        if ((ULONG)dn->dn_Startup <= 1024 || !dn->dn_Task) continue;
-        fssm = (struct FileSysStartupMsg *)BADDR(dn->dn_Startup);
-        b = (const UBYTE *)BADDR(fssm->fssm_Device);
-        if (!b) continue;
-        len = (int)b[0] < (int)sizeof dev - 1 ? (int)b[0] : (int)sizeof dev - 1;
-        for (k = 0; k < len; k++) dev[k] = (char)b[k + 1];
-        dev[len] = 0;
-        if (!strcmp(dev, "gfopenusbacfs.device") || !strcmp(dev, "usbdisk.device")) n++;
-    }
-    UnLockDosList(LDF_DEVICES | LDF_READ);
-    return n;
-}
-
 static void say_row(const char *row, int state, const char *why)
 {
     if (state == WBGAP_PASS) pass(row);
     else if (state == WBGAP_FAIL) fail(row, why);
     else skip(row, why);
-}
-
-static int bar_rows(void)
-{
-    struct Screen *s;
-    struct MsgPort *p;
-    struct Task *t;
-    struct Window *row, *was[MAXWINS], *m;
-    long xy[2], rr, ml, mt, mw, mh, rh;
-    int n, k, owner, sticks, b1, b2, under, esc_left;
-    char why[96];
-    struct DrawInfo *dri;
-    char cmd[320];
-    Forbid();
-    p = FindPort((CONST_STRPTR)"GFOpenTitle");
-    t = p ? (struct Task *)p->mp_SigTask : NULL;
-    k = FindPort((CONST_STRPTR)"GFOpenSpeaker") != NULL;
-    Permit();
-    /* B3: the speaker commodity started at boot (the 11 Nov bar design: nothing started GFOpenSpeaker, so the speaker
-     * went missing). A bar with GFOpenTitle on it is GFOS's; without one (3.2.3) there is no speaker to want */
-    if (k) pass("B3");
-    else if (t) fail("B3", "GFOpenSpeaker isn't running (no GFOpenSpeaker port) though the bar is GFOpenTitle's");
-    else skip("B3", "no GFOpenTitle bar (not GFOS)");
-    if (!t) {
-        skip("B1", "GFOpenTitle isn't running (no GFOpenTitle port)");
-        skip("B2", "GFOpenTitle isn't running (no GFOpenTitle port)");
-        return 0;
-    }
-    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("B1", "no Workbench screen"); skip("B2", "no Workbench screen"); return 0; }
-    ScreenToFront(s);
-    Delay(25);
-    if (!(row = bar_row(s, t))) {
-        fail("B1", "GFOpenTitle's row on the title bar not found");
-        skip("B2", "no Power list to read");
-        UnlockPubScreen(NULL, s);
-        return 5;
-    }
-    wbgap_power_point(row->LeftEdge, row->TopEdge, row->Width, row->Height, xy);
-    rr = row->LeftEdge + row->Width;
-    /* a list row: the bar font's height + 4, as menu_open measures it */
-    rh = (dri = GetScreenDrawInfo(s)) && dri->dri_Font ? dri->dri_Font->tf_YSize + 4 : 0;
-    if (dri) FreeScreenDrawInfo(s, dri);
-    sticks = usb_sticks_now();
-    n = windows_now(s, was, MAXWINS);
-    snprintf(cmd, sizeof cmd, "\"%s\" CLICK %ld %ld", dragtest, xy[0], xy[1]);
-    run(cmd);
-    if (!(m = new_active(was, n, t, 2))) {
-        fail("B1", "a click on Power opened no list");
-        skip("B2", "no Power list to read");
-        UnlockPubScreen(NULL, s);
-        return 5;
-    }
-    ml = m->LeftEdge; mt = m->TopEdge; mw = m->Width; mh = m->Height;
-    under = wbgap_point_in_box(xy[0], xy[1], ml, mt, mw, mh);
-    printf("INFO B1 the row %d,%d %dx%d; Power clicked at %ld,%ld; a list %ld,%ld %ldx%ld; rows %ld high, %d USB volumes\n",
-           row->LeftEdge, row->TopEdge, row->Width, row->Height, xy[0], xy[1], ml, mt, mw, mh, rh, sticks);
-    owner = wbgap_bar_menu_owner(rr, ml, mw);
-    /* Esc closes it before anything else: nothing in it is picked */
-    snprintf(cmd, sizeof cmd, "%s KEY 0x45", dragtest);
-    run(cmd);
-    for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
-    if ((esc_left = still_there(s, m))) {           /* a click on the screen's title, far from the list, closes it */
-        snprintf(cmd, sizeof cmd, "\"%s\" CLICK 4 %d", dragtest, row->TopEdge + row->Height / 2);
-        run(cmd);
-        for (k = 0; k < 20 && still_there(s, m); k++) Delay(5);
-        printf("INFO B1 Esc left the list open; a click on the screen's title %s\n",
-               still_there(s, m) ? "didn't close it either" : "closed it");
-    }
-    wbgap_power_judge(mh, sticks, rh, &b1, &b2);
-    if (under) { fail("B1", "the list opened under the pointer (a mouse-up there could pick Reboot)"); b2 = WBGAP_NONE; }
-    else if (esc_left) fail("B1", "Esc left the list open");   /* B2 still read: the height was taken before */
-    else if (owner == WBGAP_BAR_PREFS) { fail("B1", "a click on Power's cell opened Prefs' list"); b2 = WBGAP_NONE; }
-    else if (owner == WBGAP_BAR_OTHER) { fail("B1", "the window that opened doesn't hang from Power"); b2 = WBGAP_NONE; }
-    else if (owner == WBGAP_BAR_UNSURE) { skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told"); b2 = WBGAP_NONE; }
-    else {
-        snprintf(why, sizeof why, "the list is %ld high, not %ld (Reboot, Restart, Power off, %d Eject rows)", mh,
-                 wbgap_power_height(sticks, rh), sticks);
-        say_row("B1", b1, why);
-    }
-    if (b2 == WBGAP_NONE) skip("B2", "Power's list not read");
-    else {
-        if (b2 == WBGAP_SKIP) snprintf(why, sizeof why, "no USB volume mounted");
-        else snprintf(why, sizeof why, "%d USB volumes: the list is %ld high, not %ld with their Eject rows", sticks, mh,
-                      wbgap_power_height(sticks, rh));
-        say_row("B2", b2, why);
-    }
-    UnlockPubScreen(NULL, s);
-    return fails ? 5 : 0;
-}
-
-/* BAR brings the Workbench screen to the front; the screen that was in front goes back after */
-static int do_bar(void)
-{
-    struct Screen *front;
-    ULONG lock = LockIBase(0);
-    int rc;
-    front = IntuitionBase->FirstScreen;
-    UnlockIBase(lock);
-    rc = bar_rows();
-    lock = LockIBase(0);
-    if (front && IntuitionBase->FirstScreen != front) {
-        struct Screen *x;
-        for (x = IntuitionBase->FirstScreen; x && x != front; x = x->NextScreen) ;
-        UnlockIBase(lock);
-        if (x) ScreenToFront(front);              /* only if it is still open */
-    } else UnlockIBase(lock);
-    return rc;
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
@@ -2764,6 +2425,9 @@ struct Window *wbt_drop_ready(int *stage) { return drop_ready(stage); }
 void wbt_drop_from(struct Window *w, long xy[2]) { drop_from(w, xy); }
 void wbt_drop_drag(const long from[2], const long to[2], const char *row) { drop_drag(from, to, row); }
 void wbt_drop_clean(void) { drop_clean(); }
+int wbt_windows_now(struct Screen *s, struct Window **out, int n) { return windows_now(s, out, n); }
+int wbt_still_there(struct Screen *s, struct Window *w) { return still_there(s, w); }
+void wbt_key(int code) { key(code); }
 
 int main(int argc, char **argv)
 {
@@ -2782,8 +2446,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "API")) rc = do_api();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
-    else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
-    else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
@@ -2791,7 +2453,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
     else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
-    else if (!stricmp(argv[1], "INFOSAVE")) rc = do_infosave();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
     else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);

@@ -67,7 +67,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I2", NULL, A, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
     {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
-    {"I5", NULL, L, NULL, "drag to the backdrop"},
+    {"I5", NULL, A, NULL, "drag to the backdrop"},
     {"I6", NULL, A, NULL, "drag to the Trashcan"},
     {"I6t", "I6", A, NULL, "onto its volume's own Trashcan: filed there with a note of where it came from (GFOS, 14 Nov)"},
     {"I6p", "I6", A, NULL, "put back from the Trashcan to where it came from (GFOS, gfopenfiles.library, 14 Nov)"},
@@ -86,10 +86,10 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
-    {"N3", NULL, A, "INFOSAVE", "comment saved"},
-    {"N4", NULL, A, "INFOSAVE", "tool types added, edited, deleted, saved"},
-    {"N5", NULL, A, "INFOSAVE", "default tool saved"},
+    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
+    {"N3", NULL, A, NULL, "comment saved"},
+    {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
+    {"N5", NULL, A, NULL, "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
     {"N8", NULL, A, API, "WBInfo from a program opens it"},
@@ -130,12 +130,12 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"D5r", NULL, A, NULL, "RAM Disk first in the desktop's volume column (14 Nov)"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
-    {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},
+    {"C1", NULL, A, NULL, "depth gadget with a second screen"},
     {"C2", NULL, A, NULL, "Left-Amiga-M and N"},
-    {"C2a", "C2", A, "SCREENS", "Left-Amiga-M"},
-    {"C2b", "C2", A, "SCREENS", "Left-Amiga-N"},
+    {"C2a", "C2", A, NULL, "Left-Amiga-M"},
+    {"C2b", "C2", A, NULL, "Left-Amiga-N"},
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
-    {"C4", NULL, A, "SCREENS", "LockPubScreen(Workbench)"},
+    {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
@@ -150,8 +150,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"P2", NULL, L, NULL, "icon text font"},
     {"P3", NULL, L, NULL, "Palette, through GFOpenLayout's pens (13 Nov)"},
     {"P4", NULL, A, NULL, "Pointer, as 3.2.3 (13 Nov)"},
-    {"P4a", "P4", A, "SCREENS", "the pointer goes where it is moved, as 3.2.3 (13 Nov)"},
-    {"P4b", "P4", A, "SCREENS", "on RTG the pointer is a sprite layer: the screen's pixels under it are untouched (13 Nov)"},
+    {"P4a", "P4", A, NULL, "the pointer goes where it is moved, as 3.2.3 (13 Nov)"},
+    {"P4b", "P4", A, NULL, "on RTG the pointer is a sprite layer: the screen's pixels under it are untouched (13 Nov)"},
     {"P5", NULL, H, NULL, "IControl, as 3.2.3 (13 Nov)"},
     {"P6", NULL, L, NULL, "locale dates, sizes and sort order in lists"},
     {"P6r", "P6", L, NULL, "relative dates in lists, as an option (13 Nov)"},
@@ -169,9 +169,9 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
-    {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
-    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
-    {"B3", NULL, A, "BAR", "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
+    {"B1", NULL, A, NULL, "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
+    {"B2", NULL, A, NULL, "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
+    {"B3", NULL, A, NULL, "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
@@ -379,47 +379,6 @@ int wbgap_backdrop_done(int have_was, int have_made)
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
 }
 
-void wbgap_power_point(long left, long top, long width, long height, long xy[2])
-{
-    long cell = width < WBGAP_TRAY_CELL ? width : WBGAP_TRAY_CELL;
-    xy[0] = left + width - (cell + 1) / 2;
-    xy[1] = top + height / 2;
-}
-
-int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
-{
-    long right = menu_left + menu_width;
-    if (right == row_right) return WBGAP_BAR_POWER;
-    if (right == row_right - WBGAP_TRAY_CELL) return WBGAP_BAR_PREFS;
-    if (menu_left == 0 && right < row_right) return WBGAP_BAR_UNSURE;   /* x clamped to 0: Power or Prefs */
-    return WBGAP_BAR_OTHER;
-}
-
-int wbgap_point_in_box(long x, long y, long l, long t, long w, long h)
-{
-    return x >= l && x < l + w && y >= t && y < t + h;
-}
-
-long wbgap_power_height(int sticks, long row_height)
-{
-    if (sticks < 0) sticks = 0;
-    return 3 + sticks * row_height + (sticks ? 6 : 0) + 3 * row_height + 3;
-}
-
-void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2)
-{
-    if (row_height > 0 && height == wbgap_power_height(sticks, row_height)) {
-        *b1 = WBGAP_PASS;
-        *b2 = sticks > 0 ? WBGAP_PASS : WBGAP_SKIP;
-    } else if (row_height > 0 && sticks > 0 && height == wbgap_power_height(0, row_height)) {
-        *b1 = WBGAP_PASS;   /* the power rows are there; the sticks' Eject rows aren't */
-        *b2 = WBGAP_FAIL;
-    } else {
-        *b1 = WBGAP_FAIL;
-        *b2 = sticks > 0 ? WBGAP_FAIL : WBGAP_SKIP;
-    }
-}
-
 void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
 {
     long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
@@ -563,6 +522,29 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
+{
+    long iw = w - bl - br, ih = h - bt - bb;
+    if (iw < 8 || ih < 8) return 0;
+    xy[0] = bl + iw * 3 / 4;
+    xy[1] = bt + ih * 3 / 4;
+    if (xy[0] >= ix - 8 && xy[0] < ix + 128 && xy[1] >= iy - 8 && xy[1] < iy + 108) xy[0] = bl + iw / 4;
+    return 1;
+}
+
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap)
+{
+    const char *drawer, *desk;
+    if (t1 == WBGAP_WHICH_UNSET && t2 == WBGAP_WHICH_UNSET) drawer = "the drawer's tags untouched (no answer reached them)";
+    else if (t1 == WBGAP_WHICH_UNSET || t2 == WBGAP_WHICH_UNSET) drawer = "one of the drawer's tags untouched";
+    else drawer = "the desktop answered the drawer";
+    if (t3 < 0) desk = "the desktop window not asked";
+    else if ((unsigned long)t3 == WBGAP_WHICH_UNSET) desk = "the desktop window's tag untouched";
+    else if ((unsigned long)t3 == WBGAP_WBO_DRAWER) desk = "the desktop window answered WBO_DRAWER";
+    else desk = "the desktop window answered, not WBO_DRAWER";
+    snprintf(out, cap, "%s, %s", drawer, desk);
 }
 
 static int boxes_meet(const long a[4], const long b[4])
