@@ -20,6 +20,11 @@
  * in when the Trashcan was added, or NULL. 1: found, and its image fits in changed (2 pixels' slack); 0: no line, or
  * not four numbers with a size; -1: read, but bigger than what changed (not the icon the window drew). */
 int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4]);
+/* wbgap_trashnote_crowded: 1 when changed_w, the width the RAM Disk's window changed in when the Trashcan was added,
+ * is wider than two icons, so more than the Trashcan moved and a drop on it could miss. The icon's width is the wider
+ * of name_w (its image by its name, without its label; 0 when not read) and f_w (f's box, label and all), so a long
+ * label under a narrow image doesn't count as a second icon. */
+int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w);
 #define WBGAP_PUTBACK_NOLIB (-1000)
 #define WBGAP_PUTBACK_NOTRIED (-1001)
 #define WBGAP_PUTBACK_NOCTX (-1002)
