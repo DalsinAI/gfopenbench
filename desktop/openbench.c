@@ -2031,6 +2031,24 @@ static void wbstartup_answered(unsigned long tag, int ok, unsigned long id);
 static void wbstartup_ended(unsigned long id);
 static int ask(const char *title, const char *text, const char *gadgets);
 
+/* LAB ONLY (team3/lab-blitter-reqprobe, never merge): M2/M6/M8 probe */
+#include <stdarg.h>
+void ob_dbg(const char *fmt, ...);
+void ob_dbg(const char *fmt, ...)
+{
+    char b[256];
+    va_list ap;
+    BPTR fh;
+    va_start(ap, fmt);
+    vsnprintf(b, sizeof b, fmt, ap);
+    va_end(ap);
+    if ((fh = Open((CONST_STRPTR)"RAM:obdbg", MODE_READWRITE))) {
+        Seek(fh, 0, OFFSET_END);
+        Write(fh, b, (LONG)strlen(b));
+        Close(fh);
+    }
+}
+
 /* The launcher's answers: a dock's message answered now, the user told when a program couldn't start, WBStartup's
  * next one opened */
 static void launch_answers(void)
@@ -2814,7 +2832,18 @@ static int want_resetwb;                    /* Tools > ResetWB picked: the same,
 static int ask(const char *title, const char *text, const char *gadgets)
 {
     struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)title, (UBYTE *)text, (UBYTE *)gadgets };
-    return EasyRequestArgs(root, &es, NULL, NULL);
+    struct Window *b;
+    int r;
+    ob_dbg("ask '%s' root %lx flags %lx scr %lx task %lx\n", title, (ULONG)root, root ? root->Flags : 0, root ? (ULONG)root->WScreen : 0, (ULONG)FindTask(NULL));
+    b = BuildEasyRequestArgs(root, &es, 0, NULL);
+    ob_dbg("  BuildEasyRequestArgs(root) %lx\n", (ULONG)b);
+    if (b && b != (struct Window *)1) FreeSysRequest(b);
+    b = BuildEasyRequestArgs(NULL, &es, 0, NULL);
+    ob_dbg("  BuildEasyRequestArgs(NULL) %lx\n", (ULONG)b);
+    if (b && b != (struct Window *)1) FreeSysRequest(b);
+    r = EasyRequestArgs(root, &es, NULL, NULL);
+    ob_dbg("  EasyRequestArgs -> %ld\n", (long)r);
+    return r;
 }
 
 /* 0.1.52: a GFOpenBench setting in ENV: and ENVARC: (ENV:GFOpenBench/<name>), as deskicons_write writes its own */
@@ -2857,6 +2886,7 @@ static void execute_command(void)
 {
     static char line[256];
     BPTR in;
+    ob_dbg("execute_command root %lx\n", (ULONG)root);
     if (!root || !ob_req_string(root, "Execute Command", "Enter Command and its Arguments:", "OK", line, sizeof line)
         || !line[0])
         return;
@@ -4385,6 +4415,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         while (num != MENUNULL && picked++ < 32) {
             struct MenuItem *it = ItemAddress(root->MenuStrip, num);
             ULONG id = it ? (ULONG)GTMENUITEM_USERDATA(it) : 0;
+            ob_dbg("MENUPICK num %lx item %lx id %lu\n", (ULONG)num, (ULONG)it, id);
             if (id >= M_APP0 && id < M_APP0 + (ULONG)napp_menus) {   /* 0.1.56: a program's item, with the icons selected */
                 const char *paths[MAX_LEFTOUT];
                 int n = selected_paths(paths, MAX_LEFTOUT, NULL);

@@ -1237,9 +1237,16 @@ void ob_drop_stop(void)
 }
 
 /* GFOpenFiles' one-line requester (of_req_string), for GFOpenBench's own menus (Execute Command...) */
+void ob_dbg(const char *fmt, ...);
 int ob_req_string(struct Window *parent, const char *title, const char *question, const char *ok, char *buf, int size)
 {
-    return parent && of_req_string(parent, parent->WScreen->Font, title, question, ok, buf, size);
+    APTR vi = parent ? GetVisualInfoA(parent->WScreen, NULL) : NULL;
+    int r;
+    ob_dbg("ob_req_string parent %lx vi %lx GadToolsBase %lx font %lx\n", (ULONG)parent, (ULONG)vi, (ULONG)GadToolsBase, parent ? (ULONG)parent->WScreen->Font : 0);
+    if (vi) FreeVisualInfo(vi);
+    r = parent && of_req_string(parent, parent->WScreen->Font, title, question, ok, buf, size);
+    ob_dbg("  of_req_string -> %d\n", r);
+    return r;
 }
 
 /* ---- Icons > Copy (WBGapTest M18, OS 3.2.3's Copy) ---- */
@@ -1314,6 +1321,7 @@ int ob_new_drawer(const char *dir, wb_drawer *from)
     struct DiskObject *o;
     BPTR l;
     int i, rc;
+    ob_dbg("ob_new_drawer w %lx dir '%s' task %lx\n", (ULONG)w, dir ? dir : "(null)", (ULONG)FindTask(NULL));
     if (!w || !dir || !*dir) return 0;
     of_fs_amiga_init(&fs);
     of_ctx_init(&c, &fs);
@@ -1323,8 +1331,10 @@ int ob_new_drawer(const char *dir, wb_drawer *from)
         if (!(l = Lock((CONST_STRPTR)path, ACCESS_READ))) break;
         UnLock(l);
     }
-    if (!of_req_string(w, w->WScreen->Font, "New drawer", "Enter a name for the new drawer:", "OK", name, sizeof name))
+    if (!of_req_string(w, w->WScreen->Font, "New drawer", "Enter a name for the new drawer:", "OK", name, sizeof name)) {
+        ob_dbg("  new drawer: of_req_string 0\n");
         return 0;
+    }
     if (!name[0] || strchr(name, '/') || strchr(name, ':') || !of_path_join(path, dir, name)) {
         DisplayBeep(w->WScreen);
         return 0;
