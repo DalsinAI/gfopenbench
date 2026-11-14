@@ -13,3 +13,5 @@ int wbgap_trash_title_ours(const char *title);
  * 0 with why "placed late ..." if it is. */
 int wbgap_trash_open_why(int found, const char *title, const long want[4], const long got[4], const long lim[4],
                          char *why, unsigned cap);
+/* Of n window titles in screen order, the index of the first that is RAM:WBGapT's (wbgap_trash_title_ours), or -1 */
+int wbgap_trash_pick(const char *const titles[], int n);
