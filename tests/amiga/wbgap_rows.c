@@ -557,6 +557,10 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     return v;
 }
 
+int wbgap_ctl_may_set(int get_ok) { return get_ok != 0; }
+
+long wbgap_ctl_reading(int get_ok, long read_back) { return get_ok ? read_back : WBGAP_CTL_NOT_READ; }
+
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap)
 {
     int k, bad = 0, first = -1;

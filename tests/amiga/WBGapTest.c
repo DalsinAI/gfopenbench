@@ -2087,27 +2087,40 @@ static int do_wbcontrol(void)
     long want[10], got[10];
     ULONG stack = 0, restart = 0, flags = 0, v;
     char why[160];
-    int n = 0;
-    got[n] = WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&stack, TAG_END) != 0; want[n++] = 1;
-    WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, 12344, TAG_END);
-    v = 0; WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&v, TAG_END);
-    got[n] = (long)v; want[n++] = 12344;
-    WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, stack, TAG_END);
-    got[n] = WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&restart, TAG_END) != 0; want[n++] = 1;
-    WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, 7, TAG_END);
-    v = 0; WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&v, TAG_END);
-    got[n] = (long)v; want[n++] = 7;
-    WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, restart, TAG_END);
-    got[n] = WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&flags, TAG_END) != 0; want[n++] = 1;
-    WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags ^ WBF_OLDDATESFIRST, TAG_END);
-    v = 0; WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&v, TAG_END);
-    got[n] = (long)v; want[n++] = (long)(flags ^ WBF_OLDDATESFIRST);
-    WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags, TAG_END);
+    int n = 0, ok;
+    /* a value is set and put back only if its Get worked: a Set with nothing to put back would leave it changed */
+    ok = WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&stack, TAG_END) != 0;
+    got[n] = ok; want[n++] = 1;
+    v = 0;
+    if (wbgap_ctl_may_set(ok)) {
+        WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, 12344, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&v, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, stack, TAG_END);
+    }
+    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = 12344;
+    ok = WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&restart, TAG_END) != 0;
+    got[n] = ok; want[n++] = 1;
+    v = 0;
+    if (wbgap_ctl_may_set(ok)) {
+        WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, 7, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&v, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, restart, TAG_END);
+    }
+    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = 7;
+    ok = WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&flags, TAG_END) != 0;
+    got[n] = ok; want[n++] = 1;
+    v = 0;
+    if (wbgap_ctl_may_set(ok)) {
+        WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags ^ WBF_OLDDATESFIRST, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&v, TAG_END);
+        WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags, TAG_END);
+    }
+    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = (long)(flags ^ WBF_OLDDATESFIRST);
     got[n] = WorkbenchControl(NULL, WBCTRLA_AddHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
     got[n] = hidden_has("WBGAPA5"); want[n++] = 1;
     got[n] = WorkbenchControl(NULL, WBCTRLA_RemoveHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
     got[n] = hidden_has("WBGAPA5"); want[n++] = 0;
-    printf("INFO A5 default stack %lu, restart time %lu, flags $%lx (all put back)\n", (unsigned long)stack,
+    printf("INFO A5 default stack %lu, restart time %lu, flags $%lx (each put back if its Get worked)\n", (unsigned long)stack,
            (unsigned long)restart, (unsigned long)flags);
     say_row("A5", wbgap_pairs_judge(n, names, want, got, why, sizeof why), why);
     return fails ? 5 : 0;
