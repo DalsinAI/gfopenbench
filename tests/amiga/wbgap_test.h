@@ -42,6 +42,7 @@ struct Window *wbt_drop_ready(int *stage);
 void wbt_drop_from(struct Window *w, long xy[2]);
 void wbt_drop_drag(const long from[2], const long to[2], const char *row);
 void wbt_drop_clean(void);
+int wbt_exists(const char *path);                              /* 1 if path locks */
 unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half); /* a square of the screen's pixels, one number */
 unsigned long wbt_mode_id(struct Screen *s);                  /* GetVPModeID of its ViewPort */
 void wbt_key(int code);                                      /* DragTest KEY code, then 15 ticks */
