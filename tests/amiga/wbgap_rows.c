@@ -540,11 +540,17 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
         return WBGAP_FAIL;
     }
     if (on_empty != WBGAP_WBO_DRAWER) {
-        snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
+        snprintf(why, cap, "on the drawer's empty point: type %lu, not WBO_DRAWER", on_empty);
         return WBGAP_FAIL;
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+void wbgap_which_view_point(long bl, long bt, long ix, long iy, long xy[2])
+{
+    xy[0] = bl + ix + 4;
+    xy[1] = bt + iy + 4;
 }
 
 int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
