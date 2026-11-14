@@ -6,6 +6,7 @@
 
 struct Window;
 struct Screen;
+struct MenuItem;
 
 /* markers, each alone on a line at the file's left edge; they expand to nothing.
  * WBGAP_MODE(NAME, fn, NEWROWS): run by "WBGapTest NEWROWS" (the script's one line for every such mode), or SCRIPT:
@@ -35,6 +36,11 @@ int wbt_setup(void);                                          /* WBGapTest SETUP
 int wbt_put_icon_stack(const char *path, long type, char **tooltypes, long stack);
 unsigned long wbt_stack_wanted(void);
 int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack);
+/* MENUDRIVE's: a menu name normalised as MENUS does (lower case, no leading blanks, no trailing dots, blanks or ?); an item's text, NULL if it has none;
+ * a window's icons through WBGapRoot.rexx: whether name is among them, -1 if not read */
+void wbt_norm(char *d, const char *s, int n);
+const char *wbt_item_text(struct MenuItem *it);
+int wbt_icons_have(const char *row, const char *win, const char *name);
 /* DRAGFILE's: the drawer dir with first snapshotted at 20,10 in it; the window titled title made w x h and put in a
  * corner clear of avoid (NULL: the top-left), or NULL; an object made in the drawer dir (its window w open) at x,y,
  * told to the desktop, and its box in the window's inside found where the inside changed: 1, or 0 in 5 s */
