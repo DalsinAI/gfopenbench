@@ -62,6 +62,7 @@ Copy WBGapTest SYS:WBStartup/WBGapD QUIET
 Copy WBGapTest SYS:WBStartup/WBGapE QUIET
 Copy WBGapTest SYS:WBStartup/WBGapF QUIET
 Copy WBGapTest SYS:WBStartup/WBGapG QUIET
+WBGapTest CLOSEWB >>RAM:wbgap-results
 WBGapTest STARTUP SETUP >>RAM:wbgap-results
 WBGapTest REPORT RAM:wbgap-results >RAM:wbgap-report
 Type RAM:wbgap-report
