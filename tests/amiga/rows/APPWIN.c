@@ -72,16 +72,23 @@ static void appwin_drain(struct MsgPort *port, const char *row)
     if (n) printf("INFO %s %d late AppMessage(s) from the drop before, replied\n", row, n);
 }
 
-/* d dragged from RAM:WBGapD's window dw to (rx, ry) inside our window w; the point let go at, relative to w, in rel */
-static void appwin_drop(struct Window *dw, struct Window *w, long rx, long ry, long rel[2], const char *row)
+/* d dragged from RAM:WBGapD's window, looked up again for each drag (the desktop may have moved or reopened it), to
+ * (rx, ry) inside our window w; the point let go at, relative to w, in rel. 0, and no drag, if the window is gone */
+static int appwin_drop(struct Window *w, long rx, long ry, long rel[2], const char *row)
 {
     long from[2], to[2];
+    struct Window *dw = wbt_find_window("WBGapD");
+    if (!dw) {
+        printf("INFO %s RAM:WBGapD's window gone before a drag\n", row);
+        return 0;
+    }
     wbt_drop_from(dw, from);
     to[0] = w->LeftEdge + rx;
     to[1] = w->TopEdge + ry;
     rel[0] = rx;
     rel[1] = ry;
     wbt_drop_drag(from, to, row);
+    return 1;
 }
 
 int wbt_appwin(int argc, char **argv)
@@ -94,7 +101,7 @@ int wbt_appwin(int argc, char **argv)
     struct appwin_got g;
     long box[4], dbox[4], rel[2], w, h;
     char why1[160], why2[160], why[160];
-    int stage, v1, v2;
+    int stage, v1, v2, ok;
     (void)argc, (void)argv;
     if (!port || !wb) {
         wbt_fail("A1", "setup (no port or no Workbench screen)");
@@ -126,16 +133,16 @@ int wbt_appwin(int argc, char **argv)
         wbt_fail("A1", why);
     } else {
         Delay(25);
-        appwin_drop(dw, mine, w / 2, h / 2 + 10, rel, "A1");
+        ok = appwin_drop(mine, w / 2, h / 2 + 10, rel, "A1");
         appwin_wait(port, 150, &g, "A1", "onto the AppWindow");
         v1 = wbgap_appwin_msg_judge(g.got, g.type, AMTYPE_APPWINDOW, g.id, 1, g.userdata, 0xA1, g.mx, g.my, rel, w, h,
                                     why1, sizeof why1);
         RemoveAppWindow(aw);
         appwin_drain(port, "A1");
-        appwin_drop(dw, mine, w / 2, h / 2 + 10, rel, "A1");
+        ok = appwin_drop(mine, w / 2, h / 2 + 10, rel, "A1") && ok;
         appwin_wait(port, 100, &g, "A1", "after RemoveAppWindow");
         v2 = wbgap_appwin_none_judge(g.got, g.type, g.id, "after RemoveAppWindow", why2, sizeof why2);
-        wbt_say("A1", wbgap_appwin_both(v1, why1, v2, why2, why, sizeof why), why);
+        wbt_say("A1", wbgap_appwin_row(ok, v1, why1, v2, why2, why, sizeof why), why);
     }
 
     /* A2: a drop zone, the window's right half; a drop there, then one in the left half */
@@ -155,15 +162,15 @@ int wbt_appwin(int argc, char **argv)
             wbt_fail("A2", why);
         } else {
             Delay(25);
-            appwin_drop(dw, mine, (w * 3) / 4, h / 2 + 10, rel, "A2");
+            ok = appwin_drop(mine, (w * 3) / 4, h / 2 + 10, rel, "A2");
             appwin_wait(port, 150, &g, "A2", "into the drop zone");
             v1 = wbgap_appwin_msg_judge(g.got, g.type, AMTYPE_APPWINDOWZONE, g.id, 22, g.userdata, 0xA22, g.mx, g.my,
                                         rel, w, h, why1, sizeof why1);
             appwin_drain(port, "A2");
-            appwin_drop(dw, mine, w / 4, h / 2 + 10, rel, "A2");
+            ok = appwin_drop(mine, w / 4, h / 2 + 10, rel, "A2") && ok;
             appwin_wait(port, 100, &g, "A2", "outside the drop zone");
             v2 = wbgap_appwin_none_judge(g.got, g.type, g.id, "a drop outside the drop zone", why2, sizeof why2);
-            wbt_say("A2", wbgap_appwin_both(v1, why1, v2, why2, why, sizeof why), why);
+            wbt_say("A2", wbgap_appwin_row(ok, v1, why1, v2, why2, why, sizeof why), why);
             RemoveAppWindowDropZone(aw, zone);
         }
         RemoveAppWindow(aw);
