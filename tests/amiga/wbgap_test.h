@@ -44,5 +44,6 @@ void wbt_drop_drag(const long from[2], const long to[2], const char *row);
 void wbt_drop_clean(void);
 unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half); /* a square of the screen's pixels, one number */
 unsigned long wbt_mode_id(struct Screen *s);                  /* GetVPModeID of its ViewPort */
+void wbt_key(int code);                                      /* DragTest KEY code, then 15 ticks */
 
 #endif
