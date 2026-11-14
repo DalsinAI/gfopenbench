@@ -1,9 +1,10 @@
 /* ---- C5a: the Workbench reset requester ----
  * A window of ours on the Workbench (a program's: no WFLG_WBENCHWINDOW), then ENV:Sys/screenmode.prefs written
- * with another depth, as the ScreenMode editor's Use does. Within 8 s a new window titled "Workbench" (not the
- * Workbench's own, not ours) must come up: the requester. Our window closed, it must go within 12 s and the Workbench come back in the
- * new depth. Then the Cancel half: our window again, the old prefs written, the requester, Left-Amiga B (its last
- * gadget, Cancel) sent to it: it must go and the Workbench keep its depth. At the end our window closes and
+ * with another depth, as the ScreenMode editor's Use does. Within 20 s (the refused try's two tells to our system
+ * windows may take 3 s each) a new window titled "Workbench" (not the Workbench's own, not ours) must come up: the
+ * requester. Our window closed, it must go within 12 s and the Workbench come back in the new depth. Then the
+ * Cancel half: our window again, the old prefs written, the requester, Left-Amiga B (its last gadget, Cancel)
+ * sent to it: it must go and the Workbench keep its depth. At the end our window closes and
  * CloseWorkBench/OpenWorkBench put the Workbench in the old prefs (held since the Cancel); refused, an INFO line
  * says so. The prefs file is put back as it was in every case.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -200,16 +201,16 @@ int wbt_resetreq(int argc, char **argv)
     if ((mine = rr_mine())) {
         nb = rr_settle(before);
         rr_write(RR_PREFS, now, n);
-        req = rr_wait_new(before, nb, mine, 8);
+        req = rr_wait_new(before, nb, mine, 20);
         r.shown = req != NULL;
-        printf("INFO C5a %s%s%s\n", req ? "a requester came up: " : "no new window in 8 s",
+        printf("INFO C5a %s%s%s\n", req ? "a requester came up: " : "no requester in 20 s",
                req && req->Title ? (char *)req->Title : "", req && !req->Title ? "(no title)" : "");
         CloseWindow(mine);
         r.gone = req ? rr_wait_gone(req, 12) : 0;
         Delay(100);                                   /* the reset's own reopen */
         r.depth_after = rr_depth();
-        printf("INFO C5a after our window closed: the requester %s, depth %d\n", r.gone ? "gone" : "still there",
-               r.depth_after);
+        printf("INFO C5a after our window closed: the requester %s, depth %d\n",
+               !req ? "never up" : r.gone ? "gone" : "still there", r.depth_after);
     }
 
     /* the Cancel half: the old prefs back, our window in the way, Cancel: the depth kept */
@@ -217,7 +218,7 @@ int wbt_resetreq(int argc, char **argv)
         r.cancel_tried = 1;
         nb = rr_settle(before);
         rr_write(RR_PREFS, was, n);
-        req = rr_wait_new(before, nb, mine, 8);
+        req = rr_wait_new(before, nb, mine, 20);
         r.cancel_shown = req != NULL;
         if (req) {
             ctitle[0] = 0;
