@@ -70,6 +70,12 @@ enum { WBGAP_CL_GONE, WBGAP_CL_PARKED, WBGAP_CL_STUCK };
 int wbgap_clear_result(int gone, int at_park_box);
 /* the desktop rows may click when nothing is stuck over it */
 int wbgap_desk_clickable(int clear_result);
+/* D5: the RAM Disk's icon on the desktop. WBGapRoot.rexx writes the desktop's icons, one "<type> <name>" line each
+ * (the WORKBENCH port's window.icons.all.N.type and .name, NAME 'root'); WBGapTest DISKS reads them.
+ * The volume name from NameFromLock's "Ram Disk:" (the colon and anything after it dropped) into out: */
+void wbgap_volume_name(const char *path, char *out, unsigned cap);
+/* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded */
+int wbgap_root_has_disk(const char *list, const char *vol);
 
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */

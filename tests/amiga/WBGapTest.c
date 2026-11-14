@@ -17,6 +17,8 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
+ *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
+ *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -1129,6 +1131,40 @@ static int do_big(void)
     return fails ? 5 : 0;
 }
 
+static long read_all(const char *path, char *buf, long n);
+
+/* ---- D5: the RAM Disk's icon on the desktop ----
+ * WBGapRoot.rexx wrote the desktop's icons to RAM:wbgap-root ("<type> <name>" a line); RAM:'s volume name comes from
+ * NameFromLock ("Ram Disk:"). */
+static int do_disks(void)
+{
+    static char list[8192];
+    char path[108], vol[40];
+    BPTR l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ);
+    long n;
+    if (!l || !NameFromLock(l, (STRPTR)path, sizeof path)) {
+        if (l) UnLock(l);
+        fail("D5", "RAM: has no volume name");
+        return 5;
+    }
+    UnLock(l);
+    wbgap_volume_name(path, vol, sizeof vol);
+    if ((n = read_all("RAM:wbgap-root", list, sizeof list)) < 0) {
+        skip("D5", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
+        return 0;
+    }
+    printf("INFO D5 RAM: is \"%s\"; %ld bytes of the desktop's icons\n", vol, n);
+    if (wbgap_root_has_disk(list, vol)) pass("D5");
+    else {
+        char why[128];
+        if (strstr(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
+        else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
+        fail("D5", why);
+    }
+    DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
+    return fails ? 5 : 0;
+}
+
 /* ---- WBStartup ---- */
 static void stamp(const char *what, const char *name)
 {
@@ -1753,6 +1789,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
+    else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
