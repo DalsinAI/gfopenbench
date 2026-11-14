@@ -28,6 +28,24 @@ void trashnote_plan(void)
     CHECK(!wbgap_trashnote_line(NULL, "f", "WBGapR/f") && !wbgap_trashnote_line(both, "", "WBGapR/f") &&
           !wbgap_trashnote_line(both, "f", ""), "no note, no name or no path: no");
 
+    /* I6t: the Trashcan's icon by its name (the window re-lays its icons when one is added, 14 Nov gap count) */
+    {
+        long box[4], changed[4] = {10, 20, 300, 90}, small[4] = {146, 58, 64, 72};
+        CHECK(wbgap_trashnote_iconbox("146 58 64 72\n", changed, box) == 1 && box[0] == 146 && box[1] == 58 &&
+              box[2] == 64 && box[3] == 72, "four numbers inside the changed box: found, as given");
+        CHECK(wbgap_trashnote_iconbox("146 58 64 72", small, box) == 1, "the changed box is the icon's own: found");
+        CHECK(wbgap_trashnote_iconbox("145 57 66 74", small, box) == 1, "2 pixels' slack each side");
+        CHECK(wbgap_trashnote_iconbox("146 58 64 72", NULL, box) == 1, "no changed box: found");
+        CHECK(wbgap_trashnote_iconbox("400 58 64 72", changed, box) == -1, "right of what changed: -1, don't drop there");
+        CHECK(wbgap_trashnote_iconbox("146 5 64 72", changed, box) == -1, "above what changed: -1");
+        CHECK(wbgap_trashnote_iconbox("146 58 64", changed, box) == 0 && wbgap_trashnote_iconbox("", changed, box) == 0 &&
+              wbgap_trashnote_iconbox(NULL, changed, box) == 0, "three numbers, nothing or no line: 0");
+        CHECK(wbgap_trashnote_iconbox("146 58 0 72", changed, box) == 0 &&
+              wbgap_trashnote_iconbox("RESULT RESULT RESULT RESULT", changed, box) == 0,
+              "no size, or ARexx's unset RESULTs: 0");
+        CHECK(wbgap_trashnote_iconbox("-4 58 64 72", NULL, box) == 0, "a place left of the window's inside: 0");
+    }
+
     /* I6t */
     CHECK(wbgap_trashnote_judge(0, 0, 1, 1, both, "f", "WBGapR/f", why, sizeof why) == WBGAP_PASS && !why[0],
           "moved, both lines: PASS");
