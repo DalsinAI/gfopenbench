@@ -11,7 +11,7 @@ WBGAP_PLAN(resetreq_plan)
 void resetreq_plan(void)
 {
     char why[200];
-    struct wbgap_resetreq ok = { 0, 1, 1, 24, 16, 16, 1, 1, 1, 16 }, r;
+    struct wbgap_resetreq ok = { 0, 1, 1, 24, 16, 16, 1, 1, 1, 16, 0 }, r;
     /* FORM <36> PREF, PRHD <6>, SCRM <28>: depth 24 at the SCRM data's +24 */
     unsigned char f[12 + 14 + 36];
     int old = 0;
@@ -38,6 +38,23 @@ void resetreq_plan(void)
     r = ok; r.cancel_shown = 0;
     CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "Cancel half"), "no requester for Cancel: FAIL");
     CHECK(wbgap_resetreq_judge(NULL, why, sizeof why) == WBGAP_SKIP, "nothing read: SKIP");
+    /* the runner's Shell window in the way (WBGapTest.script): up, Cancel took it down, depth kept: SKIP, not a hang */
+    memset(&r, 0, sizeof r);
+    r.runner = 1; r.shown = 1; r.cancel_gone = 1; r.depth_before = 24; r.depth_want = 16; r.depth_cancel = 24;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_SKIP && strstr(why, "amiga_run") && strstr(why, "Cancel took"),
+          "Shell window in the way, Cancel worked: SKIP, \"%s\"", why);
+    r.shown = 0;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "no requester"),
+          "Shell window in the way, none came up: FAIL, \"%s\"", why);
+    r.shown = 1; r.cancel_gone = 0;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "Cancel didn't"),
+          "Shell window in the way, Cancel left it up: FAIL, \"%s\"", why);
+    r.cancel_gone = 1; r.depth_cancel = 16;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "changed anyway"),
+          "Shell window in the way, reset after Cancel: FAIL, \"%s\"", why);
+    r.depth_cancel = 24; r.no_prefs = 1;
+    CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_SKIP && strstr(why, "ScreenMode prefs"),
+          "no prefs comes first: SKIP");
     CHECK(wbgap_smod_depth(f, sizeof f, 16, &old) == 1 && old == 24 && f[34 + 24] == 0 && f[34 + 25] == 16,
           "the SCRM depth found past PRHD, 24 put to 16");
     CHECK(wbgap_smod_depth(f, sizeof f - 4, 8, &old) == 0, "a cut SCRM: not touched");

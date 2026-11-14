@@ -15,11 +15,13 @@
 #include <exec/memory.h>
 #include <devices/input.h>
 #include <devices/inputevent.h>
+#include <dos/dosextens.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
+#include <dos/dos.h>
 
 #include "wbgap_rows.h"
 #include "wbgap_test.h"
@@ -57,11 +59,12 @@ static int rr_snap(struct Window **w)
     return n;
 }
 
-/* 1 for the requester's window: titled "Workbench" (es_Title) with a gadget whose text is "Cancel" */
+/* 1 for the requester's window: titled "Workbench" (es_Title; ours) or "System Request" (OS 3.2.3's IPrefs,
+ * Legion's lab on #176) with a gadget whose text is "Cancel" */
 static int rr_is_req(struct Window *x)
 {
     struct Gadget *g;
-    if (!x->Title || strcmp((char *)x->Title, "Workbench")) return 0;
+    if (!x->Title || (strcmp((char *)x->Title, "Workbench") && strcmp((char *)x->Title, "System Request"))) return 0;
     for (g = x->FirstGadget; g; g = g->NextGadget)
         if (!(g->Flags & GFLG_LABELIMAGE) && g->GadgetText && g->GadgetText->IText
             && !strcmp((char *)g->GadgetText->IText, "Cancel"))
@@ -178,6 +181,32 @@ static struct Window *rr_mine(void)
                           TAG_END);
 }
 
+/* The window of this process's console when it is on the Workbench screen: WBGapTest.script's Shell. Asked of the
+ * console handler (ACTION_DISK_INFO gives its window in id_VolumeNode, as the ROM's console does). NULL with no
+ * console window (the Cradle agent's amiga_run) or one on another screen. */
+static struct Window *rr_runner(void)
+{
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct InfoData *id;
+    struct Window *w = NULL, *x;
+    struct Screen *s;
+    if (me->pr_Task.tc_Node.ln_Type != NT_PROCESS || !me->pr_ConsoleTask) return NULL;
+    if (!(id = AllocVec(sizeof *id, MEMF_PUBLIC | MEMF_CLEAR))) return NULL;
+    if (DoPkt((struct MsgPort *)me->pr_ConsoleTask, ACTION_DISK_INFO, MKBADDR(id), 0, 0, 0, 0))
+        w = (struct Window *)id->id_VolumeNode;
+    FreeVec(id);
+    if (w) {                                      /* only a window that is on the Workbench screen now */
+        ULONG l = LockIBase(0);
+        for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
+            ;
+        for (x = s ? s->FirstWindow : NULL; x && x != w; x = x->NextWindow)
+            ;
+        UnlockIBase(l);
+        if (!x) w = NULL;
+    }
+    return w;
+}
+
 /* Left-Amiga B, down and up, through input.device: the requester's last gadget */
 static void rr_cancel(struct Window *req)
 {
@@ -205,6 +234,23 @@ static void rr_cancel(struct Window *req)
     if (p) DeleteMsgPort(p);
 }
 
+/* Any reset requester still up after a while (the prefs put back may owe a reset of their own): Cancel on it, so
+ * none is left on the Workbench for the rows after this one; with no timeout it would wait there for ever */
+static void rr_none_left(int secs)
+{
+    struct Window *req;
+    int t;
+    for (t = 0; t < secs * 5; t++) {
+        if ((req = rr_req_up(NULL))) {
+            printf("INFO C5a a requester left up: Cancel on it\n");
+            rr_cancel(req);
+            rr_wait_gone(req, 3);
+            return;
+        }
+        Delay(10);
+    }
+}
+
 int wbt_resetreq(int argc, char **argv)
 {
     static unsigned char was[RR_FILE], now[RR_FILE];
@@ -229,6 +275,34 @@ int wbt_resetreq(int argc, char **argv)
 
     /* the reset owed with our window in its way: the requester; then our window closed: it goes, the reset made */
     rr_list("at the start");
+    if (rr_runner()) {
+        /* WBGapTest.script's Shell window stays in the reset's way, so the requester can't go by itself: it must
+         * come up, and Cancel take it down with the depth kept; the reset half is for a run with no Shell window */
+        r.runner = 1;
+        printf("INFO C5a this Shell's window is on the Workbench: the requester is answered with Cancel\n");
+        if ((mine = rr_mine())) {
+            nb = rr_settle(before);
+            rr_write(RR_PREFS, now, n);
+            req = rr_wait_new(before, nb, mine, 20);
+            r.shown = req != NULL;
+            if (req) {                            /* Cancel with our window still up, as the Cancel half does */
+                if (rr_there(req)) rr_cancel(req);
+                r.cancel_gone = rr_wait_gone(req, 3);
+            }
+            CloseWindow(mine);                    /* after a Cancel no reset is owed: 5 s, the depth must stay */
+            Delay(250);
+            r.depth_cancel = rr_depth();
+            printf("INFO C5a %s; depth %d\n", !req ? "no requester in 20 s" : r.cancel_gone ? "Cancel took the requester down"
+                                                                                         : "the requester stayed after Cancel",
+                   r.depth_cancel);
+        }
+        rr_write(RR_PREFS, was, n);               /* the prefs as they were */
+        rr_none_left(20);
+        if (rr_req_up(NULL)) printf("INFO C5a a requester is still up\n");
+        v = wbgap_resetreq_judge(&r, why, sizeof why);
+        wbt_say("C5a", v, why);
+        return wbt_fails() ? 5 : 0;
+    }
     if ((mine = rr_mine())) {
         nb = rr_settle(before);
         rr_write(RR_PREFS, now, n);
@@ -289,6 +363,7 @@ int wbt_resetreq(int argc, char **argv)
     }
 
     rr_write(RR_PREFS, was, n);                       /* the prefs as they were, every way */
+    if (!r.shown || !r.gone) rr_none_left(5);         /* a requester the row lost track of: not left up */
     if (rr_depth() != r.depth_before) {               /* the Workbench in them: held since the Cancel */
         int closed = CloseWorkBench() != 0;
         if (closed) OpenWorkBench();

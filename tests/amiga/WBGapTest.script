@@ -75,8 +75,10 @@ Copy WBGapTest SYS:WBStartup/WBGapG QUIET
 ; every mode in tests/amiga/rows marked NEWROWS: a new row needs no line here
 WBGapTest NEWROWS >>RAM:wbgap-results
 WBGapTest STARTUP SETUP >>RAM:wbgap-results
-; C5a (RESETREQ) is not run here: this Shell's window would stay in the reset's way. Run it alone with no Shell
-; window on the Workbench (the Cradle agent's amiga_run): WBGapTest RESETREQ
+; C5a (RESETREQ): this Shell's window stays in the reset's way, so here the requester is answered with Cancel and
+; the row is SKIP when that works; none is left up for the rows after it. The whole row (the requester going by
+; itself, the reset) needs no Shell window on the Workbench: WBGapTest RESETREQ from the Cradle agent's amiga_run
+WBGapTest RESETREQ >>RAM:wbgap-results
 ; C6 last: in its own process, with a time limit, so a CloseWorkBench() that never returns is a FAIL and not a hung run
 Run >RAM:wbgap-c6 WBGapTest CLOSEWB
 WBGapTest CLOSEWBWAIT RAM:wbgap-c6 30 >>RAM:wbgap-results

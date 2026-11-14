@@ -8,9 +8,20 @@
 
 int wbgap_resetreq_judge(const struct wbgap_resetreq *r, char *why, unsigned cap)
 {
-    char t[200] = "";
+    char t[240] = "";
     int v = WBGAP_FAIL;
     if (!r || r->no_prefs) { snprintf(t, sizeof t, "no ScreenMode prefs (ENV:Sys/screenmode.prefs with an SCRM) to change"); v = WBGAP_SKIP; }
+    else if (r->runner) {                /* the Shell's window stays in the way: up, and Cancel takes it down */
+        if (!r->shown) snprintf(t, sizeof t, "no requester came up for the change while a program's window was open");
+        else if (!r->cancel_gone) snprintf(t, sizeof t, "Cancel didn't take the requester down (this Shell's window in the way)");
+        else if (r->depth_cancel != r->depth_before)
+            snprintf(t, sizeof t, "after Cancel the Workbench changed anyway: depth %d, was %d", r->depth_cancel, r->depth_before);
+        else {
+            snprintf(t, sizeof t, "the reset half needs no Shell window on the Workbench (run WBGapTest RESETREQ with "
+                                  "amiga_run); here the requester came up and Cancel took it down, depth kept");
+            v = WBGAP_SKIP;
+        }
+    }
     else if (!r->shown) snprintf(t, sizeof t, "no requester came up for the change while a program's window was open");
     else if (!r->gone) snprintf(t, sizeof t, "the requester stayed after the window in its way closed");
     else if (r->depth_after != r->depth_want)

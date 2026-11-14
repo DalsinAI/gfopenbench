@@ -9,6 +9,9 @@ struct wbgap_resetreq {
     int depth_before, depth_want, depth_after;   /* the Workbench's depth before, asked for, and after */
     int cancel_tried;      /* the Cancel half ran */
     int cancel_shown, cancel_gone, depth_cancel; /* its requester, gone after Cancel, the depth then */
+    int runner;            /* the runner's own Shell window is on the Workbench (WBGapTest.script): it stays in the
+                            * reset's way, so the requester can't go by itself; it is answered with Cancel instead,
+                            * and the row is SKIP when that works (the reset half needs amiga_run, no Shell window) */
 };
 int wbgap_resetreq_judge(const struct wbgap_resetreq *r, char *why, unsigned cap);
 /* A screenmode.prefs' SCRM depth (big-endian UWORD at the chunk's data + 24) put to depth; the old one in *old.
