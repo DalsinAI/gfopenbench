@@ -22,6 +22,11 @@
  *   WBGapTest CLOSEWB           row C6: CloseWorkBench() with this Shell's window on the screen (refused: the screen,
  *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back;
  *                               the script starts it with Run >RAM:wbgap-c6, last before REPORT
+ *   WBGapTest RESETREQ          row C5a (rows/RESETREQ.c): a ScreenMode change with a window of ours in the way brings up
+ *                               the reset requester, which goes once that window closes (the Workbench reset into
+ *                               the new depth); Cancel on it keeps the depth. With this process's Shell window on the
+ *                               Workbench (WBGapTest.script) the requester is answered with Cancel, SKIP when that works;
+ *                               the whole row needs no Shell window (amiga_run)
  *   WBGapTest CLOSEWBWAIT f s   row C6's line: waits up to s seconds for that CLOSEWB run to be over and prints file f;
  *                               not over in time is FAIL C6, so a CloseWorkBench() that never returns can't hang the run
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
