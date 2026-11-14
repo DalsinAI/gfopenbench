@@ -122,6 +122,11 @@ int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long i
  * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop
  * window's (-1: not asked). Into out, for the FAIL line. */
 #define WBGAP_WHICH_UNSET 0xFFFFUL
+/* The desktop's own window among n windows of a screen (each its width, height and Flags): the largest one that is
+ * both a backdrop and a Workbench window (WFLG_BACKDROP 0x100, WFLG_WBENCHWINDOW 0x2000000). The first such window
+ * isn't it on GFOpenBench: the screen's bar strip (1920 x 24) comes before the desktop in the window list. Its
+ * index, or -1 when there is none */
+int wbgap_pick_desk(const long *w, const long *h, const unsigned long *flags, int n);
 void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap);
 
 /* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send

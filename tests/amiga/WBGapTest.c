@@ -790,10 +790,19 @@ static int do_api(void)
                    (unsigned long)t2, (long)e2);
             /* the desktop's own window (backdrop, a Workbench window), asked about its bottom-right corner: INFO
              * only, it tells a desktop that answers nothing from one that doesn't know this drawer's window */
-            {
+            {   /* the largest backdrop Workbench window (wbgap_pick_desk): on GFOpenBench the bar strip comes first */
+                struct Window *wl[32];
+                long dw[32], dh[32];
+                unsigned long df[32];
+                int nw = 0, k;
                 ULONG lk = LockIBase(0);
-                for (o = ww->WScreen ? ww->WScreen->FirstWindow : NULL; o && !desk; o = o->NextWindow)
-                    if ((o->Flags & WFLG_BACKDROP) && (o->Flags & WFLG_WBENCHWINDOW)) desk = o;
+                for (o = ww->WScreen ? ww->WScreen->FirstWindow : NULL; o && nw < 32; o = o->NextWindow) {
+                    wl[nw] = o;
+                    dw[nw] = o->Width;
+                    dh[nw] = o->Height;
+                    df[nw++] = o->Flags;
+                }
+                if ((k = wbgap_pick_desk(dw, dh, df, nw)) >= 0) desk = wl[k];
                 UnlockIBase(lk);
             }
             if (desk) {

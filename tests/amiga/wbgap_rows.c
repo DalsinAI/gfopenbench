@@ -570,6 +570,16 @@ void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, un
     snprintf(out, cap, "%s, %s", drawer, desk);
 }
 
+int wbgap_pick_desk(const long *w, const long *h, const unsigned long *flags, int n)
+{
+    int i, best = -1;
+    for (i = 0; i < n; i++) {
+        if ((flags[i] & 0x2000100UL) != 0x2000100UL || w[i] <= 0 || h[i] <= 0) continue;
+        if (best < 0 || w[i] * h[i] > w[best] * h[best]) best = i;
+    }
+    return best;
+}
+
 static int boxes_meet(const long a[4], const long b[4])
 {
     return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
