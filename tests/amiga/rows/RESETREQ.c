@@ -1,7 +1,7 @@
 /* ---- C5a: the Workbench reset requester ----
  * A window of ours on the Workbench (a program's: no WFLG_WBENCHWINDOW), then ENV:Sys/screenmode.prefs written
- * with another depth, as the ScreenMode editor's Use does. Within 8 s a new window (not the Workbench's own, not
- * ours) must come up: the requester. Our window closed, it must go within 12 s and the Workbench come back in the
+ * with another depth, as the ScreenMode editor's Use does. Within 8 s a new window titled "Workbench" (not the
+ * Workbench's own, not ours) must come up: the requester. Our window closed, it must go within 12 s and the Workbench come back in the
  * new depth. Then the Cancel half: our window again, the old prefs written, the requester, Left-Amiga B (its last
  * gadget, Cancel) sent to it: it must go and the Workbench keep its depth. At the end our window closes and
  * CloseWorkBench/OpenWorkBench put the Workbench in the old prefs (held since the Cancel); refused, an INFO line
@@ -56,7 +56,9 @@ static int rr_snap(struct Window **w)
     return n;
 }
 
-/* a window on the Workbench now that wasn't in before[], isn't the Workbench's own and isn't mine; NULL if none */
+/* a window on the Workbench now that wasn't in before[], isn't the Workbench's own, isn't mine and has the
+ * requester's title ("Workbench"): the refused try tells our system windows to close and open again, so they come
+ * up new beside it (lab, 14 November: an untitled one was taken for it and got the Cancel); NULL if none */
 static struct Window *rr_new(struct Window **before, int nb, struct Window *mine)
 {
     struct Screen *s;
@@ -66,7 +68,7 @@ static struct Window *rr_new(struct Window **before, int nb, struct Window *mine
     for (s = IntuitionBase->FirstScreen; s && (s->Flags & SCREENTYPE) != WBENCHSCREEN; s = s->NextScreen)
         ;
     for (x = s ? s->FirstWindow : NULL; x && !found; x = x->NextWindow) {
-        if (x == mine || (x->Flags & WFLG_WBENCHWINDOW)) continue;
+        if (x == mine || (x->Flags & WFLG_WBENCHWINDOW) || !x->Title || strcmp((char *)x->Title, "Workbench")) continue;
         for (i = 0; i < nb && before[i] != x; i++)
             ;
         if (i == nb) found = x;
