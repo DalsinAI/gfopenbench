@@ -12,6 +12,8 @@
  *     S2i   date added: A made, then B; A moved out and back; ::wb order lists B before A
  *     M23r  a file trashed, made live again (its bytes still there), then final
  *     M23s  the host-reclaim time (a boot-screen setting) answers as a number of seconds
+ *     M23x  a file deleted for good is listed by ACTION_ACFS_GONE and brought back by ACTION_ACFS_UNDELETE (13 Nov)
+ *     M25x  brought back beside a file now of that name: a new name (.1), neither overwritten (13 Nov)
  *     X2a   a 200-character name is taken (GFOS mode)
  *     X2b   its compat name is 107 characters at most, ending in ~ and 16 hex digits
  *
@@ -21,6 +23,7 @@
 #include <string.h>
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <workbench/workbench.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -37,7 +40,7 @@ static void pass(const char *row) { printf("PASS %s\n", row); }
 static void fail(const char *row, const char *why) { printf("FAIL %s %s\n", row, why); }
 static void skip(const char *row, const char *why) { printf("SKIP %s %s\n", row, why); }
 
-static const char *const rows[] = {"M16t", "M32t", "M15t", "M34t", "S2i", "M23r", "M23s", "X2a", "X2b"};
+static const char *const rows[] = {"M16t", "M32t", "M15t", "M34t", "S2i", "M23r", "M23s", "M23x", "M25x", "X2a", "X2b"};
 static void skip_all(const char *why)
 {
     int i;
@@ -246,6 +249,72 @@ static void check_reclaim(void)
     else fail("M23s", "no reclaim=SECONDS");
 }
 
+/* ---- recover deleted: ACFS's packets (amicradle-guest filesystems/acfs/include/acfs.h, ACFS_REVISION 1) ---- */
+#define ACTION_ACFS_GONE 0x41434701L
+#define ACTION_ACFS_UNDELETE 0x41435501L
+struct gone { ULONG id, size, deleted; char name[244]; };
+struct gone_result { ULONG count, next; struct gone gone[8]; };
+
+static void check_recover(void)
+{
+    static struct gone_result r;
+    static char went[300];
+    char p[300], why[200];
+    BPTR lock, root;
+    struct FileLock *fl;
+    ULONG id = 0, i, first = 0;
+    int found = 0;
+    LONG e;
+    remove_rel("WBGapIdx/g");
+    remove_rel("WBGapIdx/g.1");
+    if (!write_file("WBGapIdx/g", "gone\n")) { fail("M23x", "WBGapIdx/g not made"); skip("M25x", "no file"); return; }
+    path_of(p, sizeof p, "WBGapIdx/g");
+    if (!DeleteFile((CONST_STRPTR)p)) { fail("M23x", "WBGapIdx/g not deleted"); skip("M25x", "no file"); return; }
+    path_of(p, sizeof p, "WBGapIdx");
+    if (!(lock = Lock((CONST_STRPTR)p, SHARED_LOCK))) { fail("M23x", "no lock on WBGapIdx"); skip("M25x", "no lock"); return; }
+    fl = BADDR(lock);
+    do {
+        memset(&r, 0, sizeof r);
+        if (!DoPkt(fl->fl_Task, ACTION_ACFS_GONE, (LONG)lock, (LONG)&r, sizeof r, (LONG)first, 0)) {
+            e = IoErr();
+            snprintf(why, sizeof why, e == ERROR_ACTION_NOT_KNOWN ? "ACFS doesn't know ACTION_ACFS_GONE (a ROM without amicradle-guest #740)"
+                                                                 : "ACTION_ACFS_GONE refused (IoErr %ld)", (long)e);
+            fail("M23x", why);
+            skip("M25x", "no list");
+            UnLock(lock);
+            return;
+        }
+        for (i = 0; i < r.count && i < 8; i++)          /* newest first: the first g is this one */
+            if (!found && !strcmp(r.gone[i].name, "g")) { id = r.gone[i].id; found = 1; }
+        first = r.next;
+    } while (!found && r.count && r.next != 0xffffffffUL);
+    UnLock(lock);
+    if (!found) { fail("M23x", "the deleted WBGapIdx/g isn't listed"); skip("M25x", "not listed"); return; }
+    printf("INFO M23x WBGapIdx/g kept as id %lu\n", (unsigned long)id);
+    /* a new g there first: the kept one must come back beside it */
+    if (!write_file("WBGapIdx/g", "new\n")) { fail("M23x", "the second WBGapIdx/g not made"); skip("M25x", "no file"); return; }
+    path_of(p, sizeof p, "");
+    if (!(root = Lock((CONST_STRPTR)p, SHARED_LOCK))) { fail("M23x", "no lock on the volume"); skip("M25x", "no lock"); return; }
+    fl = BADDR(root);
+    went[0] = 0;
+    if (!DoPkt(fl->fl_Task, ACTION_ACFS_UNDELETE, (LONG)id, (LONG)root, 0, (LONG)went, sizeof went)) {
+        snprintf(why, sizeof why, "ACTION_ACFS_UNDELETE refused (IoErr %ld)", (long)IoErr());
+        fail("M23x", why);
+        skip("M25x", "not brought back");
+        UnLock(root);
+        return;
+    }
+    UnLock(root);
+    printf("INFO M23x brought back as %s\n", went);
+    if (read_back("WBGapIdx/g.1", "gone\n")) pass("M23x");
+    else fail("M23x", "brought back, but WBGapIdx/g.1 doesn't hold its bytes");
+    if (strlen(went) >= 12 && !strcmp(went + strlen(went) - 12, "WBGapIdx/g.1") && read_back("WBGapIdx/g", "new\n")) pass("M25x");
+    else {
+        snprintf(why, sizeof why, "went to \"%.100s\", or the new WBGapIdx/g changed", went);
+        fail("M25x", why);
+    }
+}
+
 static void long_rel(char *rel)   /* "WBGapIdx/" and a 200-character name */
 {
     int i;
@@ -278,7 +347,8 @@ static void check_long(void)
 static void clean_up(void)
 {
     static const char *const made[] = {"WBGapIdx/sorted.info", "WBGapIdx/sorted", "WBGapIdx/order/A", "WBGapIdx/order/B",
-                                       "WBGapIdx/order", "WBGapIdx/A", "WBGapIdx/t"};
+                                       "WBGapIdx/order", "WBGapIdx/A", "WBGapIdx/t", "WBGapIdx/g",
+                                       "WBGapIdx/g.1"};
     char rel[260];
     int k;
     for (k = 0; k < (int)(sizeof made / sizeof made[0]); k++) remove_rel(made[k]);
@@ -308,6 +378,7 @@ int main(int argc, char **argv)
     check_order();
     check_trash();
     check_reclaim();
+    check_recover();
     check_long();
     clean_up();
     CloseLibrary(IconBase);

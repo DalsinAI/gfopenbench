@@ -57,6 +57,7 @@ static const char *const printed_ids[] = {"A6b", "A8a", "A8b", "C2a", "C2b", "R1
 /* rows for the 13 Nov decisions */
 static const char *const decision_ids[] = {
     "M16t", "M18p", "M23r", "M28k", "M32t", "M33r", "M34t", "I11", "I12a", "I12b", "S2d", "A10a", "A10b", "L1", "L1a", "L1b", "L1c", "M15t", "M23s", "M32h", "S2i", "I12c", "X2a", "X2b", "P4a", "P4b", "P6r",
+    "M23u", "M23x", "M25u", "M25x",
 };
 
 static void list_shape(void)

@@ -288,6 +288,8 @@
 #include "deskicons.h"
 #include "wb_dir.h"
 #include "wb_fmt.h"
+#include "ob_recover.h"
+#include "ob_recover_core.h"
 #include "wb_thumb.h"
 #include "wb_find.h"
 #include "wb_pic.h"
@@ -304,7 +306,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.67"
+#define OPENBENCH_VERSION "0.1.68"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -2704,7 +2706,8 @@ enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, 
        M_RESIZE, M_CLEANUP, M_PUTAWAY, M_NOICONS, M_SNAP_WINDOW, M_SNAP_ALL, M_SNAP, M_UNSNAP, M_LEAVEOUT, M_USB_EJECT,
        M_RESETWB, M_EXECUTE, M_RENAME, M_DELETE,
        M_OPENVOL, M_FIND, M_FORMAT, M_AUTOARRANGE,     /* 0.1.52 */
-       M_SELALL, M_CLEARSEL };                          /* 0.1.58 */
+       M_SELALL, M_CLEARSEL,                            /* 0.1.58 */
+       M_RECOVER, M_PUTBACK };                          /* 0.1.68: recover deleted (Dale 13 Nov 2026) */
 
 /* 0.1.56: programs' AppMenuItems (menus_make): each picked one's id is M_APP0 + its place in app_menus */
 #define MAX_APPMENU 160
@@ -2766,6 +2769,11 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Put Away", (STRPTR)"P", 0, 0, (APTR)M_PUTAWAY },    /* 0.1.35: icons left out, back */
     /* 0.1.51: OS 3.2.3's Delete... (row M23), after Put Away; Amiga-D stays Insert Disk's for now (row M28) */
     { NM_ITEM, (STRPTR)"Delete...", (STRPTR)"D", 0, 0, (APTR)M_DELETE },
+    /* 0.1.68: recover deleted (Dale 13 Nov 2026): ACFS keeps a volume's deleted files until it needs the space;
+     * Recover deleted... shows the selected disk's (or left-out trashcan's), Put back puts the one picked there back
+     * where it was (ob_recover.c, through gfopenfiles.library 1.1); no keys */
+    { NM_ITEM, (STRPTR)"Recover deleted...", NULL, 0, 0, (APTR)M_RECOVER },
+    { NM_ITEM, (STRPTR)"Put back", NULL, 0, 0, (APTR)M_PUTBACK },
     /* 0.1.47: a USB stick's safe eject (Dale, 11 November 2026: "a safe eject for USB"), as GFOpenTitle's cog has it;
      * 0.1.58 any disk: a floppy, a USB stick or a PCMCIA card (Dale, 13 November 2026, item 13; row M35) */
     { NM_ITEM, (STRPTR)"Eject", (STRPTR)"J", 0, 0, (APTR)M_USB_EJECT },
@@ -4103,6 +4111,20 @@ static void desk_delete(void)
     else ob_drop_delete(paths, n, root);
 }
 
+/* 0.1.68: Icons > Recover deleted... (Dale 13 Nov 2026): the deleted files ACFS keeps on the selected disk, or on a
+ * left-out trashcan's disk, in the Recover deleted window (ob_recover.c). Nothing such selected: a beep. */
+static void desk_recover(void)
+{
+    char vol[512];
+    int i;
+    for (i = 0; i < nicons; i++)
+        if (icons[i].selected && icons[i].lo != OB_LO_APP && ob_rc_volume(icons[i].path, icons[i].lo < 0, "Trashcan", vol)) {
+            if (!ob_recover_open(vol, look.scr)) DisplayBeep(look.scr);
+            return;
+        }
+    DisplayBeep(look.scr);
+}
+
 /* ob_drop's env (row 3): what a drawer window has at a place, asked of the drawer's task */
 static int drop_drawer_at(struct Window *w, WORD sx, WORD sy, char *out, int n, char *dir, int dn, wb_drawer **who)
 {
@@ -4462,6 +4484,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
             case M_RENAME: desk_rename(); break;            /* 0.1.51 */
             case M_DELETE: desk_delete(); break;
+            case M_RECOVER: desk_recover(); break;          /* 0.1.68 */
+            case M_PUTBACK: if (!ob_recover_put_back()) DisplayBeep(look.scr); break;
             case M_SNAP: desk_snapshot(0, 0); break;        /* 0.1.38 */
             case M_UNSNAP: desk_snapshot(0, 1); break;
             case M_SNAP_ALL: desk_snapshot(1, 0); break;
@@ -4607,6 +4631,7 @@ static void new_picture(void)
  * The drawers' paths are kept, to open them again. */
 static void desktop_down(void)
 {
+    ob_recover_close();                         /* 0.1.68: the Recover deleted window, on this screen */
     drag_img_close();                           /* 0.1.26: a disk icon's drag ends with the desktop */
     dragging = pressed_on = NULL;
     ob_info_quit_all();                         /* the Information windows (they close without saving) */

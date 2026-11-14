@@ -65,6 +65,19 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # ob_eject: which way Icons > Eject takes a disk, floppy, PCMCIA card or not removable (GFOpenBench 0.1.58, row M35)
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_eject.c" \
   "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
+# ob_recover_core: Icons > Recover deleted... and Put back (Dale 13 Nov 2026) over GFOpenFiles' engine, from a
+# gfopenfilemanager checkout (FILES, default ../../gfopenfilemanager) with gfopenfiles.library 1.1's calls
+FILES=${FILES:-$HERE/../gfopenfilemanager}
+[ -f "$FILES/engine/of_ops.c" ] || FILES=$HERE/../../gfopenfilemanager
+if grep -q of_gone_list "$FILES/engine/of_ops.h" 2>/dev/null; then
+    # shellcheck disable=SC2086
+    cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" -I"$FILES/engine" "$HERE/desktop/ob_recover_core.c" \
+      "$FILES/engine/of_path.c" "$FILES/engine/of_ops.c" "$FILES/engine/of_fs_mem.c" \
+      "$HERE/tests/host/test_ob_recover.c" -pthread -o "$OUT/test_ob_recover"
+    "$OUT/test_ob_recover"
+else
+    echo "test_ob_recover: skipped (no gfopenfilemanager with gfopenfiles.library 1.1 at $FILES; set FILES)"
+fi
 "$OUT/test_ob_eject"
 "$OUT/test_ob_vols"
 # ob_stack: the Information window's stack field, a whole number of bytes (gap N6)
