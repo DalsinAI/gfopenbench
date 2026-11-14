@@ -1442,7 +1442,7 @@ static struct Window *drag_place(const char *title, const long *avoid, long w, l
     return NULL;
 }
 
-/* ---- WBStartup ---- */
+/* ---- WBStartup (from_workbench: what each start writes; the STARTUP mode is rows/STARTUP.c) ---- */
 static void stamp(const char *what, const char *name)
 {
     BPTR fh = Open((CONST_STRPTR)"RAM:wbgap-order", MODE_READWRITE);
@@ -1491,148 +1491,6 @@ static int from_workbench(struct WBStartup *wbs)
     Delay(secs * 50);
     stamp("end", name);
     return 0;
-}
-
-/* A10a: the LoadWB switches GFOpenBench says it took (ENV:GFOpenBench/LoadWB, words) are the ones on the
- * Startup-Sequence's line that started the desktop: "SYS:System/OpenBench ..." where that exists, else "LoadWB ..." */
-static const char *const loadwb_switches[] = {"DEBUG", "-DEBUG", "DELAY", "CLEANUP", "NEWPATH", "SKIPWBSTARTUP", "SKIP",
-                                              "SIMPLEGELS", "LEGACY"};
-static int stricmp_n(const char *a, const char *b, int n)
-{
-    for (; n > 0; n--, a++, b++) {
-        char x = (*a >= 'a' && *a <= 'z') ? *a - 32 : *a, y = (*b >= 'a' && *b <= 'z') ? *b - 32 : *b;
-        if (x != y) return 1;
-        if (!x) return 0;
-    }
-    return 0;
-}
-static void upper(char *t) { for (; *t; t++) if (*t >= 'a' && *t <= 'z') *t -= 32; }
-static int switches_of(char *text, char *out, int n)   /* the known switches in text, as " A B ", in the template's order */
-{
-    int k, count = 0;
-    char *w;
-    out[0] = 0;
-    upper(text);
-    for (k = 0; k < (int)(sizeof loadwb_switches / sizeof loadwb_switches[0]); k++) {
-        const char *sw = loadwb_switches[k];
-        char tmp[400];
-        snprintf(tmp, sizeof tmp, "%s", text);
-        for (w = strtok(tmp, " \t\r\n"); w; w = strtok(NULL, " \t\r\n"))
-            if (!strcmp(w, sw)) {
-                const char *name = !strcmp(sw, "-DEBUG") ? "DEBUG" : !strcmp(sw, "SKIP") ? "SKIPWBSTARTUP" : sw;
-                if (!strstr(out, name) && (int)(strlen(out) + strlen(name) + 2) < n) { strcat(out, " "); strcat(out, name); count++; }
-            }
-    }
-    return count;
-}
-static void check_loadwb(void)
-{
-    char env[200] = "", seq[400] = "", line[256], want[120], got[120];
-    BPTR fh;
-    if (!is_gfos()) { skip("A10a", "GFOS only: 3.2.3 keeps no record of LoadWB's switches"); return; }
-    if (!(fh = Open((CONST_STRPTR)"ENV:GFOpenBench/LoadWB", MODE_OLDFILE))) { fail("A10a", "no ENV:GFOpenBench/LoadWB"); return; }
-    { long n = Read(fh, env, sizeof env - 1); env[n > 0 ? n : 0] = 0; }
-    Close(fh);
-    {   /* the line that started the desktop: SYS:System/OpenBench's where it exists (Instance-32), else LoadWB's */
-        int ob = exists("SYS:System/OpenBench");
-        const char *cmd = ob ? "SYS:System/OpenBench" : "LoadWB";
-        int cl = (int)strlen(cmd);
-        if ((fh = Open((CONST_STRPTR)"S:Startup-Sequence", MODE_OLDFILE))) {
-            while (FGets(fh, (STRPTR)line, sizeof line)) {
-                char *p = line;
-                for (;;) {   /* leading blanks, "Run" and redirections */
-                    while (*p == ' ' || *p == '\t') p++;
-                    if (!stricmp_n(p, "Run ", 4)) { p += 4; continue; }
-                    if (*p == '>' || *p == '<') { while (*p && *p != ' ' && *p != '\t') p++; continue; }
-                    break;
-                }
-                if (!ob && !stricmp_n(p, "C:LoadWB", 8)) p += 2;
-                if (!stricmp_n(p, cmd, cl) && (p[cl] == ' ' || p[cl] == '\t' || p[cl] == '\n' || !p[cl])) {
-                    snprintf(seq, sizeof seq, "%s", p + cl);
-                    break;
-                }
-            }
-            Close(fh);
-        }
-        printf("INFO A10a the desktop's line (the first %s line in S:Startup-Sequence): %s%s", cmd, cmd, seq[0] ? seq : "\n");
-    }
-    switches_of(seq, want, sizeof want);
-    switches_of(env, got, sizeof got);
-    printf("INFO A10a Startup-Sequence:%s; GFOpenBench took:%s\n", want[0] ? want : " none", got[0] ? got : " none");
-    if (!strcmp(want, got)) pass("A10a"); else fail("A10a", "the switches taken aren't the Startup-Sequence's");
-}
-
-static int do_startup(const char *what)
-{
-    if (!stricmp(what, "SETUP")) {
-        static STRPTR ta[] = {(STRPTR)"STARTPRI=-10", (STRPTR)"STAMPSECS=1", NULL};
-        static STRPTR tb[] = {(STRPTR)"STARTPRI=10", (STRPTR)"DONOTWAIT", (STRPTR)"STAMPSECS=4", NULL};
-        static STRPTR tc[] = {(STRPTR)"STAMPSECS=1", NULL};
-        int ok = put_icon("SYS:WBStartup/WBGapA", WBTOOL, ta) && put_icon("SYS:WBStartup/WBGapB", WBTOOL, tb) &&
-                 put_icon("SYS:WBStartup/WBGapC", WBTOOL, tc);
-        /* S2d: D and E have no STARTPRI either; E was added before C, and C before D, so oldest first is E, C, D
-         * where name order is C, D, E. The date added is the older of the program's and its icon's dates. */
-        if (exists("SYS:WBStartup/WBGapD") && exists("SYS:WBStartup/WBGapE")) {
-            static const char *const names[] = {"SYS:WBStartup/WBGapE", "SYS:WBStartup/WBGapC", "SYS:WBStartup/WBGapD"};
-            struct DateStamp ds;
-            char path[64];
-            int i;
-            ok = ok && put_icon("SYS:WBStartup/WBGapD", WBTOOL, tc) && put_icon("SYS:WBStartup/WBGapE", WBTOOL, tc);
-            for (i = 0; i < 3 && ok; i++) {
-                ds.ds_Days = 7000 + i;   /* 2 March 1997 on, a day apart */
-                ds.ds_Minute = 600;
-                ds.ds_Tick = 0;
-                snprintf(path, sizeof path, "%s.info", names[i]);
-                ok = SetFileDate((CONST_STRPTR)names[i], &ds) && SetFileDate((CONST_STRPTR)path, &ds);
-            }
-        } else printf("INFO no SYS:WBStartup/WBGapD and WBGapE: S2d not set up\n");
-        if (exists("SYS:WBStartup/WBGapF")) {   /* I12a, I12b at WBStartup, which needs no registered Workbench */
-            static char st[24];
-            static STRPTR tf[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb", (STRPTR)st, (STRPTR)"TOOLPRI=-3",
-                                  (STRPTR)"DONOTWAIT", NULL};
-            unsigned long want = stack_wanted();
-            snprintf(st, sizeof st, "STACK=%lu", want);
-            ok = ok && put_icon_stack("SYS:WBStartup/WBGapF", WBTOOL, tf, (LONG)want);
-        } else printf("INFO no SYS:WBStartup/WBGapF: I12 at WBStartup not set up\n");
-        if (exists("SYS:WBStartup/WBGapG")) {   /* I12c: STACK= alone, the icon's own field left at the default */
-            static char sg[24];
-            static STRPTR tg[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchwb2", (STRPTR)sg, (STRPTR)"DONOTWAIT", NULL};
-            snprintf(sg, sizeof sg, "STACK=%lu", stack_wanted());
-            ok = ok && put_icon("SYS:WBStartup/WBGapG", WBTOOL, tg);
-        } else printf("INFO no SYS:WBStartup/WBGapG: I12c not set up\n");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-order");
-        printf("INFO WBStartup icons %s\n", ok ? "written" : "NOT written");
-        return ok ? 0 : 20;
-    }
-    {   /* CHECK: B (10) first, C (0), A (-10) last; B doesn't hold C up; C holds A up */
-        char buf[400];
-        BPTR fh = Open((CONST_STRPTR)"RAM:wbgap-order", MODE_OLDFILE);
-        long n;
-        const char *sb, *sc, *sa, *eb, *ec;
-        if (!fh) { fail("S1", "RAM:wbgap-order not written: nothing in WBStartup ran"); skip("S2", "-"); skip("S3", "-"); return 10; }
-        n = Read(fh, buf, sizeof buf - 1);
-        Close(fh);
-        buf[n > 0 ? n : 0] = 0;
-        printf("INFO order: ");
-        for (n = 0; buf[n]; n++) putchar(buf[n] == '\n' ? ',' : buf[n]);
-        putchar('\n');
-        sa = strstr(buf, "start WBGapA"); sb = strstr(buf, "start WBGapB"); sc = strstr(buf, "start WBGapC");
-        eb = strstr(buf, "end WBGapB"); ec = strstr(buf, "end WBGapC");
-        if (sa && sb && sc) pass("S1"); else fail("S1", "not all three started");
-        if (sa && sb && sc && sb < sc && sc < sa) pass("S2"); else fail("S2", "not in STARTPRI order B, C, A");
-        if (sc && eb && ec && sa && sc < eb && ec < sa) pass("S3"); else fail("S3", "DONOTWAIT or the wait for a program not honoured");
-        {   /* S2d: no STARTPRI, oldest date added first (GFOS); 3.2.3 goes by name */
-            const char *sd = strstr(buf, "start WBGapD"), *se = strstr(buf, "start WBGapE");
-            if (!sd || !se) skip("S2d", "WBGapD or WBGapE didn't start (not set up?)");
-            else if (!is_gfos()) skip("S2d", "a GFOS decision; 3.2.3 orders by name");
-            else if (se < sc && sc < sd) pass("S2d");
-            else fail("S2d", "not by date added E, C, D");
-        }
-        check_launchrec("RAM:wbgap-launchwb", 0, icon_stack("SYS:WBStartup/WBGapF"));
-        check_stack_alone("RAM:wbgap-launchwb2", icon_stack("SYS:WBStartup/WBGapG"));
-        check_loadwb();
-        return fails ? 5 : 0;
-    }
 }
 
 /* ---- launching (row 6's launcher; the LAUNCH mode is rows/LAUNCH.c, STARTUP CHECK uses these too) ---- */
@@ -1795,6 +1653,8 @@ int wbt_put_icon_stack(const char *path, long type, char **tooltypes, long stack
 }
 unsigned long wbt_stack_wanted(void) { return stack_wanted(); }
 int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack) { return check_launchrec(file, args_too, want_stack); }
+unsigned long wbt_icon_stack(const char *path) { return icon_stack(path); }
+void wbt_check_stack_alone(const char *file, unsigned long want) { check_stack_alone(file, want); }
 void wbt_drawer(const char *dir, const char *first) { drag_drawer(dir, first); }
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h) { return drag_place(title, avoid, w, h); }
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4])
@@ -1831,7 +1691,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
     else if (!stricmp(argv[1], "API")) rc = do_api();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
-    else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
     else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);
