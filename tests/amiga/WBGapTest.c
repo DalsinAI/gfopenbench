@@ -25,6 +25,8 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest WBCONTROL         row A5: WorkbenchControlA's stack, restart time, global flags and hidden devices,
+ *                               each set, read back and put back
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -1850,6 +1852,60 @@ static int do_lowmem(int secs, const char *path)
     return seen ? 0 : 5;
 }
 
+/* ---- A5: WorkbenchControlA's tags ----
+ * Each settable value is read, set to a test value, read back and put back as it was: the default stack size, the
+ * type restart time, the global flags (WBF_OLDDATESFIRST flipped) and the hidden devices (WBGAPA5 added, looked
+ * for, removed). Every reading must be what 3.2.3's workbench.library gives (wbgap_pairs_judge). */
+static int hidden_has(const char *name)
+{
+    struct List *hidden = NULL;
+    struct Node *nd;
+    int found = 0;
+    if (!WorkbenchControl(NULL, WBCTRLA_GetHiddenDeviceList, (ULONG)&hidden, TAG_END)) return -1;
+    if (!hidden) return 0;
+    for (nd = hidden->lh_Head; nd->ln_Succ; nd = nd->ln_Succ)
+        if (nd->ln_Name && !stricmp(nd->ln_Name, name)) found++;
+    WorkbenchControl(NULL, WBCTRLA_FreeHiddenDeviceList, (ULONG)hidden, TAG_END);
+    return found;
+}
+
+static int do_wbcontrol(void)
+{
+    static const char *const names[] = {
+        "GetDefaultStackSize", "the stack after SetDefaultStackSize 12344", "GetTypeRestartTime",
+        "the restart time after SetTypeRestartTime 7", "GetGlobalFlags", "the flags after OLDDATESFIRST flipped",
+        "AddHiddenDeviceName WBGAPA5", "WBGAPA5 in GetHiddenDeviceList", "RemoveHiddenDeviceName WBGAPA5",
+        "WBGAPA5 in the list after Remove"
+    };
+    long want[10], got[10];
+    ULONG stack = 0, restart = 0, flags = 0, v;
+    char why[160];
+    int n = 0;
+    got[n] = WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&stack, TAG_END) != 0; want[n++] = 1;
+    WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, 12344, TAG_END);
+    v = 0; WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&v, TAG_END);
+    got[n] = (long)v; want[n++] = 12344;
+    WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, stack, TAG_END);
+    got[n] = WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&restart, TAG_END) != 0; want[n++] = 1;
+    WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, 7, TAG_END);
+    v = 0; WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&v, TAG_END);
+    got[n] = (long)v; want[n++] = 7;
+    WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, restart, TAG_END);
+    got[n] = WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&flags, TAG_END) != 0; want[n++] = 1;
+    WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags ^ WBF_OLDDATESFIRST, TAG_END);
+    v = 0; WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&v, TAG_END);
+    got[n] = (long)v; want[n++] = (long)(flags ^ WBF_OLDDATESFIRST);
+    WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags, TAG_END);
+    got[n] = WorkbenchControl(NULL, WBCTRLA_AddHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
+    got[n] = hidden_has("WBGAPA5"); want[n++] = 1;
+    got[n] = WorkbenchControl(NULL, WBCTRLA_RemoveHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
+    got[n] = hidden_has("WBGAPA5"); want[n++] = 0;
+    printf("INFO A5 default stack %lu, restart time %lu, flags $%lx (all put back)\n", (unsigned long)stack,
+           (unsigned long)restart, (unsigned long)flags);
+    say_row("A5", wbgap_pairs_judge(n, names, want, got, why, sizeof why), why);
+    return fails ? 5 : 0;
+}
+
 /* ---- launching (row 6's launcher) ---- */
 /* the stack the launch tests ask for, in the icon's stack field (3.2.3 starts a tool with that) and as STACK=: 1 MB over the Workbench's default stack and over 1 MB, so neither the
  * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
@@ -2209,6 +2265,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "WBCONTROL")) rc = do_wbcontrol();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
