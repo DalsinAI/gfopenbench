@@ -28,6 +28,7 @@ fetch gfopengadtools
 fetch gfopenprefs
 fetch gfopenfilemanager
 fetch gfopentata optional
+fetch gfopenlayout optional   # the About window with the GFOS mark (gfopenlayout_about.h)
 OS32_GCC16=$STOVE OGT="$DEPS/gfopengadtools" OAP="$DEPS/gfopenprefs" FILES="$DEPS/gfopenfilemanager" \
-    TATA="$DEPS/gfopentata" sh "$HERE/build.sh" "$OUT"
+    TATA="$DEPS/gfopentata" LAYOUT="$DEPS/gfopenlayout" sh "$HERE/build.sh" "$OUT"
 rm -rf "$DEPS"   # the job's out/ keeps the program, not the sources
