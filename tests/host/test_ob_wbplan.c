@@ -113,7 +113,7 @@ int main(void)
         CHECK(ob_wbp_items(m, 0, NULL, rows, 32) == 0 && ob_wbp_own(m, 0, rows, 32) == 0, "none");
     }
 
-    /* row I11 through LAUNCH: OpenWorkbenchObjectA's WBOPENA_ArgLock/ArgName as paths (0.1.62) */
+    /* row I11 through LAUNCH: OpenWorkbenchObjectA's WBOPENA_ArgLock/ArgName as paths (0.1.63) */
     {
         char out[64], tiny[6];
         CHECK(ob_wbp_arg_path("RAM:WBGap", "p1", out, sizeof out) && !strcmp(out, "RAM:WBGap/p1"), "arg in drawer: %s", out);
