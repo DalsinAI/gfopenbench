@@ -38,6 +38,16 @@ void resetreq_plan(void)
     r = ok; r.cancel_shown = 0;
     CHECK(wbgap_resetreq_judge(&r, why, sizeof why) == WBGAP_FAIL && strstr(why, "Cancel half"), "no requester for Cancel: FAIL");
     CHECK(wbgap_resetreq_judge(NULL, why, sizeof why) == WBGAP_SKIP, "nothing read: SKIP");
+    {   /* the Cancel half on GFOS (Talkie Toaster's lab, 14 Nov): the requester at a closed system window's address */
+        int a, b, c, d;
+        void *snap[3] = { &a, &b, &c };
+        unsigned char req_then[3] = { 0, 1, 0 };
+        CHECK(wbgap_rr_is_new(snap, req_then, 3, &d) == 1, "a window not in the snapshot: new");
+        CHECK(wbgap_rr_is_new(snap, req_then, 3, &a) == 2, "at the address of a window that wasn't a requester: new (2)");
+        CHECK(wbgap_rr_is_new(snap, req_then, 3, &b) == 0, "a requester up at the snapshot already: old");
+        CHECK(wbgap_rr_is_new(snap, NULL, 3, &c) == 0, "no marks: every window in the snapshot is old");
+        CHECK(wbgap_rr_is_new(NULL, NULL, 0, &a) == 1, "an empty snapshot: new");
+    }
     /* the runner's Shell window in the way (WBGapTest.script): up, Cancel took it down, depth kept: SKIP, not a hang */
     memset(&r, 0, sizeof r);
     r.runner = 1; r.shown = 1; r.cancel_gone = 1; r.depth_before = 24; r.depth_want = 16; r.depth_cancel = 24;

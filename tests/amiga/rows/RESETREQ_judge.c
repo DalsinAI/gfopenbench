@@ -6,6 +6,14 @@
 #include "wbgap_rows.h"
 #include "RESETREQ.h"
 
+int wbgap_rr_is_new(void *const *before, const unsigned char *was_req, int nb, const void *x)
+{
+    int i;
+    for (i = 0; i < nb; i++)
+        if (before[i] == x) return was_req && !was_req[i] ? 2 : 0;
+    return 1;
+}
+
 int wbgap_resetreq_judge(const struct wbgap_resetreq *r, char *why, unsigned cap)
 {
     char t[240] = "";
