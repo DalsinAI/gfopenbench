@@ -137,6 +137,8 @@ static void bar_plan(void)
         wbgap_power_judge(42, 0, 0, &b1, &b2);
         CHECK(b1 == WBGAP_FAIL, "no row height: no PASS");
     }
+    CHECK(wbgap_find("B1") >= 0 && wbgap_find("B2") >= 0 && wbgap_find("B3") >= 0, "B1-B3 are rows");
+    CHECK(!strcmp(wbgap_row(wbgap_find("B3"))->mode, "BAR"), "B3's line comes from BAR");
 }
 
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */

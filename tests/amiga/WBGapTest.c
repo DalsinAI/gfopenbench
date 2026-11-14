@@ -17,7 +17,7 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
- *   WBGapTest BAR               rows B1, B2: GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
+ *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
  *                               its height: Reboot, Restart, Power off, and an Eject row for each USB stick mounted)
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
@@ -1140,7 +1140,13 @@ static int do_bar(void)
     Forbid();
     p = FindPort((CONST_STRPTR)"GFOpenTitle");
     t = p ? (struct Task *)p->mp_SigTask : NULL;
+    k = FindPort((CONST_STRPTR)"GFOpenSpeaker") != NULL;
     Permit();
+    /* B3: the speaker commodity started at boot (the 11 Nov bar design: nothing started GFOpenSpeaker, so the speaker
+     * went missing). A bar with GFOpenTitle on it is GFOS's; without one (3.2.3) there is no speaker to want */
+    if (k) pass("B3");
+    else if (t) fail("B3", "GFOpenSpeaker isn't running (no GFOpenSpeaker port) though the bar is GFOpenTitle's");
+    else skip("B3", "no GFOpenTitle bar (not GFOS)");
     if (!t) {
         skip("B1", "GFOpenTitle isn't running (no GFOpenTitle port)");
         skip("B2", "GFOpenTitle isn't running (no GFOpenTitle port)");

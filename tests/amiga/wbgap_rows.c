@@ -167,6 +167,7 @@ static const struct wbgap_row rows[] = {
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
     {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
     {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB stick mounted (14 Nov)"},
+    {"B3", NULL, A, "BAR", "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
