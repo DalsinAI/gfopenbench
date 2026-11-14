@@ -6,11 +6,11 @@
  * own window beside it, clear of it (found by "RAM: - ", GFOpenDrawer's title, or by the volume's name). RAM:Trashcan
  * is made, with a trashcan's icon, at 200,150 in that window, and f at 120,10 in RAM:AWBGapR, each found where its
  * window's inside changed. The Trashcan is also read by its name, through the Workbench's ARexx port (GETATTR
- * window.icons.all.N, as DESKDROP's list): its size is its own icon's, so when what changed is wider than two of it,
- * more than the Trashcan moved (the window lays its icons out again by name) and the drop could miss: I6t fails with
- * that reason. Its place is the drawer's layout frame, not the window's (14 Nov lab: 130,78 by name, drawn at
- * 146,58), so the drop stays on what changed. With no ARexx, f's size is the yardstick, as before. f is dragged onto
- * the Trashcan with DragTest.
+ * window.icons.all.N, as DESKDROP's list): its size is its own icon's, so when what changed is wider than two of it
+ * (f's width as the floor: the name's is the image without its label), more than the Trashcan moved (the window
+ * lays its icons out again by name) and the drop could miss: I6t fails with that reason. Its place is the drawer's
+ * layout frame, not the window's (14 Nov lab: 130,78 by name, drawn at 146,58), so the drop stays on what changed.
+ * With no ARexx, f's size is the yardstick, as before. f is dragged onto the Trashcan with DragTest.
  * I6t: f and f.info must leave RAM:AWBGapR for RAM:Trashcan, and the note must have a line for each, from
  * ...AWBGapR/f and ...AWBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
  * back in RAM:AWBGapR, out of the Trashcan, and take their lines out of the note.
@@ -55,7 +55,7 @@ WBGAP_ROWMODE(I6p, TRASHNOTE)
 #define TN_RAMWIN "RAM: - "
 
 static const char tn_rexx[] =
-    "/* WBGapTest TRASHNOTE: out win name: the box of icon name in window win, \"left top width height\", into out.\n"
+    "/* WBGapTest TRASHNOTE: out win icon: the box of icon in window win, \"left top width height\", into out.\n"
     "   MIT, Copyright (c) 2026 AmiCradle Team. */\n"
     "OPTIONS RESULTS\n"
     "PARSE ARG out win icon\n"
@@ -94,7 +94,8 @@ static int tn_byname(const long *changed, long box[4])
     Forbid();
     up = FindPort((CONST_STRPTR)"REXX") != NULL;
     Permit();
-    if (!up) {
+    if (!up) {   /* left running for the rows after: said, so a later "no ARexx" row's log shows why it has one */
+        printf("INFO I6t no REXX port: SYS:System/RexxMast started (left running)\n");
         wbt_run("Run >NIL: SYS:System/RexxMast >NIL:");
         Delay(50);
     }
@@ -289,10 +290,9 @@ int wbt_trashnote(int argc, char **argv)
                "not used\n", byname[2], byname[3], box_t[0], box_t[1], box_t[2], box_t[3]);
     else
         printf("INFO I6t RAM:Trashcan not found by its name (no rx, no WORKBENCH port, or not listed)\n");
-    if (box_t[2] > (v == 1 ? byname[2] : box_f[2]) * 2) {   /* more than one icon changed: the drop could miss it */
-        printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two of %s (%ldx%ld): more than its icon moved\n",
-               box_t[2], box_t[3], v == 1 ? "its own icon" : "f's", v == 1 ? byname[2] : box_f[2],
-               v == 1 ? byname[3] : box_f[3]);
+    if (wbgap_trashnote_crowded(box_t[2], v == 1 ? byname[2] : 0, box_f[2])) {   /* the drop could miss it */
+        printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two icons (its own %ld, f's %ld): more than its "
+               "icon moved\n", box_t[2], box_t[3], v == 1 ? byname[2] : 0L, box_f[2]);
         wbt_fail("I6t", "RAM:Trashcan's icon not told apart: other icons moved in its window when it was added");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;

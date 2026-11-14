@@ -98,3 +98,9 @@ int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4])
         return -1;                        /* its place is the drawer's layout frame: only its size is held */
     return 1;
 }
+
+int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w)
+{
+    long one = name_w > f_w ? name_w : f_w;
+    return one > 0 && changed_w > one * 2;
+}
