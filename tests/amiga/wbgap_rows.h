@@ -84,6 +84,17 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
+/* W2, keyboard window cycling: GFOpenWindows' switcher (gfopenprefs Windows), Amiga+Tab brings the window at the back
+ * of the screen to the front and activates it, Amiga+Shift+Tab sends the front one to the back and activates the one
+ * behind it. ENV:GFOpenPrefs/Windows (text, may be NULL): 0 when it says "switcher off", else 1; its "switcher.key"
+ * into key (cap bytes), "lcommand tab" when it has none */
+int wbgap_switcher_on(const char *env, char *key, unsigned cap);
+/* the step judged from the screen's switchable windows front to back before (nb of them) and after (na), and the
+ * active window after (ids, any unique numbers): back 0 for Amiga+Tab, 1 for Amiga+Shift+Tab. WBGAP_PASS,
+ * WBGAP_FAIL (the reason in why) or WBGAP_SKIP (fewer than two windows) */
+int wbgap_switch_judge(int back, const unsigned long *before, int nb, const unsigned long *after, int na,
+                       unsigned long active, char *why, unsigned cap);
+
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);

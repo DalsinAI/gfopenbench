@@ -16,6 +16,8 @@
  *                               mouse in RAM:WBGap's window (DragTest DRAG RIGHT), and what it did read back
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
+ *   WBGapTest SWITCH            row W2: GFOpenWindows' Amiga+Tab and Amiga+Shift+Tab cycle the Workbench screen's
+ *                               windows (two of our own opened for it); SKIP with no switcher (3.2.3)
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
@@ -763,6 +765,97 @@ static int do_screens(void)
  * button held (wbgap_menu_path, DragTest DRAG RIGHT); what changed is read: the window's pixels, a window that
  * comes or goes, a drawer made. Only reads and input events: nothing is drawn here. */
 #define MAXWINS 48
+
+static long read_all(const char *path, char *buf, long n);
+
+/* ---- W2: keyboard window cycling (GFOpenWindows' switcher, gfopenprefs Windows) ----
+ * The Workbench screen's windows front to back by their layers, as the switcher counts them: not a backdrop, not
+ * tiny, not Workbench's own root window. Two windows of our own make sure there are some to cycle. */
+static int switch_order(struct Screen *s, unsigned long *ids, int cap)
+{
+    struct Layer *l;
+    int n = 0;
+    Forbid();
+    for (l = s->LayerInfo.top_layer; l && n < cap; l = l->back) {
+        struct Window *w = (struct Window *)l->Window;
+        if (!w || (w->Flags & WFLG_BACKDROP) || w->Width < 8 || w->Height < 8) continue;
+        if ((w->Flags & WFLG_WBENCHWINDOW) && !(w->Flags & WFLG_CLOSEGADGET)) continue;
+        ids[n++] = (unsigned long)w;
+    }
+    Permit();
+    return n;
+}
+
+static int switch_step(struct Screen *s, int back)
+{
+    unsigned long before[MAXWINS], after[MAXWINS], active;
+    char cmd[320], why[128];
+    const char *row = back ? "W2b" : "W2a";
+    int nb, na, r;
+    ULONG lock;
+    nb = switch_order(s, before, MAXWINS);
+    snprintf(cmd, sizeof cmd, "%s KEY 0x42 QUAL %s", dragtest, back ? "LAMIGA+LSHIFT" : "LAMIGA");
+    run(cmd);
+    Delay(50);
+    na = switch_order(s, after, MAXWINS);
+    lock = LockIBase(0);
+    active = (unsigned long)IntuitionBase->ActiveWindow;
+    UnlockIBase(lock);
+    r = wbgap_switch_judge(back, before, nb, after, na, active, why, sizeof why);
+    printf("INFO %s %d windows; %s\n", row, nb, r == WBGAP_PASS ? "as wanted" : why);
+    return r;
+}
+
+static int do_switch(void)
+{
+    static char env[2048];
+    char keyname[40], why[96];
+    struct Screen *s;
+    struct Window *a = NULL, *b = NULL;
+    struct MsgPort *p;
+    long n;
+    int r1 = WBGAP_SKIP, r2 = WBGAP_SKIP;
+    Forbid();
+    p = FindPort((CONST_STRPTR)"GFOpenWindows");
+    Permit();
+    if (!p) {
+        if (is_gfos()) fail("W2", "GFOpenWindows isn't running (no GFOpenWindows port): no Amiga+Tab");
+        else skip("W2", "no window switcher on this desktop (GFOpenWindows isn't running)");
+        return fails ? 5 : 0;
+    }
+    n = read_all("ENV:GFOpenPrefs/Windows", env, sizeof env);
+    if (!wbgap_switcher_on(n < 0 ? NULL : env, keyname, sizeof keyname)) {
+        skip("W2", "the switcher is off (ENV:GFOpenPrefs/Windows: switcher off)");
+        return 0;
+    }
+    if (stricmp(keyname, "lcommand tab")) {
+        snprintf(why, sizeof why, "the switcher's key is \"%s\", not lcommand tab", keyname);
+        skip("W2", why);
+        return 0;
+    }
+    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("W2", "no Workbench screen"); return 0; }
+    ScreenToFront(s);
+    a = OpenWindowTags(NULL, WA_PubScreen, (ULONG)s, WA_Left, 60, WA_Top, 60, WA_Width, 220, WA_Height, 90,
+                       WA_Title, (ULONG)"W2 cycle A", WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE,
+                       WA_Activate, TRUE, TAG_DONE);
+    b = OpenWindowTags(NULL, WA_PubScreen, (ULONG)s, WA_Left, 120, WA_Top, 100, WA_Width, 220, WA_Height, 90,
+                       WA_Title, (ULONG)"W2 cycle B", WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE,
+                       WA_Activate, TRUE, TAG_DONE);
+    if (!a || !b) fail("W2", "our two windows didn't open");
+    else {
+        Delay(50);
+        r1 = switch_step(s, 0);
+        r2 = switch_step(s, 1);
+        if (r1 == WBGAP_PASS && r2 == WBGAP_PASS) pass("W2");
+        else if (r1 == WBGAP_SKIP || r2 == WBGAP_SKIP) skip("W2", "fewer than two windows to cycle");
+        else fail("W2", r1 != WBGAP_PASS ? "Amiga+Tab didn't bring the back window to the front, active (INFO W2a)"
+                                         : "Amiga+Shift+Tab didn't send the front window back (INFO W2b)");
+    }
+    if (b) CloseWindow(b);
+    if (a) CloseWindow(a);
+    UnlockPubScreen(NULL, s);
+    return fails ? 5 : 0;
+}
 
 static struct Window *drawer_window(void)
 {
@@ -1842,7 +1935,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | SWITCH | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -1852,6 +1945,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
+    else if (!stricmp(argv[1], "SWITCH")) rc = do_switch();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
