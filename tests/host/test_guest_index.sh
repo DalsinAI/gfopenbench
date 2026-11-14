@@ -44,8 +44,10 @@ git -C "$G" -c user.name=t -c user.email=t@t commit -q -m guest
 
 # 1. fetched: WBGapIndex built from the fetched openindex, nothing of the fetch left
 OUT="$T/out1"
+rc=0
 GCC_LOG="$T/log1" STOVE="$T/stove" OUT="$OUT" AMIGACHROME_GIT_BASE="file://$T/git/" \
-  sh "$HERE/tests/amiga/build-amiga.sh" > "$T/run1" 2>&1 || { cat "$T/run1"; bad "build-amiga.sh with a guest to fetch: rc $?"; }
+  sh "$HERE/tests/amiga/build-amiga.sh" > "$T/run1" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || { cat "$T/run1"; bad "build-amiga.sh with a guest to fetch: rc $rc"; }
 if [ -f "$OUT/WBGapIndex" ]; then ok "WBGapIndex built"; else bad "WBGapIndex not built"; cat "$T/run1"; fi
 if grep -q "tools/openindex/amiga/oix_acfs.c" "$T/log1" && grep -q "tests/amiga/WBGapIndex.c" "$T/log1"; then
   ok "from the fetched tools/openindex"; else bad "WBGapIndex's sources not compiled"; fi
@@ -75,6 +77,17 @@ GCC_LOG="$T/log3" STOVE="$T/stove" OUT="$OUT" AMICRADLE_GUEST="$G" AMIGACHROME_G
 if [ -f "$OUT/WBGapIndex" ] && grep -q "$G/tools/openindex/amiga/oix_acfs.c" "$T/log3" && ! grep -q "amicradle-guest at" "$T/run3"; then
   ok "AMICRADLE_GUEST given: used, nothing fetched"; else bad "AMICRADLE_GUEST given"; cat "$T/run3"; fi
 [ -e "$G/tools/openindex" ] && ok "the given checkout is left alone" || bad "the given checkout was removed"
+
+# 3b. deps left by a failed run (a stale clone in OUT/deps, Ackerman's #175 review): fetched fresh, rc 0, all removed
+OUT="$T/out3b"
+mkdir -p "$OUT/deps/amicradle-guest/.git" "$OUT/deps/amicradle-guest/stale"
+echo old > "$OUT/deps/amicradle-guest/stale/old.c"
+rc=0
+GCC_LOG="$T/log3b" STOVE="$T/stove" OUT="$OUT" AMIGACHROME_GIT_BASE="file://$T/git/" \
+  sh "$HERE/tests/amiga/build-amiga.sh" > "$T/run3b" 2>&1 || rc=$?
+if [ "$rc" -eq 0 ] && [ -f "$OUT/WBGapIndex" ] && [ ! -e "$OUT/deps" ]; then
+  ok "deps left by a failed run: fetched fresh, built, removed (rc 0)"
+else bad "deps left by a failed run: rc $rc, deps $(ls "$OUT/deps" 2>&1)"; cat "$T/run3b"; fi
 
 # 4. nothing to fetch: the rest still built, WBGapIndex said not built, rc 0
 OUT="$T/out4"
