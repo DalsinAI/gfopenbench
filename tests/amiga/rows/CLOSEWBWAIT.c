@@ -46,6 +46,8 @@ static int closewb_wait(const char *path, int secs)
         steps[n > 0 ? n : 0] = 0;
         Close(fh);
     }
+    /* A row that ended has no use for its steps; a hung one keeps them for Type. */
+    if (over) DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);
     if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
     if (!over) {
         char why[192], step[96];
