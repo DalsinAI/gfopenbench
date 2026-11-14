@@ -62,7 +62,7 @@ int wbt_prefswb(int argc, char **argv)
     char vol[64], why[160];
     unsigned long old_stack, got = 0;
     long was_n, n;
-    int had, before, gone = -1, back = -1, v, t;
+    int had, before, gone = -1, back = -1, v, t, restored;
     BPTR l;
     (void)argc;
     (void)argv;
@@ -95,16 +95,17 @@ int wbt_prefswb(int argc, char **argv)
     for (t = 0; t < 10 && (got = stack_now()) != PREFSWB_STACK; t++) Delay(50);
     printf("INFO P7 after the change: icon %s, default stack %lu\n", gone > 0 ? "gone" : gone == 0 ? "still there" : "not read", got);
     /* the old prefs back, whatever was seen */
-    if (had) put_file(PREFSWB_FILE, was_buf, was_n);
+    if (had) restored = put_file(PREFSWB_FILE, was_buf, was_n);
     else {
         n = wbgap_wbprefs_make(NULL, 0, old_stack ? old_stack : 4096, NULL, new_buf, sizeof new_buf);
-        if (n) put_file(PREFSWB_FILE, new_buf, n);
+        restored = n && put_file(PREFSWB_FILE, new_buf, n);
     }
+    if (!restored) printf("INFO P7 the old prefs could NOT be put back: ENV:Sys/Workbench.prefs still hides RAM\n");
     back = icon_wait(vol, 1, 10, "after the old prefs");
     if (!had) DeleteFile((CONST_STRPTR)PREFSWB_FILE);
     printf("INFO P7 after the old prefs: icon %s, default stack %lu\n", back > 0 ? "back" : back == 0 ? "still gone" : "not read",
            stack_now());
-    v = wbgap_wbprefs_judge(gone, got, PREFSWB_STACK, back, why, sizeof why);
+    v = wbgap_wbprefs_judge(gone, got, PREFSWB_STACK, restored ? back : 0, why, sizeof why);
     wbt_say("P7", v, why);
     return v == WBGAP_FAIL ? 10 : 0;
 }
