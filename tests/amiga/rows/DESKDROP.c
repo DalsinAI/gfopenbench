@@ -135,9 +135,15 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
         ly = WhichLayer(&s->LayerInfo, x, y);
         bw = ly ? (struct Window *)ly->Window : NULL;
         UnlockLayerInfo(&s->LayerInfo);
-        if (!bw || !(bw->Flags & WFLG_BACKDROP)) continue;   /* a window there, or the screen's bar */
-        if (!wbgap_deskdrop_clear(desk, x - bw->LeftEdge - bw->BorderLeft, y - bw->TopEdge - bw->BorderTop, BD_MARGIN))
+        if (!bw || !(bw->Flags & WFLG_BACKDROP)) {   /* a window there, or the screen's bar */
+            printf("INFO I5 %ld,%ld: %s \"%s\" (flags $%lx)\n", x, y, bw ? "a window," : "no window", bw && bw->Title ?
+                   (const char *)bw->Title : "", bw ? (unsigned long)bw->Flags : 0UL);
             continue;
+        }
+        if (!wbgap_deskdrop_clear(desk, x - bw->LeftEdge - bw->BorderLeft, y - bw->TopEdge - bw->BorderTop, BD_MARGIN)) {
+            printf("INFO I5 %ld,%ld: an icon of the desktop within %d pixels\n", x, y, BD_MARGIN);
+            continue;
+        }
         xy[0] = x;
         xy[1] = y;
         return 1;
@@ -200,6 +206,12 @@ int wbt_deskdrop(int argc, char **argv)
     if (!bd_list("root", desk, sizeof desk)) {
         wbt_skip("I5", "the desktop's icons not read (no WORKBENCH port, or GETATTR refused)");
         goto out;
+    }
+    {
+        const char *p;
+        int lines = 0;
+        for (p = desk; *p; p++) lines += *p == '\n';
+        printf("INFO I5 the desktop has %d icons\n", lines);
     }
     if (wbgap_deskdrop_has(desk, "f")) {
         wbt_skip("I5", "an icon named f was on the desktop before the drag");
