@@ -2,6 +2,7 @@
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "wbgap_rows.h"
 
@@ -69,8 +70,8 @@ static const struct wbgap_row rows[] = {
     {"I5", NULL, L, NULL, "drag to the backdrop"},
     {"I6", NULL, L, NULL, "drag to the Trashcan"},
     {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
-    {"I8", NULL, A, NULL, "drag onto an AppIcon"},
-    {"I9", NULL, A, NULL, "drag onto an AppWindow"},
+    {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
+    {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
     {"I10", NULL, A, NULL, "double-click opens or runs"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
@@ -346,4 +347,79 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+static int boxes_meet(const long a[4], const long b[4])
+{
+    return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+}
+
+int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4])
+{
+    int k;
+    if (w < 1 || h < 1 || top < 0 || w > sw || h > sh - top) return 0;
+    for (k = 0; k < 4; k++) {
+        long b[4];
+        b[0] = (k == 0 || k == 1) ? sw - w : 0;
+        b[1] = (k == 1 || k == 2) ? sh - h : top;
+        b[2] = w;
+        b[3] = h;
+        if (avoid && boxes_meet(b, avoid)) continue;
+        memcpy(box, b, sizeof b);
+        return 1;
+    }
+    return 0;
+}
+
+void wbgap_drop_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] / 2;
+}
+
+int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
+                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
+                     unsigned cap)
+{
+    size_t dn = dir ? strlen(dir) : 0, wn = want_dir ? strlen(want_dir) : 0;
+    if (!got) {
+        snprintf(why, cap, "no AppMessage came");
+        return WBGAP_FAIL;
+    }
+    if (type != want_type || id != want_id) {
+        snprintf(why, cap, "an AppMessage of type %ld id %lu, not type %ld id %lu", type, id, want_type, want_id);
+        return WBGAP_FAIL;
+    }
+    if (nargs < 1) {
+        snprintf(why, cap, "the AppMessage has no arguments (am_NumArgs %ld)", nargs);
+        return WBGAP_FAIL;
+    }
+    if (!name || !want_name || strcmp(name, want_name)) {
+        snprintf(why, cap, "its first argument is \"%s\", not \"%s\"", name ? name : "", want_name ? want_name : "");
+        return WBGAP_FAIL;
+    }
+    if (!wn || dn < wn || strcmp(dir + dn - wn, want_dir)) {
+        snprintf(why, cap, "its first argument's drawer is \"%s\", not ...%s", dir ? dir : "", want_dir ? want_dir : "");
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
+}
+
+int wbgap_parse_box(const char *text, long box[4])
+{
+    long b[4];
+    char *e;
+    const char *p = text;
+    int k;
+    if (!p) return 0;
+    for (k = 0; k < 4; k++) {
+        b[k] = strtol(p, &e, 10);
+        if (e == p) return 0;
+        p = e;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    if (*p || b[2] < 1 || b[3] < 1) return 0;
+    memcpy(box, b, sizeof b);
+    return 1;
 }

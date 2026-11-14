@@ -36,6 +36,7 @@ Else
   SYS:Rexxc/rx SYS:T/WBGap/WBGapLayout.rexx >>RAM:wbgap-results
 EndIf
 WBGapTest SCREENS >>RAM:wbgap-results
+WBGapTest APPDROP >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
 WBGapTest LAUNCH >>RAM:wbgap-results
 If EXISTS SYS:Rexxc/rx

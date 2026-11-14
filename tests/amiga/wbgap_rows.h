@@ -68,4 +68,21 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
+/* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send
+ * the AppMessage. A box (left, top, width, height) of w x h for a window or a drawer, in a corner of a screen
+ * sw x sh below its title bar (top), clear of avoid (left, top, width, height; NULL for none), tried in the order
+ * top-right, bottom-right, bottom-left, top-left: 1 and the box, or 0 if no corner is clear */
+int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4]);
+/* the point a drag lets go at: the box's middle */
+void wbgap_drop_point(const long box[4], long xy[2]);
+/* the AppMessage judged: its am_Type and am_ID against those wanted, one argument at least, the first named
+ * want_name, in a drawer whose path (NameFromLock of its wa_Lock) ends in want_dir. got 0: no message came.
+ * WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
+                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
+                     unsigned cap);
+/* "x y w h" (WBGapAppPos.rexx, the AppIcon's box on the screen) into box: 1, or 0 if it isn't four numbers or
+ * the width or height isn't above 0 */
+int wbgap_parse_box(const char *text, long box[4]);
+
 #endif
