@@ -36,7 +36,7 @@
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest PREFSWB           row P7 (rows/PREFSWB.c): Workbench prefs with RAM: hidden and the default stack 65536
- *                               (GFOS: the ENV file written; 3.2.3: Prefs/Workbench FROM USE): the RAM Disk's icon must go and
+ *                               (the ENV file GFOpenBench watches; SKIP on 3.2.3, checked by hand): the RAM Disk's icon must go and
  *                               WBCTRLA_GetDefaultStackSize give 65536; the old file back, the icon must come back
  *   WBGapTest WBCONTROL         row A5 (rows/WBCONTROL.c): WorkbenchControlA's stack, restart time, global flags and
  *                               hidden devices, each set, read back and put back
