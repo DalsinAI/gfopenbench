@@ -136,7 +136,20 @@ static void recover_entry(void)
         struct EasyStruct es = { sizeof(struct EasyStruct), 0, (UBYTE *)"Workbench",
                                  (UBYTE *)"Recover deleted needs gfopenlayout.library %ld or later in LIBS:.",
                                  (UBYTE *)"OK" };
-        EasyRequest(NULL, &es, NULL, (ULONG)OL_LIB_VERSION);
+        /* Built, not EasyRequest: ob_recover_close's CTRL-C takes it down with the desktop, so it never outlives
+         * desktop_down (an EasyRequest would block this process until someone clicked OK). */
+        ULONG args[1];
+        struct Window *req;
+        args[0] = (ULONG)OL_LIB_VERSION;
+        req = BuildEasyRequestArgs(NULL, &es, 0, args);
+        if (req && req != (struct Window *)1) {
+            for (;;) {
+                ULONG got = Wait((1UL << req->UserPort->mp_SigBit) | SIGBREAKF_CTRL_C);
+                if (got & SIGBREAKF_CTRL_C) break;
+                if (SysReqHandler(req, NULL, FALSE) != -2) break;
+            }
+        }
+        if (req) FreeSysRequest(req);
         goto out;
     }
     wn = OpenWindowTags(NULL, WA_CustomScreen, (ULONG)scr, WA_Title, (ULONG)"Recover deleted",

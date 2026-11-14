@@ -42,16 +42,19 @@ void ob_rc_row(char *out, size_t size, const of_gone *g)
     snprintf(out, size, "%s   %lu bytes   %s", g->name, (unsigned long)g->size, d);
 }
 
-typedef struct fill { ob_rc_add_fn add; void *user; int n; } fill;
+typedef struct fill { ob_rc_add_fn add; void *user; int n, all, full; } fill;
 
 static int fill_one(void *u, const of_gone *g)
 {
     fill *f = u;
     char row[OF_GONE_NAME + 48];
+    f->all++;
+    if (f->full) return 0;                      /* no room: the rest aren't shown, only counted */
     ob_rc_row(row, sizeof row, g);
     if (f->add(f->user, g->id, row))
-        return 1;                               /* no room: the rest aren't shown */
-    f->n++;
+        f->full = 1;
+    else
+        f->n++;
     return 0;
 }
 
@@ -69,14 +72,16 @@ int ob_rc_fill(of_ctx *c, const char *vol, ob_rc_add_fn add, void *user, char *m
     int rc;
     f.add = add;
     f.user = user;
-    f.n = 0;
+    f.n = f.all = f.full = 0;
     msg[0] = 0;
     if ((rc = of_gone_list(c, vol, 1, fill_one, &f)) != OF_OK) {
         cant(msg, size, vol, rc);
         return -1;
     }
-    if (!f.n)
+    if (!f.all)
         snprintf(msg, size, "Nothing deleted is kept on %s.", vol);
+    else if (f.n < f.all)
+        snprintf(msg, size, "%d deleted files kept on %s, the newest %d shown. Pick one, then Put back.", f.all, vol, f.n);
     else
         snprintf(msg, size, "%d deleted file%s kept on %s, newest first. Pick one, then Put back.", f.n,
                  f.n == 1 ? "" : "s", vol);
