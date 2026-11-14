@@ -1048,6 +1048,9 @@ static int do_big(void)
     ticks = (b.ds_Days - a.ds_Days) * 24L * 60 * 3000 + (b.ds_Minute - a.ds_Minute) * 3000L + (b.ds_Tick - a.ds_Tick) - 50;
     printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
     if (ticks < 10 * 50) pass("X1"); else fail("X1", "over 10 s");
+    /* closed again: left open over the desktop's left-out icons, the next rows' clicks landed on its file icons and
+     * stopped an unattended run on "has no default tool" (Franklin's lab, 14 November 2026) */
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapBig", NULL);
     return fails ? 5 : 0;
 }
 
