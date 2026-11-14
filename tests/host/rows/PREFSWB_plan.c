@@ -32,6 +32,23 @@ void prefswb_plan(void)
     CHECK(wbgap_wbprefs_hides(out, n, "RAM") && wbgap_wbprefs_hides(out, n, "DF0"), "RAM hidden, DF0 kept");
     CHECK(n > 0 && !memcmp(out + 12, saved + 12, 14) && !memcmp(out + 26 + 12, saved + 26 + 12, 46),
           "PRHD and the rest of WBNC as they were");
+    {   /* byte for byte where the 68k build went wrong on 14 Nov ("WB\0C", the old stack's third byte left) */
+        static const unsigned char wbnc_head[12] = {'W','B','N','C', 0,0,0,50, 0,1,0,0};
+        CHECK(n > 38 && !memcmp(out + 26, wbnc_head, sizeof wbnc_head), "WBNC's id, size and the new stack, byte for byte");
+    }
+    CHECK(wbgap_wbprefs_sane(out, n, 65536, "RAM"), "the made file is sane: stack 65536, RAM hidden");
+    CHECK(!wbgap_wbprefs_sane(out, n, 4096, "RAM") && !wbgap_wbprefs_sane(out, n, 65536, "DF1"), "sane wants the stack and the hide asked for");
+    CHECK(wbgap_wbprefs_sane(saved, sizeof saved, 0x2000, NULL), "the editor's own file is sane");
+    {
+        unsigned char bad[sizeof out];
+        memcpy(bad, out, (size_t)n);
+        bad[28] = 0; bad[34] = 0; bad[35] = 1; bad[36] = 0x20; bad[37] = 0;   /* 14 Nov's file: "WB\0C", stack 0x00012000 */
+        CHECK(!wbgap_wbprefs_sane(bad, n, 65536, "RAM"), "14 Nov's \"WB\\0C\" file: not sane, not written");
+        memcpy(bad, out, (size_t)n);
+        bad[7]++;
+        CHECK(!wbgap_wbprefs_sane(bad, n, 65536, "RAM"), "FORM length one out: not sane");
+        CHECK(!wbgap_wbprefs_sane(out, n - 2, 65536, "RAM"), "cut short: not sane");
+    }
     CHECK(!memcmp(out + sizeof saved - 10, saved + sizeof saved - 10, 10), "WBTF kept, its pad byte too");
     CHECK(wbgap_wbprefs_make(saved, sizeof saved, 65536, "dF0:", out, sizeof out) == (long)sizeof saved,
           "a device already hidden isn't added again");
