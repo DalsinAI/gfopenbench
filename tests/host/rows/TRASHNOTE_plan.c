@@ -53,6 +53,23 @@ void trashnote_plan(void)
         CHECK(wbgap_trashnote_crowded(140, 90, 40) == 0, "the name's image wider than f's box: that is the floor");
     }
 
+    /* I6t in a crowded RAM: (a full run): the Trashcan's drawn place from its name's, by f's offset */
+    {
+        long out[4], tn[4] = {130, 78, 64, 61}, fn[4] = {110, 30, 64, 40}, fc[4] = {126, 10, 64, 52};
+        long tc[4] = {34, 52, 288, 158};
+        CHECK(wbgap_trashnote_mapped(tn, fn, fc, tc, 384, 276, out) == 1 && out[0] == 146 && out[1] == 58 &&
+              out[2] == 64 && out[3] == 61, "the 14 Nov offset (+16,-20) from f: drawn at 146,58, in what changed");
+        long far[4] = {300, 200, 40, 30};
+        CHECK(wbgap_trashnote_mapped(tn, fn, fc, far, 384, 276, out) == 0, "its middle outside what changed: 0");
+        CHECK(wbgap_trashnote_mapped(tn, fn, fc, tc, 200, 276, out) == 0, "past the window's inside: 0");
+        CHECK(wbgap_trashnote_mapped(tn, fn, fc, tc, 0, 0, out) == 1, "no inside size: not checked");
+        long fn2[4] = {200, 100, 64, 40}, fc2[4] = {0, 0, 64, 52};
+        CHECK(wbgap_trashnote_mapped(tn, fn2, fc2, tc, 0, 0, out) == 0, "a place left of or above the inside: 0");
+        long none[4] = {0, 0, 0, 0};
+        CHECK(wbgap_trashnote_mapped(none, fn, fc, tc, 0, 0, out) == 0 && wbgap_trashnote_mapped(tn, fn, none, tc, 0, 0, out) == 0 &&
+              wbgap_trashnote_mapped(NULL, fn, fc, tc, 0, 0, out) == 0, "no size or no box: 0");
+    }
+
     /* I6t */
     CHECK(wbgap_trashnote_judge(0, 0, 1, 1, both, "f", "WBGapR/f", why, sizeof why) == WBGAP_PASS && !why[0],
           "moved, both lines: PASS");
