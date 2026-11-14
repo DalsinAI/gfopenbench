@@ -26,6 +26,8 @@ struct Window *wbt_open_drawer(const char *path, const char *title, int secs, in
 int wbt_clear_drawer(const char *path, const char *title, const char *row);
 int wbt_write_file(const char *path, const char *text);      /* 1 if written */
 unsigned long wbt_inside_sum(struct Window *w);              /* the inside, sampled, as one number */
+int wbt_changes_within(struct Window *w, unsigned long before, int secs);   /* 1 if the inside changed */
+int wbt_setup(void);                                          /* WBGapTest SETUP: RAM:WBGap and its icons */
 /* DRAGFILE's: the drawer dir with first snapshotted at 20,10 in it; the window titled title made w x h and put in a
  * corner clear of avoid (NULL: the top-left), or NULL; an object made in the drawer dir (its window w open) at x,y,
  * told to the desktop, and its box in the window's inside found where the inside changed: 1, or 0 in 5 s */
