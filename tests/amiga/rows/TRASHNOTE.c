@@ -9,7 +9,8 @@
  * ...WBGapR/f and ...WBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
  * back in RAM:WBGapR, out of the Trashcan, and take their lines out of the note.
  * Only on GFOpenBench: 3.2.3's trashcan keeps no note. Only when RAM: has no Trashcan already (the user's trash is
- * not ours to empty: both SKIP). Everything this made is cleared afterwards, the Trashcan and its note with it.
+ * not ours to empty: both SKIP). Everything this made is cleared afterwards, the Trashcan and its note with it, and
+ * the RAM Disk's window closed again when it wasn't open before (it is moved and sized here, not put back).
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
@@ -66,7 +67,7 @@ static void tn_ram_title(char *out, long n)
     if ((c = strchr(out, ':'))) *c = 0;
 }
 
-static void tn_clean(int can_ours)
+static void tn_clean(int can_ours, int ram_ours, const char *title)
 {
     static const char *const mine[] = {TN_DIR "/f.info", TN_DIR "/f", TN_DIR "/a.info", TN_DIR "/a", TN_DIR ".info",
                                        TN_DIR};
@@ -80,6 +81,20 @@ static void tn_clean(int can_ours)
         for (i = 0; i < sizeof mine / sizeof mine[0]; i++) DeleteFile((CONST_STRPTR)mine[i]);
         if (can_ours)
             for (i = 0; i < sizeof can / sizeof can[0]; i++) DeleteFile((CONST_STRPTR)can[i]);
+    }
+    if (tn_there(TN_DIR)) {      /* something the list doesn't name: all of it, as TRASH's RAM:WBGapT */
+        printf("INFO I6t %s was left after the clean (a file not made here); deleted with all in it\n", TN_DIR);
+        wbt_run("C:Delete >NIL: " TN_DIR " ALL QUIET FORCE");
+        DeleteFile((CONST_STRPTR)TN_DIR ".info");
+    }
+    if (can_ours && tn_there(TN_CAN)) {   /* made here (RAM: had none): ours to clear, a desktop's own files too */
+        printf("INFO I6t %s was left after the clean; deleted with all in it\n", TN_CAN);
+        wbt_run("C:Delete >NIL: " TN_CAN " ALL QUIET FORCE");
+        DeleteFile((CONST_STRPTR)TN_CAN ".info");
+    }
+    if (ram_ours && title && title[0]) {  /* the RAM Disk's window wasn't open before: closed again */
+        CloseWorkbenchObjectA((STRPTR)"RAM:", NULL);
+        for (t = 0; t < 40 && wbt_find_window(title); t++) Delay(5);
     }
 }
 
@@ -121,7 +136,7 @@ int wbt_trashnote(int argc, char **argv)
     APTR ctx;
     long box_f[4], box_t[4], rbox[4], from[2], to[2], ww, rc = WBGAP_PUTBACK_NOTRIED;
     char cmd[320], why[200], title[64];
-    int how, t, sf, si, df, di, v, can_ours = 0;
+    int how, t, sf, si, df, di, v, can_ours = 0, ram_ours = 0;
     BPTR l;
     (void)argc, (void)argv;
     if (!tn_gfos()) {
@@ -144,7 +159,8 @@ int wbt_trashnote(int argc, char **argv)
         wbt_skip("I6p", "not tried (I6t skipped)");
         return wbt_fails() ? 5 : 0;
     }
-    tn_clean(0);
+    tn_clean(0, 0, NULL);
+    ram_ours = !wbt_find_window(title);   /* the RAM Disk's window is closed again after only if it wasn't open */
     can_ours = 1;                         /* from here RAM:Trashcan, if any, is ours */
     wbt_drawer(TN_DIR, "a");
     if (!wbt_open_drawer(TN_DIR, "WBGapR", 10, &how) || !(w = wbt_place("WBGapR", NULL, ww, TN_H))) {
@@ -200,7 +216,7 @@ int wbt_trashnote(int argc, char **argv)
                 rc = ofl_restore(ofl, ctx, (CONST_STRPTR)TN_CAN "/f");
                 ofl_dispose(ofl, ctx);
             } else
-                rc = -1;                  /* no context: a failure of its own */
+                rc = WBGAP_PUTBACK_NOCTX;
             CloseLibrary(ofl);
         }
     }
@@ -215,10 +231,10 @@ int wbt_trashnote(int argc, char **argv)
     wbt_say("I6p", v, why);
 out:
     if ((l = Lock((CONST_STRPTR)"RAM:", ACCESS_READ))) {   /* the Trashcan's icon off the RAM Disk's window */
-        tn_clean(can_ours);
+        tn_clean(can_ours, ram_ours, title);
         UpdateWorkbench((CONST_STRPTR)"Trashcan", l, UPDATEWB_ObjectRemoved);
         UnLock(l);
     } else
-        tn_clean(can_ours);
+        tn_clean(can_ours, ram_ours, title);
     return wbt_fails() ? 5 : 0;
 }

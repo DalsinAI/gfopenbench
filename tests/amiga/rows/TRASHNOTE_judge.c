@@ -70,7 +70,9 @@ int wbgap_putback_judge(long rc, int back, int back_info, int left, int noted, c
     } else if (rc == WBGAP_PUTBACK_NOTRIED) {
         snprintf(r, sizeof r, "not tried: %.40s never reached the Trashcan (I6t)", name);
         v = WBGAP_SKIP;
-    } else if (rc)
+    } else if (rc == WBGAP_PUTBACK_NOCTX)
+        snprintf(r, sizeof r, "gfopenfiles.library's OFNewContext gave no context, so OFRestore wasn't called");
+    else if (rc)
         snprintf(r, sizeof r, "OFRestore of %.40s answered %ld", name, rc);
     else if (!back || !back_info)
         snprintf(r, sizeof r, "put back, but %.40s%s isn't where it came from", name, !back ? "" : "'s icon");

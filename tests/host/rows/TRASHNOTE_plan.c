@@ -50,6 +50,10 @@ void trashnote_plan(void)
           "no library: SKIP, \"%s\"", why);
     CHECK(wbgap_putback_judge(WBGAP_PUTBACK_NOTRIED, 0, 0, 0, 0, "f", why, sizeof why) == WBGAP_SKIP && strstr(why, "I6t"),
           "I6t failed: SKIP, \"%s\"", why);
+    CHECK(wbgap_putback_judge(WBGAP_PUTBACK_NOCTX, 0, 0, 1, 1, "f", why, sizeof why) == WBGAP_FAIL &&
+          strstr(why, "OFNewContext") && !strstr(why, "answered"), "no context: FAIL of its own, \"%s\"", why);
+    CHECK(wbgap_putback_judge(1, 1, 1, 0, 0, "f", why, sizeof why) == WBGAP_FAIL && strstr(why, "answered 1"),
+          "OFRestore's 1 (TRUE) is not OFERR_OK 0: FAIL, \"%s\"", why);
     CHECK(wbgap_putback_judge(205, 0, 0, 1, 1, "f", why, sizeof why) == WBGAP_FAIL && strstr(why, "205"),
           "OFRestore refused: FAIL, \"%s\"", why);
     CHECK(wbgap_putback_judge(0, 1, 0, 0, 0, "f", why, sizeof why) == WBGAP_FAIL && strstr(why, "icon"),
