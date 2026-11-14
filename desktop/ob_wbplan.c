@@ -22,6 +22,30 @@ const char *ob_wbp_split(const char *path, char *dir, int n)
     return part;
 }
 
+int ob_wbp_which(int at, const char *path, char *name, int n)
+{
+    const char *part = path ? path : "", *c, *end;
+    int len;
+    if (n > 0) name[0] = 0;
+    if ((at != OB_WBP_AT_SPACE && at != OB_WBP_AT_ICON) || !path) return OB_WBP_WBO_NONE;
+    end = part + strlen(part);
+    if (end > part && end[-1] == '/') end--;                    /* "Work:a/": a */
+    for (c = part; c < end; c++)
+        if (*c == ':' || *c == '/') part = c + 1;
+    if (part == end && end > path && end[-1] == ':') {          /* a disk, "Work:": Work */
+        for (c = end - 1, part = path; c > path; c--)
+            if (c[-1] == ':' || c[-1] == '/') { part = c; break; }
+        end--;
+    }
+    len = (int)(end - part);
+    if (n > 0) {
+        if (len >= n) len = n - 1;
+        memcpy(name, part, (size_t)len);
+        name[len] = 0;
+    }
+    return at == OB_WBP_AT_ICON ? OB_WBP_WBO_ICON : OB_WBP_WBO_DRAWER;
+}
+
 int ob_wbp_hook_answer(long r)
 {
     switch (r) {
