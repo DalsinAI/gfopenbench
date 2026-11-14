@@ -1144,6 +1144,7 @@ static int do_disks(void)
     long n;
     if (!l || !NameFromLock(l, (STRPTR)path, sizeof path)) {
         if (l) UnLock(l);
+        DeleteFile((CONST_STRPTR)"RAM:wbgap-root");
         fail("D5", "RAM: has no volume name");
         return 5;
     }
@@ -1157,7 +1158,8 @@ static int do_disks(void)
     if (wbgap_root_has_disk(list, vol)) pass("D5");
     else {
         char why[128];
-        if (strstr(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
+        if (n == 0) snprintf(why, sizeof why, "the port gave no icons");
+        else if (wbgap_has_nocase(list, vol)) snprintf(why, sizeof why, "\"%s\" is there but not as a DISK (the port's .type)", vol);
         else snprintf(why, sizeof why, "no disk icon \"%s\" on the desktop", vol);
         fail("D5", why);
     }

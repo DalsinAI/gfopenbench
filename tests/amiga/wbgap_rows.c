@@ -378,12 +378,23 @@ int wbgap_root_has_disk(const char *list, const char *vol)
         while (*e && *e != '\n') e++;
         n = (size_t)(e - p);
         while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 6 && p[n - 1] == ':') n--;          /* the WORKBENCH port names a disk "RAM Disk:" */
         if (n > 5 && same_nocase(p, "DISK ", 5)) {
             name = p + 5;
             if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
         }
         p = *e ? e + 1 : e;
     }
+    return 0;
+}
+
+int wbgap_has_nocase(const char *text, const char *word)
+{
+    size_t wn = word ? strlen(word) : 0;
+    const char *p;
+    if (!text || !wn) return 0;
+    for (p = text; *p; p++)
+        if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
     return 0;
 }
 

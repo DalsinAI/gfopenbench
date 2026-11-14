@@ -74,8 +74,11 @@ int wbgap_desk_clickable(int clear_result);
  * (the WORKBENCH port's window.icons.all.N.type and .name, NAME 'root'); WBGapTest DISKS reads them.
  * The volume name from NameFromLock's "Ram Disk:" (the colon and anything after it dropped) into out: */
 void wbgap_volume_name(const char *path, char *out, unsigned cap);
-/* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded */
+/* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
+ * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
+/* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
+int wbgap_has_nocase(const char *text, const char *word);
 
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
