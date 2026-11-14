@@ -30,6 +30,7 @@
 #include <stdarg.h>
 
 #include "ob_info.h"
+#include "ob_info_ids.h"
 #include "ob_stack.h"
 #include "ob_prot.h"
 
@@ -50,8 +51,6 @@ static struct Task *volatile info_task[MAX_INFO];
 static struct Window *volatile info_win[MAX_INFO];
 static char info_for[MAX_INFO][PATH_LEN];
 
-enum { G_NAME = 1, G_TYPE, G_SIZE, G_DATE, G_PS, G_PA, G_PR, G_PW, G_PE, G_PD, G_COMMENT, G_TOOL, G_TTLIST, G_TTSTR,
-       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_ADV, G_HOLD, G_PURE, G_COUNT };
 
 typedef struct {
     struct Screen *scr;

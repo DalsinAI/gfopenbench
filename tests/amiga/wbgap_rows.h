@@ -114,6 +114,10 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
 /* A5 (WBCONTROL) and other rows made of several readings: names[k]'s reading got[k] must be want[k] for every k.
  * WBGAP_PASS, WBGAP_FAIL (the first wrong one in why: "<name>: <got>, not <want>"), WBGAP_SKIP for none */
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap);
+/* W3 (TITLES): a drawer's window must be titled with the drawer's name (alone, or followed by a blank and more, as a
+ * disk's usage), and the Workbench screen must have a title. win_title NULL: the window wasn't read (SKIP).
+ * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
+int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap);
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
@@ -130,5 +134,9 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
+
+/* INFOSAVE types into the Information window with DragTest KEY: c's raw key on a US keyboard, or -1 if it has
+ * none here (a-z A-Z 0-9 - = . / and space); *shift is set to 1 for an upper-case letter, else 0 */
+int wbgap_rawkey(int c, int *shift);
 
 #endif
