@@ -318,6 +318,8 @@ static const struct { const char *row, *spec; } menu_rows[] = {
     {"M23", "icons:delete"},
     {"M24", "icons:format disk|format"},
     {"M25", "icons:empty trash"},
+    {"M23u", "icons:recover deleted"},
+    {"M25u", "icons:put back"},
     {"M26", "*:resetwb|refresh openbench"},
     {"M29", "*:open volume"},   /* row 5 (#105) moves it to the Window menu */
     {"M30", "window:clear selection"},
