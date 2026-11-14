@@ -30,5 +30,12 @@ int wbt_clear_drawer(const char *path, const char *title, const char *row);
 void wbt_drawer(const char *dir, const char *first);
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h);
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4]);
+/* APPDROP's drawer: RAM:WBGapD made afresh, its window open and its project d in it, found (I8, I9's setup); NULL with
+ * *stage 1 (the window didn't open) or 2 (d never showed). wbt_drop_from: the screen point to press on d in it;
+ * wbt_drop_drag: DragTest DRAG from one screen point to another; wbt_drop_clean: RAM:WBGapD closed and gone */
+struct Window *wbt_drop_ready(int *stage);
+void wbt_drop_from(struct Window *w, long xy[2]);
+void wbt_drop_drag(const long from[2], const long to[2], const char *row);
+void wbt_drop_clean(void);
 
 #endif
