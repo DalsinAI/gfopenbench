@@ -1836,11 +1836,17 @@ static void drag_clean(void)
         "RAM:WBGapD/sub/d.info", "RAM:WBGapD/sub/d", "RAM:WBGapD/sub.info", "RAM:WBGapD/sub", "RAM:WBGapD/d.info",
         "RAM:WBGapD/d", "RAM:WBGapD/a.info", "RAM:WBGapD/a", "RAM:WBGapD.info", "RAM:WBGapD", "RAM:WBGapE/d.info",
         "RAM:WBGapE/d", "RAM:WBGapE/b.info", "RAM:WBGapE/b", "RAM:WBGapE.info", "RAM:WBGapE"};
-    unsigned i;
+    unsigned i, pass;
+    int t;
     CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD/sub", NULL);
     CloseWorkbenchObjectA((STRPTR)"RAM:WBGapE", NULL);
     CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD", NULL);
-    for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
+    for (t = 0; t < 40 && (find_window("WBGapD") || find_window("WBGapE")); t++) Delay(5);
+    /* twice, 0.5 s apart: a desktop that keeps a closed drawer's window size writes its .info after the close */
+    for (pass = 0; pass < 2; pass++) {
+        if (pass) Delay(25);
+        for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
+    }
 }
 
 /* the window titled title made w x h (at most the screen's) and moved to a corner clear of avoid (none: avoid NULL,
