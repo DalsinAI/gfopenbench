@@ -60,4 +60,15 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* A drawer window a row leaves over the desktop (BIG's RAM:WBGapBig, 1000 icons): the next rows click the desktop's
+ * left-out icons, and a click on one of its file icons stops an unattended run on "has no default tool". So it is
+ * closed and waited for; if it stays, it is parked at its smallest size in the screen's bottom-right corner.
+ * The box to park it in (left, top, width, height) on a screen sw x sh, for a window at least minw x minh: */
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4]);
+/* what happened: gone (closed), parked (still open, moved out of the way), or stuck (still open where it was) */
+enum { WBGAP_CL_GONE, WBGAP_CL_PARKED, WBGAP_CL_STUCK };
+int wbgap_clear_result(int gone, int at_park_box);
+/* the desktop rows may click when nothing is stuck over it */
+int wbgap_desk_clickable(int clear_result);
+
 #endif

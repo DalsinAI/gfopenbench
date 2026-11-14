@@ -322,3 +322,27 @@ int wbgap_backdrop_done(int have_was, int have_made)
     if (have_was) return WBGAP_BD_RESTORE;
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
 }
+
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
+{
+    long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
+    if (sw < 1) sw = 1;
+    if (sh < 1) sh = 1;
+    if (w > sw) w = sw;
+    if (h > sh) h = sh;
+    box[0] = sw - w;
+    box[1] = sh - h;
+    box[2] = w;
+    box[3] = h;
+}
+
+int wbgap_clear_result(int gone, int at_park_box)
+{
+    if (gone) return WBGAP_CL_GONE;
+    return at_park_box ? WBGAP_CL_PARKED : WBGAP_CL_STUCK;
+}
+
+int wbgap_desk_clickable(int clear_result)
+{
+    return clear_result == WBGAP_CL_GONE || clear_result == WBGAP_CL_PARKED;
+}
