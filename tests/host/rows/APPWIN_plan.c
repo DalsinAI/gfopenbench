@@ -64,4 +64,10 @@ void appwin_plan(void)
           !strcmp(why, "b not run"), "a PASS and a SKIP: SKIP");
     CHECK(wbgap_find("A1") >= 0 && wbgap_row(wbgap_find("A1"))->mode && !strcmp(wbgap_row(wbgap_find("A1"))->mode, "APPWIN") &&
           wbgap_find("A2") >= 0 && !strcmp(wbgap_row(wbgap_find("A2"))->mode, "APPWIN"), "A1 and A2's lines come from APPWIN");
+    CHECK(wbgap_appwin_row(0, WBGAP_PASS, "", WBGAP_PASS, "", why, sizeof why) == WBGAP_FAIL && strstr(why, "went before a drag"),
+          "a drag not made: FAIL, never the none-drop's PASS, \"%s\"", why);
+    CHECK(wbgap_appwin_row(0, WBGAP_SKIP, "a not run", WBGAP_PASS, "", NULL, 0) == WBGAP_FAIL, "not made, no room: still FAIL");
+    CHECK(wbgap_appwin_row(1, WBGAP_PASS, "", WBGAP_FAIL, "b wrong", why, sizeof why) == WBGAP_FAIL && !strcmp(why, "b wrong"),
+          "made: as wbgap_appwin_both, \"%s\"", why);
+    CHECK(wbgap_appwin_row(1, WBGAP_PASS, "", WBGAP_PASS, "", why, sizeof why) == WBGAP_PASS && !why[0], "made, both PASS: PASS");
 }
