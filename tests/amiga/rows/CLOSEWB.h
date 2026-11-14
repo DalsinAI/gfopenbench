@@ -13,6 +13,13 @@ int wbgap_closewb_over(const char *text);
  * there is none (or text is NULL; out is then ""). CLOSEWBWAIT names it in its
  * FAIL, so a run shows whether CloseWorkBench() itself or a later step hung. */
 int wbgap_closewb_last_step(const char *text, char *out, unsigned cap);
+/* C6's own verdict in what CLOSEWB has written so far: the last whole line
+ * "PASS C6", "FAIL C6 <why>" (its stdout), or "INFO C6 verdict: PASS" /
+ * "INFO C6 verdict: FAIL <why>" (WBGAP_C6_STEPS, written before the clean-up).
+ * WBGAP_PASS or WBGAP_FAIL with the reason in why, WBGAP_NONE when there is
+ * none (or text is NULL). CLOSEWBWAIT reports it when the row decided but its
+ * clean-up then didn't end in time, so a hung clean-up isn't counted as C6. */
+int wbgap_closewb_verdict(const char *text, char *why, unsigned cap);
 /* CLOSEWB's step lines also go to this file, opened and closed for each one:
  * the Run >file output stays open (and may be held) until CLOSEWB ends. */
 #define WBGAP_C6_STEPS "RAM:wbgap-c6-steps"

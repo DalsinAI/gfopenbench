@@ -43,3 +43,40 @@ int wbgap_closewb_last_step(const char *text, char *out, unsigned cap)
     out[len] = 0;
     return 1;
 }
+
+/* the reason after a FAIL, to CR, LF or the end, cut to cap - 1 */
+static void closewb_copy_line(const char *from, char *why, unsigned cap)
+{
+    size_t len = 0;
+    if (!why || !cap) return;
+    while (*from == ' ') from++;
+    while (from[len] && from[len] != '\n' && from[len] != '\r') len++;
+    if (len >= cap) len = cap - 1;
+    memcpy(why, from, len);
+    why[len] = 0;
+}
+
+int wbgap_closewb_verdict(const char *text, char *why, unsigned cap)
+{
+    static const char *const pass[] = { "PASS C6", "INFO C6 verdict: PASS" };
+    static const char *const fail[] = { "FAIL C6", "INFO C6 verdict: FAIL" };
+    const char *p, *line, *after = NULL;
+    int v = WBGAP_NONE, i, k;
+    if (why && cap) why[0] = 0;
+    if (!text) return WBGAP_NONE;
+    for (line = text; *line; line = p + 1) {
+        for (i = 0; i < 2; i++)
+            for (k = 0; k < 2; k++) {
+                const char *want = k ? fail[i] : pass[i];
+                size_t n = strlen(want);
+                char c = line[n];
+                if (!strncmp(line, want, n) && (c == 0 || c == '\n' || c == '\r' || (k && c == ' '))) {
+                    v = k ? WBGAP_FAIL : WBGAP_PASS;
+                    after = line + n;
+                }
+            }
+        if (!(p = strchr(line, '\n'))) break;
+    }
+    if (v == WBGAP_FAIL) closewb_copy_line(after, why, cap);
+    return v;
+}

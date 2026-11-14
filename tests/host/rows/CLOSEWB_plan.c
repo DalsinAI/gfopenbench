@@ -52,4 +52,27 @@ void closewb_plan(void)
               "cut to the room given: \"%s\"", step);
         CHECK(!wbgap_closewb_last_step("INFO C6 step: x\n", NULL, 0), "no room: 0, nothing written");
     }
+    /* C6's own verdict, so a clean-up that hangs after it isn't counted as C6 */
+    {
+        char why[48];
+        CHECK(wbgap_closewb_verdict(NULL, why, sizeof why) == WBGAP_NONE && !why[0], "no text: none");
+        CHECK(wbgap_closewb_verdict("", why, sizeof why) == WBGAP_NONE, "nothing written: none");
+        CHECK(wbgap_closewb_verdict("[CLI 1]\nINFO C6 step: calling CloseWorkBench()\n", why, sizeof why) == WBGAP_NONE,
+              "steps only: none");
+        CHECK(wbgap_closewb_verdict("INFO C6 step: waiting\nINFO C6 verdict: PASS\nINFO C6 step: closing\n", why, sizeof why)
+              == WBGAP_PASS && !why[0], "the steps file's PASS");
+        CHECK(wbgap_closewb_verdict("INFO C6 verdict: FAIL RAM:WBGapC's window wasn't opened again\n", why, sizeof why)
+              == WBGAP_FAIL && !strcmp(why, "RAM:WBGapC's window wasn't opened again"), "the steps file's FAIL: \"%s\"", why);
+        CHECK(wbgap_closewb_verdict("INFO C6 CloseWorkBench() gave 0\r\nPASS C6\r\n", why, sizeof why) == WBGAP_PASS,
+              "stdout's PASS C6, CR LF");
+        CHECK(wbgap_closewb_verdict("FAIL C6 the desktop went", why, sizeof why) == WBGAP_FAIL
+              && !strcmp(why, "the desktop went"), "stdout's FAIL C6, no newline: \"%s\"", why);
+        CHECK(wbgap_closewb_verdict("PASS C66\nXPASS C6\nFAIL C6x\nINFO C6 verdict: PASSED\n", why, sizeof why) == WBGAP_NONE,
+              "only a whole line for C6 counts");
+        CHECK(wbgap_closewb_verdict("PASS C6\nFAIL C6 later\n", why, sizeof why) == WBGAP_FAIL && !strcmp(why, "later"),
+              "the last one wins");
+        CHECK(wbgap_closewb_verdict("FAIL C6 a long reason here\n", why, 7) == WBGAP_FAIL && !strcmp(why, "a long"),
+              "cut to the room given: \"%s\"", why);
+        CHECK(wbgap_closewb_verdict("FAIL C6 x\n", NULL, 0) == WBGAP_FAIL, "no room: still FAIL");
+    }
 }
