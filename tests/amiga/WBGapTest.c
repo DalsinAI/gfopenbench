@@ -79,6 +79,7 @@
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include <proto/icon.h>
+#include <proto/layers.h>
 #include <proto/wb.h>
 
 #include "wbgap_menu.h"
@@ -90,7 +91,7 @@ typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_W
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
 extern struct WBStartup *_WBenchMsg;   /* libnix: the Workbench's message, when started from it */
-struct Library *WorkbenchBase, *IconBase, *CyberGfxBase;
+struct Library *WorkbenchBase, *IconBase, *CyberGfxBase, *LayersBase;   /* LayersBase: SWITCH opens it */
 
 static int fails;
 static char dragtest[256] = "DragTest";   /* the full path of the DragTest beside this program */
@@ -826,14 +827,14 @@ static int switch_order(struct Screen *s, unsigned long *ids, int cap)
 {
     struct Layer *l;
     int n = 0;
-    Forbid();
+    LockLayerInfo(&s->LayerInfo);   /* the layer list whole: a depth change half done holds this lock */
     for (l = s->LayerInfo.top_layer; l && n < cap; l = l->back) {
         struct Window *w = (struct Window *)l->Window;
         if (!w || (w->Flags & WFLG_BACKDROP) || w->Width < 8 || w->Height < 8) continue;
         if ((w->Flags & WFLG_WBENCHWINDOW) && !(w->Flags & WFLG_CLOSEGADGET)) continue;
         ids[n++] = (unsigned long)w;
     }
-    Permit();
+    UnlockLayerInfo(&s->LayerInfo);
     return n;
 }
 
@@ -884,7 +885,12 @@ static int do_switch(void)
         skip("W2", why);
         return 0;
     }
-    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) { skip("W2", "no Workbench screen"); return 0; }
+    if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) { skip("W2", "no layers.library"); return 0; }
+    if (!(s = LockPubScreen((CONST_STRPTR)"Workbench"))) {
+        skip("W2", "no Workbench screen");
+        CloseLibrary(LayersBase);
+        return 0;
+    }
     ScreenToFront(s);
     a = OpenWindowTags(NULL, WA_PubScreen, (ULONG)s, WA_Left, 60, WA_Top, 60, WA_Width, 220, WA_Height, 90,
                        WA_Title, (ULONG)"W2 cycle A", WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE,
@@ -905,6 +911,8 @@ static int do_switch(void)
     if (b) CloseWindow(b);
     if (a) CloseWindow(a);
     UnlockPubScreen(NULL, s);
+    CloseLibrary(LayersBase);
+    LayersBase = NULL;
     return fails ? 5 : 0;
 }
 
