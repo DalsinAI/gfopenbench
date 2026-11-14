@@ -83,10 +83,10 @@ static const struct wbgap_row rows[] = {
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
-    {"N3", NULL, A, NULL, "comment saved"},
-    {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
-    {"N5", NULL, A, NULL, "default tool saved"},
+    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
+    {"N3", NULL, A, "INFOSAVE", "comment saved"},
+    {"N4", NULL, A, "INFOSAVE", "tool types added, edited, deleted, saved"},
+    {"N5", NULL, A, "INFOSAVE", "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
     {"N8", NULL, A, API, "WBInfo from a program opens it"},
@@ -617,4 +617,21 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+int wbgap_rawkey(int c, int *shift)
+{
+    static const char *const rows[] = { "1234567890-=", "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+    static const int base[] = { 0x01, 0x10, 0x20, 0x31 };
+    int r, i;
+    *shift = c >= 'A' && c <= 'Z';
+    if (*shift) c += 32;
+    if (c == ' ') return 0x40;
+    if (c == '.') return 0x39;
+    if (c == '/') return 0x3A;
+    for (r = 0; r < 4; r++)
+        for (i = 0; rows[r][i]; i++)
+            if (rows[r][i] == c) return base[r] + i;
+    *shift = 0;
+    return -1;
 }
