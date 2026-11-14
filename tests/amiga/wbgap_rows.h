@@ -20,6 +20,8 @@ struct wbgap_row {
 int wbgap_row_count(void);
 const struct wbgap_row *wbgap_row(int i);
 int wbgap_find(const char *id);   /* its index, or -1 */
+/* the k'th row whose mode comes from a file of its own (WBGAP_ROWMODE in tests/amiga/rows), NULL past the last */
+const char *wbgap_gen_rowmode(int k, const char **mode);
 int wbgap_has_parts(int i);       /* other rows name this one as their parent */
 
 /* a row's state in a report, worst wins: FAIL over PASS over SKIP over nothing */
@@ -124,10 +126,6 @@ int wbgap_pairs_judge(int n, const char *const names[], const long want[], const
  * volume is a disk among them); mount_rc: Mount's return code; vol_up: a volume came up on the drive.
  * Only a volume up and no icon is a FAIL; a test that can't be set up is a SKIP. The reason in why */
 int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int after, char *why, unsigned cap);
-/* W3 (TITLES): a drawer's window must be titled with the drawer's name (alone, or followed by a blank and more, as a
- * disk's usage), and the Workbench screen must have a title. win_title NULL: the window wasn't read (SKIP).
- * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
-int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap);
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 

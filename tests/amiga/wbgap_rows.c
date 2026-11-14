@@ -15,7 +15,7 @@
 #define INDEX "WBGapIndex"
 
 /* in the document's order; a part ("A8a") straight after its row. Rows added for the 13 Nov decisions say "(13 Nov)". */
-static const struct wbgap_row rows[] = {
+static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amiga/rows (gen_modes) */
     /* 1. Menus */
     {"M1", NULL, A, MENUS, "Workbench > Backdrop; removed in GFOS (13 Nov)"},
     {"M2", NULL, A, MENUS, "Workbench > Execute Command"},
@@ -139,7 +139,7 @@ static const struct wbgap_row rows[] = {
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, "SWITCH", "keyboard window cycling"},
-    {"W3", NULL, A, "TITLES", "window and screen titles"},
+    {"W3", NULL, A, NULL, "window and screen titles"},
     /* 10. Notifications */
     {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
     {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
@@ -175,13 +175,40 @@ static const struct wbgap_row rows[] = {
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
 typedef char wbgap_rows_fit[NROWS <= WBGAP_MAXROWS ? 1 : -1];   /* the report has room for every row */
 
-int wbgap_row_count(void) { return NROWS; }
+/* the modes of rows that have files of their own (tests/amiga/rows: WBGAP_ROWMODE lines, gen-rows.sh) */
+static const char *const gen_rowmodes[][2] = {
+#define WBGAP_GEN_ROWMODE(id, mode) { id, mode },
+#include "wbgap_gen_rowmodes.inc"
+#undef WBGAP_GEN_ROWMODE
+    { NULL, NULL }
+};
 
-const struct wbgap_row *wbgap_row(int i) { return i >= 0 && i < NROWS ? &rows[i] : NULL; }
+static void gen_modes(void)
+{
+    static int done;
+    int k, i;
+    if (done) return;
+    done = 1;
+    for (k = 0; gen_rowmodes[k][0]; k++)
+        for (i = 0; i < NROWS; i++)
+            if (!strcmp(rows[i].id, gen_rowmodes[k][0]) && !rows[i].mode) rows[i].mode = gen_rowmodes[k][1];
+}
+
+const char *wbgap_gen_rowmode(int k, const char **mode)
+{
+    if (k < 0 || k >= (int)(sizeof gen_rowmodes / sizeof gen_rowmodes[0]) - 1) return NULL;
+    if (mode) *mode = gen_rowmodes[k][1];
+    return gen_rowmodes[k][0];
+}
+
+int wbgap_row_count(void) { gen_modes(); return NROWS; }
+
+const struct wbgap_row *wbgap_row(int i) { gen_modes(); return i >= 0 && i < NROWS ? &rows[i] : NULL; }
 
 int wbgap_find(const char *id)
 {
     int i;
+    gen_modes();
     if (!id || !*id) return -1;
     for (i = 0; i < NROWS; i++)
         if (!strcmp(rows[i].id, id)) return i;
@@ -191,6 +218,7 @@ int wbgap_find(const char *id)
 int wbgap_has_parts(int i)
 {
     int j;
+    gen_modes();
     if (i < 0 || i >= NROWS) return 0;
     for (j = 0; j < NROWS; j++)
         if (rows[j].parent && !strcmp(rows[j].parent, rows[i].id)) return 1;
@@ -214,6 +242,7 @@ int wbgap_report_line(struct wbgap_report *r, const char *line)
     char key[16];
     size_t n, wl;
     int state, i, hit = 0;
+    gen_modes();
     while (*p == ' ' || *p == '\t') p++;
     if (!strncmp(p, "PASS ", 5)) state = WBGAP_PASS;
     else if (!strncmp(p, "FAIL ", 5)) state = WBGAP_FAIL;
@@ -253,6 +282,7 @@ int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx)
 {
     char line[256];
     int i, j, npass = 0, nfail = 0, nskip = 0, notrun = 0;
+    gen_modes();
     for (i = 0; i < NROWS; i++) {
         const struct wbgap_row *row = &rows[i];
         int state = r->state[i];
@@ -585,20 +615,6 @@ int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int a
     else if (!vol_up) snprintf(r, sizeof r, "mounted, but no volume came up on it");
     else if (after < 0) snprintf(r, sizeof r, "the desktop's icons not read after the mount");
     else if (!after) { snprintf(r, sizeof r, "its volume came up but got no icon on the desktop"); v = WBGAP_FAIL; }
-    else v = WBGAP_PASS;
-    if (why && cap) snprintf(why, cap, "%s", r);
-    return v;
-}
-
-int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap)
-{
-    char r[200] = "";
-    size_t n = name ? strlen(name) : 0;
-    int v = WBGAP_FAIL;
-    if (!win_title || !n) { snprintf(r, sizeof r, "the drawer's window not read"); v = WBGAP_SKIP; }
-    else if (strncmp(win_title, name, n) || (win_title[n] && win_title[n] != ' '))
-        snprintf(r, sizeof r, "the drawer's window is titled \"%.80s\", not with its name \"%.40s\"", win_title, name);
-    else if (!screen_title || !*screen_title) snprintf(r, sizeof r, "the Workbench screen has no title");
     else v = WBGAP_PASS;
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
