@@ -48,6 +48,8 @@ void wbt_drop_clean(void);
 #define WBT_GRAB_N (300 * 220)
 void wbt_grab(struct Window *w, unsigned long *buf, int *gw, int *gh);
 int wbt_settle(struct Window *w, const unsigned long *before, int gw, int gh, long box[4]);
+int wbt_windows_now(struct Screen *s, struct Window **out, int n); /* s's windows into out, front first: how many */
+int wbt_still_there(struct Screen *s, struct Window *w);    /* w still one of s's windows */
 unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half); /* a square of the screen's pixels, one number */
 unsigned long wbt_mode_id(struct Screen *s);                  /* GetVPModeID of its ViewPort */
 void wbt_key(int code);                                      /* DragTest KEY code, then 15 ticks */
