@@ -1734,8 +1734,8 @@ out:
 }
 
 /* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
- * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side. d is made in RAM:WBGapD at
- * 120,10 and the drawer sub at 120,70, each found where the window changed (wbgap_diff_box). I4: d dragged into
+ * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side, each 440x240. d is made in
+ * RAM:WBGapD at 120,10 and the drawer sub at 220,10, each found where the window changed (wbgap_diff_box). I4: d dragged into
  * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
  * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
 static long sub_box[4];
@@ -1843,23 +1843,35 @@ static void drag_clean(void)
     for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
 }
 
-/* the window titled title moved to a corner clear of avoid; it, or NULL if it isn't there within 2 s */
-static struct Window *drag_place(const char *title, const long *avoid)
+/* the window titled title made w x h (at most the screen's) and moved to a corner clear of avoid (none: avoid NULL,
+ * where it is); it, or NULL if it isn't there within 2 s */
+static struct Window *drag_place(const char *title, const long *avoid, long w, long h)
 {
     struct Window *x = find_window(title);
-    long box[4];
+    long box[4], top;
     int t;
     if (!x) return NULL;
-    if (!wbgap_drop_place(x->WScreen->Width, x->WScreen->Height, x->WScreen->BarHeight + 1, x->Width, x->Height, avoid, box))
+    top = x->WScreen->BarHeight + 1;
+    if (w > x->WScreen->Width) w = x->WScreen->Width;
+    if (h > x->WScreen->Height - top) h = x->WScreen->Height - top;
+    if (!avoid) {
+        box[0] = x->LeftEdge + w > x->WScreen->Width ? x->WScreen->Width - w : x->LeftEdge;
+        box[1] = x->TopEdge + h > x->WScreen->Height ? x->WScreen->Height - h : x->TopEdge;
+        box[2] = w;
+        box[3] = h;
+    } else if (!wbgap_drop_place(x->WScreen->Width, x->WScreen->Height, top, w, h, avoid, box))
         return NULL;
     ChangeWindowBox(x, box[0], box[1], box[2], box[3]);
     for (t = 0; t < 40; t++) {
         Delay(5);
         if (!(x = find_window(title))) return NULL;
-        if (x->LeftEdge == box[0] && x->TopEdge == box[1]) return x;
+        if (x->LeftEdge == box[0] && x->TopEdge == box[1] && x->Width == box[2] && x->Height == box[3]) return x;
     }
     return NULL;
 }
+
+#define DRAG_WW 440   /* each drawer's window: room for three icons in a row and no scroller */
+#define DRAG_WH 240
 
 static int do_dragfile(int keep)
 {
@@ -1875,9 +1887,14 @@ static int do_dragfile(int keep)
         fail("I7", "RAM:WBGapD's window didn't open");
         goto out;
     }
+    if (!(dw = drag_place("WBGapD", NULL, DRAG_WW, DRAG_WH))) {
+        fail("I4", "RAM:WBGapD's window couldn't be made 440x240");
+        fail("I7", "RAM:WBGapD's window couldn't be sized");
+        goto out;
+    }
     Delay(50);
     if (!drag_make(dw, "RAM:WBGapD", "d", WBPROJECT, 120, 10, d_box) ||
-        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 120, 70, sub_box)) {
+        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 220, 10, sub_box)) {
         fail("I4", "d or sub never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
         fail("I7", "no icons to drag");
         goto out;
@@ -1886,18 +1903,18 @@ static int do_dragfile(int keep)
            d_box[2], d_box[3], sub_box[0], sub_box[1], sub_box[2], sub_box[3]);
     if (!(dw = find_window("WBGapD"))) { fail("I4", "RAM:WBGapD's window went"); fail("I7", "RAM:WBGapD's window went"); goto out; }
     dbox[0] = dw->LeftEdge; dbox[1] = dw->TopEdge; dbox[2] = dw->Width; dbox[3] = dw->Height;
-    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox))) {
+    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox, DRAG_WW, DRAG_WH))) {
         fail("I4", "RAM:WBGapE's window didn't open, or couldn't be put clear of RAM:WBGapD's");
         fail("I7", "no second window");
         goto out;
     }
     Delay(50);
-    /* I4: d from RAM:WBGapD's window into RAM:WBGapE's, dropped right of b, below its top */
+    /* I4: d from RAM:WBGapD's window into RAM:WBGapE's, dropped across the middle, two-thirds down: clear of b and
+     * of any toolbar along the top */
     drop_grab(ew, before, &gw, &gh);
     drop_from(dw, from);
-    to[0] = ew->LeftEdge + ew->BorderLeft + 140;
-    to[1] = ew->TopEdge + ew->BorderTop + 30;
-    if (to[0] >= ew->LeftEdge + ew->Width - ew->BorderRight) to[0] = ew->LeftEdge + ew->Width / 2;
+    to[0] = ew->LeftEdge + ew->Width / 2;
+    to[1] = ew->TopEdge + ew->Height * 2 / 3;
     drop_drag(from, to, "I4");
     if (!drag_judge("I4", "RAM:WBGapD", "RAM:WBGapE", "d")) { fail("I7", "I4 failed: no d in RAM:WBGapE to drag"); goto out; }
     /* I7: d, where RAM:WBGapE's window changed, onto sub's icon in RAM:WBGapD's window */
