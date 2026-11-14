@@ -85,6 +85,23 @@ static int rr_there(struct Window *w)
     return 0;
 }
 
+/* the Workbench's windows still for 2 s (up to 12 s): after a reset our system windows (the tray, the dock,
+ * GFOpenMeters) open again one by one, and one of them must not be taken for the requester */
+static int rr_settle(struct Window **w)
+{
+    struct Window *b[RR_MAXW];
+    int n = rr_snap(w), m, i, still = 0, t;
+    for (t = 0; t < 60 && still < 10; t++) {
+        Delay(10);
+        m = rr_snap(b);
+        for (i = 0; i < m && i < n && b[i] == w[i]; i++)
+            ;
+        if (m == n && i == n) still++;
+        else { still = 0; n = m; for (i = 0; i < m; i++) w[i] = b[i]; }
+    }
+    return n;
+}
+
 static struct Window *rr_wait_new(struct Window **before, int nb, struct Window *mine, int secs)
 {
     struct Window *r = NULL;
@@ -168,7 +185,7 @@ int wbt_resetreq(int argc, char **argv)
 
     /* the reset owed with our window in its way: the requester; then our window closed: it goes, the reset made */
     if ((mine = rr_mine())) {
-        nb = rr_snap(before);
+        nb = rr_settle(before);
         rr_write(RR_PREFS, now, n);
         req = rr_wait_new(before, nb, mine, 8);
         r.shown = req != NULL;
@@ -184,7 +201,7 @@ int wbt_resetreq(int argc, char **argv)
     /* the Cancel half: the old prefs back, our window in the way, Cancel: the depth kept */
     if (r.shown && r.gone && r.depth_after == r.depth_want && (mine = rr_mine())) {
         r.cancel_tried = 1;
-        nb = rr_snap(before);
+        nb = rr_settle(before);
         rr_write(RR_PREFS, was, n);
         req = rr_wait_new(before, nb, mine, 8);
         r.cancel_shown = req != NULL;
