@@ -157,7 +157,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"P6r", "P6", L, NULL, "relative dates in lists, as an option (13 Nov)"},
     {"P7", NULL, A, NULL, "Workbench prefs: hidden devices, default stack"},
     /* 12. Robustness */
-    {"X1", NULL, A, "BIG", "a drawer of 1000 files opens in 10 s"},
+    {"X1", NULL, A, NULL, "a drawer of 1000 files opens in 10 s"},
     {"X2", NULL, A, NULL, "long names and deep paths (13 Nov: GFOS and compat modes)"},
     {"X2a", "X2", A, INDEX, "GFOS mode: a 200-character name on an ACFS drive"},
     {"X2b", "X2", A, INDEX, "compat mode: the compat name ACFS offers, 107 characters at most"},
