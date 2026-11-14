@@ -64,7 +64,7 @@ static const struct wbgap_row rows[] = {
     /* 2. Icons */
     {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
     {"I2", NULL, L, NULL, "Shift-click adds to the selection"},
-    {"I3", NULL, L, NULL, "lasso, icons only (13 Nov)"},
+    {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
     {"I4", NULL, L, NULL, "drag between drawer windows"},
     {"I5", NULL, L, NULL, "drag to the backdrop"},
     {"I6", NULL, L, NULL, "drag to the Trashcan"},
