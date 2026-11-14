@@ -1,11 +1,11 @@
 #!/bin/sh
-# GFOpenBenchmark with the GCC 16 stove (os32-gcc16-open6: m68k-amigaos-gcc 16.2, NDK 3.2):
+# GFOpenBenchmark with the GCC 16 stove (os32-gcc16: m68k-amigaos-gcc 16.2, NDK 3.2):
 #   GUEST=<amicradle-guest> ORTG=<gfopenrtg> sh benchmark/build.sh [OUT_DIR]   (default build/os3)
 # It needs two checkouts beside it: amicradle-guest (GUEST, default ../../amicradle-guest) for
 # common/sysprobe (ACInfo SPEED's loop, the CPU's name, accontrol.device's host status) and
 # gfopenrtg (ORTG, default ../../gfopenrtg) for ogles3.library's dispatch slots, which its
 # library/ogles3/gen_ogles3.py makes from ogles3_api.txt. build-amiga.sh fetches both for Cradle's
-# stove_build. The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16-open6; it
+# stove_build. The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16; it
 # stops when given a GCC older than 16.
 # Built for the 68040 with its FPU (-m68881, libm881): the FPU tests are of the FPU, not of soft
 # float, so this is the one program here not built with toolchain/m68k-soft-m68040.specs.
@@ -14,11 +14,11 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 GUEST=${GUEST:-$HERE/../../amicradle-guest}
 ORTG=${ORTG:-$HERE/../../gfopenrtg}
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16-open6}}
+STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
 if [ -x "$STOVE/prefix/bin/m68k-amigaos-gcc" ]; then PREFIX=$STOVE/prefix; else PREFIX=$STOVE; fi
 CC="$PREFIX/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
-[ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: GFOpenBenchmark needs GCC 16 (the os32-gcc16-open6 stove; set OS32_GCC16)"; exit 2; }
+[ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: GFOpenBenchmark needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }
 OUT=${1:-$HERE/../build/os3}
 [ -f "$GUEST/common/sysprobe/sysprobe.c" ] || { echo "no amicradle-guest checkout at $GUEST (set GUEST)"; exit 2; }
 [ -f "$ORTG/library/ogles3/gen_ogles3.py" ] || { echo "no gfopenrtg checkout at $ORTG (set ORTG)"; exit 2; }

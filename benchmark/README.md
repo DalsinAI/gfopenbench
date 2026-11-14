@@ -102,10 +102,10 @@ Without a battery clock it falls back to the E clock, and says so. The summary g
 ## Building
 
 ```
-STOVE=~/AmiCradle/stoves/os32-gcc16-open6 GUEST=../amicradle-guest ORTG=../gfopenrtg sh benchmark/build.sh [OUT_DIR]
+STOVE=~/AmiCradle/stoves/os32-gcc16 GUEST=../amicradle-guest ORTG=../gfopenrtg sh benchmark/build.sh [OUT_DIR]
 ```
 
-Or use Cradle's `stove_build`, with target `benchmark` and stove `os32-gcc16-open6`. Its `build-amiga.sh` fetches the parts it needs at main:
+Or use Cradle's `stove_build`, with target `benchmark` and stove `os32-gcc16`. Its `build-amiga.sh` fetches the parts it needs at main:
 - amicradle-guest's `common/sysprobe` and accontrol.device's header;
 - gfopenrtg's `library/ogles3`, whose `gen_ogles3.py` makes ogles3.library's slot numbers.
 
