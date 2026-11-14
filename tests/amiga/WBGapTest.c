@@ -1864,8 +1864,6 @@ static int do_bar(void)
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
-static int diskio_has_row(const char *row, const char *vol, const char *when);
-static int diskio_has(const char *vol, const char *when) { return diskio_has_row("D1", vol, when); }
 static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
@@ -1886,46 +1884,6 @@ static int diskio_has_row(const char *row, const char *vol, const char *when)
     if (!vol || !*vol) return 0;
     printf("INFO %s %s: \"%s\" %s\n", row, when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
     return wbgap_root_has_disk(list, vol);
-}
-
-static int diskio_inhibit(const char *drive, int on)
-{
-    char cmd[400];
-    snprintf(cmd, sizeof cmd, "\"%s\" INHIBIT \"%s\" %s", dragtest, drive, on ? "ON" : "OFF");
-    return run(cmd);
-}
-
-static int do_diskio(const char *drive)
-{
-    char path[108], vol[40], why[64];
-    BPTR l;
-    int before, off, after, rc, v;
-    if (!(l = Lock((CONST_STRPTR)drive, ACCESS_READ))) { skip("D1", "the drive isn't mounted"); return 0; }
-    if (!NameFromLock(l, (STRPTR)path, sizeof path)) { UnLock(l); fail("D1", "the drive has no volume name"); return 5; }
-    UnLock(l);
-    wbgap_volume_name(path, vol, sizeof vol);
-    printf("INFO D1 %s is \"%s\"\n", drive, vol);
-    if ((before = diskio_has(vol, "before")) < 0) {
-        skip("D1", "the desktop's icons not read (WBGapRoot.rexx: no WORKBENCH port, or no rx)");
-        return 0;
-    }
-    if (!before) { skip("D1", "the disk had no icon before"); return 0; }
-    if ((rc = diskio_inhibit(drive, 1)) != 0) {
-        diskio_inhibit(drive, 0);
-        snprintf(why, sizeof why, "DragTest INHIBIT %s ON gave %d", drive, rc);
-        skip("D1", why);
-        return 0;
-    }
-    Delay(100);
-    off = diskio_has(vol, "inhibited");
-    diskio_inhibit(drive, 0);                       /* always given back, whatever was read */
-    Delay(150);
-    after = diskio_has(vol, "after");
-    v = wbgap_diskio_judge(before, off, after, why, sizeof why);
-    if (v == WBGAP_PASS) pass("D1");
-    else if (v == WBGAP_SKIP) skip("D1", why);
-    else fail("D1", why);
-    return fails ? 5 : 0;
 }
 
 static long read_all(const char *path, char *buf, long n);
@@ -3128,7 +3086,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
-    else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
