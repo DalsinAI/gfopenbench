@@ -18,7 +18,9 @@ WBGAP_MODE(CLOSEWBWAIT, wbt_closewbwait, SCRIPT)
  * waits up to secs for it to be over (wbgap_closewb_over) and prints what it
  * wrote. A CloseWorkBench() that never returns (lab t2-killcrazy-wbgap, 14
  * Nov, before amicradle-guest #752) is then FAIL C6 here, and the run goes
- * on to REPORT; the CLOSEWB process is left as it is, with its own code. */
+ * on to REPORT; the CLOSEWB process is left as it is, with its own code.
+ * The FAIL names the last "INFO C6 step:" line CLOSEWB flushed, so a run
+ * shows which step hung (wbgap_closewb_last_step). */
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096];
@@ -37,8 +39,13 @@ static int closewb_wait(const char *path, int secs)
     }
     if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
     if (!over) {
-        char why[96];
-        snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running)", secs);
+        char why[192], step[96];
+        if (wbgap_closewb_last_step(buf, step, sizeof step))
+            snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); last step: %s",
+                     secs, step);
+        else
+            snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); no step written",
+                     secs);
         wbt_fail("C6", why);
     }
     return wbt_fails() ? 5 : 0;

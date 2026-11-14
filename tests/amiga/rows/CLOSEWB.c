@@ -22,6 +22,15 @@
 WBGAP_MODE(CLOSEWB, wbt_closewb, SCRIPT)
 WBGAP_ROWMODE(C6, CLOSEWB)
 
+/* CLOSEWB's stdout is a file (Run >RAM:wbgap-c6), which stdio holds until
+ * exit; each step is flushed, so CLOSEWBWAIT can name the last one reached
+ * when the process doesn't end in time (wbgap_closewb_last_step). */
+static void step(const char *what)
+{
+    printf("INFO C6 step: %s\n", what);
+    fflush(stdout);
+}
+
 static int desk_port(void)
 {
     int up;
@@ -45,17 +54,23 @@ static int closewb_row(void)
     LONG closed;
     int how, reopened = 0, t, port = 0, drawer = 0, v;
     char why[96];
-    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapC");
+    BPTR l;
+    step("making RAM:WBGapC");
+    l = CreateDir((CONST_STRPTR)"RAM:WBGapC");
     if (l) UnLock(l);
     wbt_put_icon("RAM:WBGapC", WBDRAWER, NULL);
+    step("opening RAM:WBGapC's window");
     if (!(w = wbt_open_drawer("RAM:WBGapC", "WBGapC", 10, &how))) { wbt_skip("C6", "RAM:WBGapC's window didn't open"); return 0; }
     if (!(before = wb_screen_now())) { wbt_skip("C6", "no Workbench screen"); return 0; }
+    step("calling CloseWorkBench()");
     closed = CloseWorkBench();
     printf("INFO C6 CloseWorkBench() gave %ld\n", (long)closed);
     if (closed) {
+        step("calling OpenWorkBench()");
         reopened = OpenWorkBench() != 0;
         printf("INFO C6 OpenWorkBench() %s\n", reopened ? "opened the screen again" : "failed");
     }
+    step("waiting up to 10 s for the desktop and RAM:WBGapC's window");
     for (t = 0; t < 100; t++) {                     /* up to 10 s for the desktop and its drawer to be back */
         port = desk_port();
         drawer = wbt_find_window("WBGapC") != NULL;
@@ -65,6 +80,7 @@ static int closewb_row(void)
     after = wb_screen_now();
     v = wbgap_closewb_judge(closed != 0, reopened, after == before, port, drawer, why, sizeof why);
     wbt_say("C6", v, why);
+    step("closing and deleting RAM:WBGapC");
     wbt_clear_drawer("RAM:WBGapC", "WBGapC", "C6");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");

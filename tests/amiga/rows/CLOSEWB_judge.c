@@ -27,3 +27,19 @@ int wbgap_closewb_over(const char *text)
         if ((p == text || p[-1] == '\n') && (p[n] == '\n' || p[n] == '\r' || p[n] == 0)) return 1;
     return 0;
 }
+
+int wbgap_closewb_last_step(const char *text, char *out, unsigned cap)
+{
+    const char *p, *want = "INFO C6 step: ", *last = NULL;
+    size_t n = strlen(want), len = 0;
+    if (out && cap) out[0] = 0;
+    if (!text || !out || !cap) return 0;
+    for (p = text; (p = strstr(p, want)); p += n)
+        if (p == text || p[-1] == '\n') last = p + n;
+    if (!last) return 0;
+    while (last[len] && last[len] != '\n' && last[len] != '\r') len++;
+    if (len >= cap) len = cap - 1;
+    memcpy(out, last, len);
+    out[len] = 0;
+    return 1;
+}
