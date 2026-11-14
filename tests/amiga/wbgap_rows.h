@@ -102,8 +102,6 @@ void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
  * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
-/* D5r: RAM Disk first in the desktop's volume column, from RAM:wbgap-root-pos (wbgap_rows.c) */
-int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap);
 /* I14: 1 if a line of list (as WBGapRoot.rexx writes it) has the name, of any type, case not minded */
 int wbgap_root_has_name(const char *list, const char *name);
 /* I14: RAM:WBGap/noicon (no .info) among the drawer's icons with Only Icons (must not be) and with All Files (must);
