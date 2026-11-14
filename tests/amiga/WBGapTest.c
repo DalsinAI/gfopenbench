@@ -20,13 +20,18 @@
  *                               windows (two of our own opened for it); SKIP with no switcher (3.2.3)
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
  *   WBGapTest CLOSEWB           row C6: CloseWorkBench() with this Shell's window on the screen (refused: the screen,
- *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back
+ *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back;
+ *                               the script starts it with Run >RAM:wbgap-c6, last before REPORT
+ *   WBGapTest CLOSEWBWAIT f s   row C6's line: waits up to s seconds for that CLOSEWB run to be over and prints file f;
+ *                               not over in time is FAIL C6, so a CloseWorkBench() that never returns can't hang the run
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
  *                               its height: Reboot, Restart, Power off, and an Eject row for each USB volume mounted)
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
+ *                               volume must get a disk icon among the desktop's icons (WBGapRoot.rexx) within 10 s
  *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
@@ -1602,7 +1607,7 @@ static struct Screen *wb_screen_now(void)
     return s;
 }
 
-static int do_closewb(void)
+static int closewb_row(void)
 {
     struct Screen *before, *after;
     struct Window *w;
@@ -1633,6 +1638,43 @@ static int do_closewb(void)
     clear_drawer("RAM:WBGapC", "WBGapC", "C6");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");
+    return fails ? 5 : 0;
+}
+
+static int do_closewb(void)
+{
+    int rc = closewb_row();
+    printf("INFO C6 done\n");                    /* the last line, on every way out: CLOSEWBWAIT waits for it */
+    return rc;
+}
+
+/* CLOSEWBWAIT file secs: the script starts CLOSEWB with Run >file, then this
+ * waits up to secs for it to be over (wbgap_closewb_over) and prints what it
+ * wrote. A CloseWorkBench() that never returns (lab t2-killcrazy-wbgap, 14
+ * Nov, before amicradle-guest #752) is then FAIL C6 here, and the run goes
+ * on to REPORT; the CLOSEWB process is left as it is, with its own code. */
+static int do_closewb_wait(const char *path, int secs)
+{
+    static char buf[4096];
+    int t, over = 0;
+    long n = 0;
+    BPTR fh;
+    for (t = 0; t <= secs * 2 && !over; t++) {
+        if (t) Delay(25);
+        buf[0] = 0;
+        if ((fh = Open((CONST_STRPTR)path, MODE_OLDFILE))) {
+            n = Read(fh, buf, sizeof buf - 1);
+            buf[n > 0 ? n : 0] = 0;
+            Close(fh);
+        }
+        over = wbgap_closewb_over(buf);
+    }
+    if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
+    if (!over) {
+        char why[96];
+        snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running)", secs);
+        fail("C6", why);
+    }
     return fails ? 5 : 0;
 }
 
@@ -1847,7 +1889,9 @@ static int do_bar(void)
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
-static int diskio_has(const char *vol, const char *when)
+static int diskio_has_row(const char *row, const char *vol, const char *when);
+static int diskio_has(const char *vol, const char *when) { return diskio_has_row("D1", vol, when); }
+static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
     char cmd[400], rexx[256];
@@ -1855,12 +1899,13 @@ static int diskio_has(const char *vol, const char *when)
     snprintf(rexx, sizeof rexx, "%s", dragtest);
     *PathPart((STRPTR)rexx) = 0;
     AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
-    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" D1 RAM:wbgap-root-d1", rexx);
+    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s RAM:wbgap-root-d1", rexx, row);
     run(cmd);
     n = read_all("RAM:wbgap-root-d1", list, sizeof list);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-root-d1");
     if (n < 0) return -1;
-    printf("INFO D1 %s: \"%s\" %s\n", when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
+    if (!vol || !*vol) return 0;
+    printf("INFO %s %s: \"%s\" %s\n", row, when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
     return wbgap_root_has_disk(list, vol);
 }
 
@@ -1901,6 +1946,61 @@ static int do_diskio(const char *drive)
     if (v == WBGAP_PASS) pass("D1");
     else if (v == WBGAP_SKIP) skip("D1", why);
     else fail("D1", why);
+    return fails ? 5 : 0;
+}
+
+/* ---- D2: a volume mounted later gets an icon ----
+ * The drive (RAD: if none given) must not be mounted yet: looked for in the DOS list, so no "insert volume"
+ * requester. The desktop's icons are read once (can they be read at all?), "Mount <drive>" is run, the volume's
+ * name is taken from a lock on the drive, and the icons are read again once a second for up to 10 s. The drive
+ * stays mounted afterwards, for DISKIO. */
+static int drive_mounted(const char *drive)
+{
+    char name[32];
+    struct DosList *dl;
+    size_t n = strlen(drive);
+    int found;
+    if (n && drive[n - 1] == ':') n--;
+    if (!n || n >= sizeof name) return 0;
+    memcpy(name, drive, n);
+    name[n] = 0;
+    dl = LockDosList(LDF_DEVICES | LDF_READ);
+    found = FindDosEntry(dl, (CONST_STRPTR)name, LDF_DEVICES) != NULL;
+    UnLockDosList(LDF_DEVICES | LDF_READ);
+    return found;
+}
+
+static int do_mounticon(const char *drive)
+{
+    char cmd[80], path[108], vol[40], why[96];
+    int was, before, rc = 0, up = 0, after = -1, k, v;
+    BPTR l;
+    vol[0] = 0;
+    was = drive_mounted(drive);
+    before = was ? 0 : diskio_has_row("D2", "", "before");
+    if (!was && before >= 0) {
+        snprintf(cmd, sizeof cmd, "C:Mount %s", drive);
+        rc = run(cmd);
+        if (!rc) {
+            struct Process *me = (struct Process *)FindTask(NULL);
+            APTR wp = me->pr_WindowPtr;
+            me->pr_WindowPtr = (APTR)-1;            /* no volume on it: the Lock fails quietly, never a requester */
+            if ((l = Lock((CONST_STRPTR)drive, ACCESS_READ))) {
+                if (NameFromLock(l, (STRPTR)path, sizeof path)) { wbgap_volume_name(path, vol, sizeof vol); up = vol[0] != 0; }
+                UnLock(l);
+            }
+            me->pr_WindowPtr = wp;
+        }
+        if (up) {
+            printf("INFO D2 %s mounted, its volume \"%s\"\n", drive, vol);
+            for (k = 0; k < 10; k++) {
+                Delay(50);
+                if ((after = diskio_has_row("D2", vol, "after")) > 0) break;
+            }
+        }
+    }
+    v = wbgap_mount_judge(was, before, rc, up, after, why, sizeof why);
+    say_row("D2", v, why);
     return fails ? 5 : 0;
 }
 
@@ -3045,6 +3145,8 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SWITCH")) rc = do_switch();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
+    else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();

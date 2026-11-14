@@ -121,7 +121,7 @@ static const struct wbgap_row rows[] = {
     {"S3", NULL, A, "STARTUP CHECK", "DONOTWAIT and WAIT honoured"},
     /* 7. Disks */
     {"D1", NULL, A, "DISKIO", "disk in or out: its icon comes or goes"},
-    {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
+    {"D2", NULL, A, "MOUNTICON", "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
     {"D5", NULL, A, "DISKS", "RAM Disk icon"},
@@ -558,6 +558,21 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     return v;
 }
 
+int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int after, char *why, unsigned cap)
+{
+    char r[96] = "";
+    int v = WBGAP_SKIP;
+    if (was_there) snprintf(r, sizeof r, "the drive was mounted before the test: no later mount to watch");
+    else if (before < 0) snprintf(r, sizeof r, "the desktop's icons not read before the mount");
+    else if (mount_rc) snprintf(r, sizeof r, "Mount gave %d (no mount list for the drive?)", mount_rc);
+    else if (!vol_up) snprintf(r, sizeof r, "mounted, but no volume came up on it");
+    else if (after < 0) snprintf(r, sizeof r, "the desktop's icons not read after the mount");
+    else if (!after) { snprintf(r, sizeof r, "its volume came up but got no icon on the desktop"); v = WBGAP_FAIL; }
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
 int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap)
 {
     char r[200] = "";
@@ -593,6 +608,16 @@ int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int
     else v = WBGAP_PASS;
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
+}
+
+int wbgap_closewb_over(const char *text)
+{
+    const char *p, *want = "INFO C6 done";
+    size_t n = strlen(want);
+    if (!text) return 0;
+    for (p = text; (p = strstr(p, want)); p += n)
+        if ((p == text || p[-1] == '\n') && (p[n] == '\n' || p[n] == '\r' || p[n] == 0)) return 1;
+    return 0;
 }
 
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
