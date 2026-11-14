@@ -1735,7 +1735,7 @@ out:
 
 /* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
  * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side, each 440x240. d is made in
- * RAM:WBGapD at 120,10 and the drawer sub at 220,10, each found where the window changed (wbgap_diff_box). I4: d dragged into
+ * RAM:WBGapD at 120,10 and the drawer sub at 20,100 (under a), each found where the window changed (wbgap_diff_box). I4: d dragged into
  * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
  * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
 static long sub_box[4];
@@ -1894,7 +1894,7 @@ static int do_dragfile(int keep)
     }
     Delay(50);
     if (!drag_make(dw, "RAM:WBGapD", "d", WBPROJECT, 120, 10, d_box) ||
-        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 220, 10, sub_box)) {
+        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 20, 100, sub_box)) {
         fail("I4", "d or sub never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
         fail("I7", "no icons to drag");
         goto out;
