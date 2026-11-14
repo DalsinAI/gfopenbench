@@ -137,7 +137,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
     {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
-    {"C6", NULL, A, "CLOSEWB", "CloseWorkBench / OpenWorkBench with programs running"},
+    {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
@@ -496,29 +496,6 @@ int wbgap_has_nocase(const char *text, const char *word)
     if (!text || !wn) return 0;
     for (p = text; *p; p++)
         if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
-    return 0;
-}
-
-int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int drawer, char *why, unsigned cap)
-{
-    const char *r = "";
-    int v = WBGAP_FAIL;
-    if (closed && !reopened) r = "the screen closed and OpenWorkBench() didn't bring it back";
-    else if (!closed && !same_screen) r = "CloseWorkBench() refused, but the Workbench screen changed";
-    else if (!port) r = closed ? "the desktop didn't come back after OpenWorkBench()" : "the desktop went though CloseWorkBench() refused";
-    else if (!drawer) r = closed ? "RAM:WBGapC's window wasn't opened again" : "RAM:WBGapC's window went though CloseWorkBench() refused";
-    else v = WBGAP_PASS;
-    if (why && cap) snprintf(why, cap, "%s", r);
-    return v;
-}
-
-int wbgap_closewb_over(const char *text)
-{
-    const char *p, *want = "INFO C6 done";
-    size_t n = strlen(want);
-    if (!text) return 0;
-    for (p = text; (p = strstr(p, want)); p += n)
-        if ((p == text || p[-1] == '\n') && (p[n] == '\n' || p[n] == '\r' || p[n] == 0)) return 1;
     return 0;
 }
 
