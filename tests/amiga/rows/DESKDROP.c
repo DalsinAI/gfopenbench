@@ -6,7 +6,7 @@
  * more from every icon on the desktop (their boxes read through the WORKBENCH port). On 3.2.3 that leaves f out
  * there for the run: f and f.info stay in RAM:WBGapB, f's icon is on the desktop and gone from the drawer's window
  * (ob_drop.c's spec, lab t4-dnd). The icon is put away again (Icons > Put Away through ARexx, where the desktop has
- * MENU INVOKE) and everything is cleared afterwards.
+ * MENU INVOKE, else f clicked and Right Amiga P) and everything is cleared afterwards.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
@@ -164,26 +164,35 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
     return 0;
 }
 
-/* Put Away refused (GFOpenBench has no MENU INVOKE yet): f's icon dragged off the desktop back into RAM:WBGapB's
- * window, where it came from, so no icon is left out at the drop point once the drawer is deleted */
-static void bd_drag_back(char *list, long cap)
+/* Put Away refused (GFOpenBench has no MENU INVOKE yet): f's icon on the desktop clicked and Right Amiga P given,
+ * Icons > Put Away's key on GFOpenBench and 3.2.3 alike, so no icon is left out at the drop point once the drawer is
+ * deleted (dragging it back into its own drawer's window does nothing on GFOpenBench: f is already there) */
+static void bd_key_put_away(char *list, long cap)
 {
-    struct Window *w = wbt_find_window("WBGapB");
-    long box[4], from[2], to[2];
+    long box[4], at[2];
     char cmd[320];
     int t;
-    if (!w || !bd_rw || !bd_list("root", list, cap) || !wbgap_deskdrop_box(list, "f", box)) {
-        printf("INFO I5 f not dragged back: %s\n", !w ? "its drawer's window is shut" : "its place on the desktop not read");
+    if (!bd_rw) {                /* not found by a drop this run (f left out by an earlier one): the screen's windows */
+        struct Screen *s = LockPubScreen((CONST_STRPTR)"Workbench");
+        struct Window *w;
+        if (s) {
+            for (w = s->FirstWindow; w && !bd_rw; w = w->NextWindow)
+                if (bd_root(w)) bd_rw = w;
+            UnlockPubScreen(NULL, s);
+        }
+    }
+    if (!bd_rw || !bd_list("root", list, cap) || !wbgap_deskdrop_box(list, "f", box)) {
+        printf("INFO I5 f not put away by its key: its place on the desktop not read\n");
         return;
     }
-    wbgap_grab_point(box, from);
-    from[0] += bd_rw->LeftEdge + bd_rw->BorderLeft;
-    from[1] += bd_rw->TopEdge + bd_rw->BorderTop;
-    to[0] = w->LeftEdge + w->BorderLeft + 300;
-    to[1] = w->TopEdge + w->BorderTop + 180;
-    printf("INFO I5 f dragged back from the desktop at %ld,%ld into %s's window at %ld,%ld\n", from[0], from[1], BD_DIR,
-           to[0], to[1]);
-    snprintf(cmd, sizeof cmd, "%s DRAG %ld %ld %ld %ld STEPS 16", wbt_dragtest(), from[0], from[1], to[0], to[1]);
+    wbgap_grab_point(box, at);
+    at[0] += bd_rw->LeftEdge + bd_rw->BorderLeft;
+    at[1] += bd_rw->TopEdge + bd_rw->BorderTop;
+    printf("INFO I5 f clicked on the desktop at %ld,%ld and Right Amiga P given (Put Away)\n", at[0], at[1]);
+    snprintf(cmd, sizeof cmd, "%s CLICK %ld %ld", wbt_dragtest(), at[0], at[1]);
+    wbt_run(cmd);
+    Delay(40);                   /* no double-click with what follows */
+    snprintf(cmd, sizeof cmd, "%s KEY 0x19 QUAL RAMIGA", wbt_dragtest());
     wbt_run(cmd);
     for (t = 0; t < 6 && bd_on_desk(list, cap) > 0; t++) Delay(25);
 }
@@ -200,7 +209,7 @@ static void bd_clean(int rexx)
         int rc = wbgap_rx_line(cmd, sizeof cmd, BD_REXX, "PUTAWAY f") ? wbt_run(cmd) : -1;
         printf("INFO I5 f put away from the desktop: Icons > Put Away through ARexx gave %d\n", rc);
         Delay(50);
-        if (rc != 0) bd_drag_back(list, sizeof list);
+        if (rc != 0) bd_key_put_away(list, sizeof list);
     }
     CloseWorkbenchObjectA((STRPTR)BD_DIR, NULL);
     for (t = 0; t < 40 && wbt_find_window("WBGapB"); t++) Delay(5);
@@ -239,6 +248,11 @@ int wbt_deskdrop(int argc, char **argv)
     bd_rw = NULL;
     bd_clean(rexx);
     rexx = bd_rexx_up();
+    if (bd_list("root", desk, sizeof desk) && wbgap_deskdrop_has(desk, "f")) {   /* a desktop that hides a left-out
+                                                                                   * icon from its drawer: f never shows */
+        wbt_skip("I5", "an icon named f is on the desktop already (left out by an earlier run?)");
+        goto out;
+    }
     wbt_drawer(BD_DIR, "a");
     if (!wbt_open_drawer(BD_DIR, "WBGapB", 10, &how) || !(w = wbt_place("WBGapB", NULL, BD_W, BD_H))) {
         wbt_fail("I5", BD_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
@@ -258,10 +272,6 @@ int wbt_deskdrop(int argc, char **argv)
         int lines = 0;
         for (p = desk; *p; p++) lines += *p == '\n';
         printf("INFO I5 the desktop has %d icons\n", lines);
-    }
-    if (wbgap_deskdrop_has(desk, "f")) {
-        wbt_skip("I5", "an icon named f was on the desktop before the drag");
-        goto out;
     }
     if (!bd_spot(w->WScreen, desk, to)) {
         wbt_skip("I5", "no point of the desktop's own space found clear of windows and icons");
