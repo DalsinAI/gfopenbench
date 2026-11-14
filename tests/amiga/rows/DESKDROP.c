@@ -143,16 +143,26 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
         long x = s->Width * fx[i] / 8, y = s->Height * fy[i] / 8;
         struct Layer *ly;
         struct Window *bw;
-        LockLayerInfo(&s->LayerInfo);
+        char title[40] = "";
+        unsigned long flags = 0;
+        long ox = 0, oy = 0;
+        int root;
+        LockLayerInfo(&s->LayerInfo);   /* what is read of the window there, read while no layer can go */
         ly = WhichLayer(&s->LayerInfo, x, y);
         bw = ly ? (struct Window *)ly->Window : NULL;
+        root = bd_root(bw);
+        if (bw) {
+            if (bw->Title) snprintf(title, sizeof title, "%s", (const char *)bw->Title);
+            flags = (unsigned long)bw->Flags;
+            ox = bw->LeftEdge + bw->BorderLeft;
+            oy = bw->TopEdge + bw->BorderTop;
+        }
         UnlockLayerInfo(&s->LayerInfo);
-        if (!bd_root(bw)) {   /* another window there, or the screen's bar */
-            printf("INFO I5 %ld,%ld: %s \"%s\" (flags $%lx)\n", x, y, bw ? "a window," : "no window", bw && bw->Title ?
-                   (const char *)bw->Title : "", bw ? (unsigned long)bw->Flags : 0UL);
+        if (!root) {   /* another window there, or the screen's bar */
+            printf("INFO I5 %ld,%ld: %s \"%s\" (flags $%lx)\n", x, y, bw ? "a window," : "no window", title, flags);
             continue;
         }
-        if (!wbgap_deskdrop_clear(desk, x - bw->LeftEdge - bw->BorderLeft, y - bw->TopEdge - bw->BorderTop, BD_MARGIN)) {
+        if (!wbgap_deskdrop_clear(desk, x - ox, y - oy, BD_MARGIN)) {
             printf("INFO I5 %ld,%ld: an icon of the desktop within %d pixels\n", x, y, BD_MARGIN);
             continue;
         }
