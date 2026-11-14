@@ -110,6 +110,17 @@ static struct Window *rr_wait_new(struct Window **before, int nb, struct Window 
     return r;
 }
 
+/* a requester's window (the title "Workbench", not the Workbench's own) on the Workbench now, other than not; NULL if none */
+static struct Window *rr_req_up(struct Window *not)
+{
+    struct Window *w[RR_MAXW];
+    int n = rr_snap(w), i;
+    for (i = 0; i < n; i++)
+        if (w[i] != not && !(w[i]->Flags & WFLG_WBENCHWINDOW) && w[i]->Title && !strcmp((char *)w[i]->Title, "Workbench"))
+            return w[i];
+    return NULL;
+}
+
 static int rr_wait_gone(struct Window *w, int secs)
 {
     int t;
@@ -166,7 +177,7 @@ int wbt_resetreq(int argc, char **argv)
     static unsigned char was[RR_FILE], now[RR_FILE];
     struct wbgap_resetreq r;
     struct Window *before[RR_MAXW], *mine, *req;
-    char why[200];
+    char why[200], ctitle[40] = "";
     long n;
     int nb, old = 0, v;
     (void)argc, (void)argv;
@@ -189,7 +200,8 @@ int wbt_resetreq(int argc, char **argv)
         rr_write(RR_PREFS, now, n);
         req = rr_wait_new(before, nb, mine, 8);
         r.shown = req != NULL;
-        printf("INFO C5a %s\n", req ? "a requester came up" : "no new window in 8 s");
+        printf("INFO C5a %s%s%s\n", req ? "a requester came up: " : "no new window in 8 s",
+               req && req->Title ? (char *)req->Title : "", req && !req->Title ? "(no title)" : "");
         CloseWindow(mine);
         r.gone = req ? rr_wait_gone(req, 12) : 0;
         Delay(100);                                   /* the reset's own reopen */
@@ -206,14 +218,39 @@ int wbt_resetreq(int argc, char **argv)
         req = rr_wait_new(before, nb, mine, 8);
         r.cancel_shown = req != NULL;
         if (req) {
+            ctitle[0] = 0;
+            if (req->Title) { strncpy(ctitle, (char *)req->Title, sizeof ctitle - 1); ctitle[sizeof ctitle - 1] = 0; }
             rr_cancel(req);
             r.cancel_gone = rr_wait_gone(req, 3);
         }
+        {   /* what follows the Cancel, each half second for 3 s, then 5 s after our window closed: for the log */
+            int t, d0 = rr_depth();
+            for (t = 0; t < 6; t++) {
+                struct Window *again = rr_req_up(req);
+                if (again || rr_depth() != d0) {
+                    printf("INFO C5a %d.%d s after Cancel: %s, depth %d\n", t / 2, (t % 2) * 5,
+                           again ? "a requester up again" : "no requester", rr_depth());
+                    break;
+                }
+                Delay(25);
+            }
+        }
         CloseWindow(mine);
-        Delay(250);                                   /* 5 s: no reset may come now */
+        {
+            int t, d0 = rr_depth();
+            for (t = 0; t < 10; t++) {
+                Delay(25);                            /* 5 s: no reset may come now */
+                if (rr_depth() != d0) {
+                    printf("INFO C5a %d.%d s after our window closed: depth %d\n", (t + 1) / 2, ((t + 1) % 2) * 5,
+                           rr_depth());
+                    break;
+                }
+            }
+            while (++t < 10) Delay(25);
+        }
         r.depth_cancel = rr_depth();
-        printf("INFO C5a Cancel: requester %s, %s; depth %d\n", req ? "up" : "not up", r.cancel_gone ? "gone" : "not gone",
-               r.depth_cancel);
+        printf("INFO C5a Cancel: requester %s (%s), %s; depth %d\n", req ? "up" : "not up",
+               req ? ctitle : "-", r.cancel_gone ? "gone" : "not gone", r.depth_cancel);
     }
 
     rr_write(RR_PREFS, was, n);                       /* the prefs as they were, every way */
