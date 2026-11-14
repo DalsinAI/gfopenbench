@@ -80,15 +80,18 @@ static int wg_line(const char *look, const char *const *words)
     return 0;
 }
 
-/* 1 if the look's line 1 names the Classic theme ("Classic", "Classic light", "\"Classic\" dark"...), as
- * gfopengadtools' ogt_look_load reads it: the first word of line 1 only, unless it starts with ';'. A blank line 1, or
- * Classic on a later line, names no theme there (the Open one is used). The name is a file's, so any case. */
+/* 1 if the look's theme is Classic, as GFOpenLook itself reads it (gfopengadtools look/openlook.c read_look_text, the
+ * reader that takes zoom gadgets away; not lib/ogt_look.c's ogt_look_load, which the apps use for colours): the
+ * theme is the first word of line 1 ("Classic", "Classic light", "\"Classic\" dark"...), and it stays Classic when
+ * line 1 is blank or its first word starts with ';'. Classic on a later line doesn't count. The name is a file's, so
+ * any case. */
 static int wg_classic_theme(const char *look)
 {
     const char *q = look;
     int quoted = 0;
     if (!q) return 0;
     while (*q == ' ' || *q == '\t') q++;
+    if (!*q || *q == '\r' || *q == '\n' || *q == ';') return 1;   /* line 1 names no theme: GFOpenLook keeps Classic */
     if (*q == '"') quoted = 1, q++;
     if (!wg_word(&q, "classic")) return 0;
     return (quoted && *q == '"') || (!quoted && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q));
@@ -96,7 +99,7 @@ static int wg_classic_theme(const char *look)
 
 /* gfopengadtools DESIGN.md: the Classic theme passes everything through, and Classic screens keep their zoom gadgets,
  * whatever "zoom off" says. Out of scope here: a "never" line naming Workbench, "profile" presets, and which of two
- * "screen workbench" lines wins (any Classic one keeps zoom) */
+ * "screen workbench" lines wins: in GFOpenLook the last one does (read_look_text); here any Classic one counts */
 int wbgap_wingad_zoom_off(const char *look)
 {
     static const char *const zoom_off[] = {"zoom", "off", NULL};
