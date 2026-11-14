@@ -96,7 +96,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"A2", NULL, A, NULL, "AddAppWindowDropZoneA"},
     {"A3", NULL, A, API, "AddAppIconA"},
     {"A4", NULL, A, API, "AddAppMenuItemA"},
-    {"A5", NULL, A, "WBCONTROL", "WorkbenchControlA tags"},
+    {"A5", NULL, A, NULL, "WorkbenchControlA tags"},
     {"A6", NULL, A, API, "OpenWorkbenchObjectA"},
     {"A6b", "A6", A, API, "CloseWorkbenchObjectA"},
     {"A7", NULL, A, API, "UpdateWorkbench, the refresh proven (13 Nov)"},
@@ -587,10 +587,6 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
 }
-
-int wbgap_ctl_may_set(int get_ok) { return get_ok != 0; }
-
-long wbgap_ctl_reading(int get_ok, long read_back) { return get_ok ? read_back : WBGAP_CTL_NOT_READ; }
 
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap)
 {
