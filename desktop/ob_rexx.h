@@ -72,4 +72,10 @@ int ob_rexx_attr(const char *obj, const char *pattern, long *nums, int max);
  * too); with one, its template. 0 when the command isn't one. */
 int ob_rexx_help(char *out, int n, const char *command, int own);
 
+/* DELETE's icon (WBGapTest R2b, 14 Nov 2026): a drawer's .info can be read by the desktop's own refresh of its
+ * window at the moment DELETE takes it, and a delete then fails while the file stays. gone(u): 1 when it isn't
+ * there any more; take(u): one try at deleting it; pause(u): a short wait between tries. Up to tries tries, while
+ * it is still there. 1 when it went (whoever took it), 0 when it is still there after them all. */
+int ob_rexx_take_until_gone(int (*gone)(void *u), void (*take)(void *u), void (*pause)(void *u), void *u, int tries);
+
 #endif

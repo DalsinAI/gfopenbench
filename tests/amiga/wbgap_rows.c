@@ -74,8 +74,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I7", NULL, A, NULL, "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
     {"I8", NULL, A, NULL, "drag onto an AppIcon"},
     {"I9", NULL, A, NULL, "drag onto an AppWindow"},
-    {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
-    {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
+    {"I10", NULL, A, NULL, "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
+    {"I11", NULL, A, NULL, "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
@@ -137,6 +137,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
     {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
+    {"C5a", "C5", A, NULL, "the reset requester: lists the windows in the way, goes when they close, Cancel"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
     {"W1", NULL, A, NULL, "sizing, zoom, depth on drawer windows"},

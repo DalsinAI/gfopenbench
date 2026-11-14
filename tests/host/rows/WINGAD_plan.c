@@ -80,4 +80,20 @@ void wingad_plan(void)
     wbgap_gadget_middle(10, 4, -40, 6, 0, 0, 1, 0, 400, 300, xy);
     CHECK(xy[0] == 190 && xy[1] == 7, "a width relative to the window's: %ld,%ld", xy[0], xy[1]);
     CHECK(i >= 0 && wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, "WINGAD"), "W1's line comes from WINGAD");
+    {
+        static const long want[4] = {0, 25, 400, 300}, roomy[4] = {80, 40, 1920, 1080}, tight[4] = {80, 40, 320, 187};
+        long got[4] = {0, 25, 400, 300};
+        CHECK(wbgap_wingad_place_why(want, got, roomy, 1, why, sizeof why) == 0 && strstr(why, "placed late"),
+              "where asked by the time it's read: 0, and why says placed late, \"%s\"", why);
+        got[0] = 530; got[1] = 160;
+        CHECK(wbgap_wingad_place_why(want, got, roomy, 1, why, sizeof why) == 1 && strstr(why, "at 530,160 400x300")
+              && strstr(why, "moved or sized it back"), "moved back, within its limits: the desktop set it, \"%s\"", why);
+        got[0] = 0; got[1] = 25; got[2] = 320; got[3] = 187;
+        CHECK(wbgap_wingad_place_why(want, got, tight, 1, why, sizeof why) == 1 && strstr(why, "outside its limits 80x40 to 320x187"),
+              "400x300 past its largest: outside its limits, \"%s\"", why);
+        CHECK(wbgap_wingad_place_why(want, got, roomy, 0, why, sizeof why) == 1 && strstr(why, "went while"),
+              "gone while being placed: says so, \"%s\"", why);
+        got[2] = 401;
+        CHECK(wbgap_wingad_place_why(want, got, roomy, 1, NULL, 0) == 1, "a pixel out, no room for a reason: still 1");
+    }
 }

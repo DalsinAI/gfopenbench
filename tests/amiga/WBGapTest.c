@@ -22,6 +22,11 @@
  *   WBGapTest CLOSEWB           row C6: CloseWorkBench() with this Shell's window on the screen (refused: the screen,
  *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back;
  *                               the script starts it with Run >RAM:wbgap-c6, last before REPORT
+ *   WBGapTest RESETREQ          row C5a (rows/RESETREQ.c): a ScreenMode change with a window of ours in the way brings up
+ *                               the reset requester, which goes once that window closes (the Workbench reset into
+ *                               the new depth); Cancel on it keeps the depth. With this process's Shell window on the
+ *                               Workbench (WBGapTest.script) the requester is answered with Cancel, SKIP when that works;
+ *                               the whole row needs no Shell window (amiga_run)
  *   WBGapTest CLOSEWBWAIT f s   row C6's line: waits up to s seconds for that CLOSEWB run to be over and prints file f;
  *                               not over in time is FAIL C6, so a CloseWorkBench() that never returns can't hang the run
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
@@ -30,6 +35,9 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest PREFSWB           row P7 (rows/PREFSWB.c): Workbench prefs with RAM: hidden and the default stack 65536
+ *                               (GFOS: the ENV file written; 3.2.3: Prefs/Workbench FROM USE): the RAM Disk's icon must go and
+ *                               WBCTRLA_GetDefaultStackSize give 65536; the old file back, the icon must come back
  *   WBGapTest WBCONTROL         row A5 (rows/WBCONTROL.c): WorkbenchControlA's stack, restart time, global flags and
  *                               hidden devices, each set, read back and put back
  *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
@@ -59,7 +67,7 @@
  *                               reads what OpenT got (RAM:wbgap-launchopen) and whether Sub's window opened
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
- *   WBGapTest INFOSAVE          rows N2-N5: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
+ *   WBGapTest INFOSAVE          rows N2-N7: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
  *                               off, a comment, a default tool, tool types a=1 edited to a=3, d=4 deleted, b=2
  *                               added, Save; then the file's protection and comment and its icon are read back.
  *                               GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3
@@ -1246,16 +1254,7 @@ static int check_launchrec(const char *file, int args_too, unsigned long want_st
     return 1;
 }
 
-/* ---- I11 on the desktop: Shift-double-click, as a hand does it (WBGapDesk.rexx clicks) ----
- * SETUP: RAM:WBGapI holds LaunchT (a copy of this program, LAUNCHREC=RAM:wbgap-launchdesk) and projects p1 and p2,
- * left out on the desktop by RAM:.backdrop's lines (what was there before is kept in RAM:wbgap-backdrop-was; if
- * there was no .backdrop, RAM:wbgap-backdrop-made says SETUP made it), and
- * "a disk was inserted" so the desktop reads it again. WBGapDesk.rexx then clicks p1, Shift-clicks p2 and
- * Shift-double-clicks LaunchT. CHECK: I11 from what LaunchT got (LaunchT, p1, p2 in that order). DONE: RAM:.backdrop
- * as it was (put back, deleted only if SETUP made it, else left alone), and the desktop told again. */
-/* I11 (LaunchT, p1, p2) and I10 (OpenT, a tool; Sub, a drawer), left out together */
-static const char desk_lines[] = ":WBGapI/LaunchT\n:WBGapI/p1\n:WBGapI/p2\n:WBGapI/OpenT\n:WBGapI/Sub\n";
-
+/* the bytes of path into buf (at most n - 1, then a NUL): how many, -1 if it is not there */
 static long read_all(const char *path, char *buf, long n)
 {
     BPTR fh = Open((CONST_STRPTR)path, MODE_OLDFILE);
@@ -1266,168 +1265,6 @@ static long read_all(const char *path, char *buf, long n)
     if (got < 0) got = 0;
     buf[got] = 0;
     return got;
-}
-
-static void desk_told(void)
-{
-    char cmd[300];
-    snprintf(cmd, sizeof cmd, "\"%s\" DISKIN", dragtest);
-    run(cmd);
-    Delay(100);   /* the desktop reads its disks again */
-}
-
-/* LAUNCHDESK CHECK, I11: what LaunchT got from the Shift-double-click */
-static void desk_check_i11(void)
-{
-    char buf[400];
-    int t;
-    for (t = 0; t < 20 && read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0; t++) Delay(10);
-    if (read_all("RAM:wbgap-desk-bad", buf, sizeof buf) >= 0) {   /* a click failed: whatever started, no result */
-        skip("I11", "a click failed (WBGapDesk.rexx)");
-        return;
-    }
-    if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0 && read_all("RAM:wbgap-desk-clicked", buf, sizeof buf) < 0) {
-        skip("I11", "not clicked: WBGapDesk.rexx found no icons to click");
-        return;
-    }
-    if (read_all("RAM:wbgap-launchdesk", buf, sizeof buf) < 0) {
-        fail("I11", "Shift-double-clicking LaunchT with p1 and p2 selected started nothing");
-        return;
-    }
-    printf("INFO RAM:wbgap-launchdesk: %s", buf);
-    if (wbgap_launch_args(buf, "LaunchT p1 p2")) pass("I11");
-    else fail("I11", "Shift-double-click: not 3 arguments LaunchT, p1, p2 in order");
-}
-
-/* LAUNCHDESK CHECK, I10: OpenT double-clicked ran with itself as its one argument, Sub double-clicked opened */
-static void desk_check_i10(void)
-{
-    static char skipped[200], rec[400], why[120];
-    char m[8];
-    int t, r, have_skip, have_rec;
-    for (t = 0; t < 20 && read_all("RAM:wbgap-launchopen", rec, sizeof rec) < 0; t++) Delay(10);
-    have_skip = read_all("RAM:wbgap-open-skip", skipped, sizeof skipped) >= 0;
-    if (have_skip) skipped[strcspn(skipped, "\r\n")] = 0;
-    have_rec = read_all("RAM:wbgap-launchopen", rec, sizeof rec) >= 0;
-    if (have_rec) printf("INFO RAM:wbgap-launchopen: %s", rec);
-    r = wbgap_i10(have_skip ? skipped : NULL, read_all("RAM:wbgap-open-bad", m, sizeof m) >= 0,
-                  read_all("RAM:wbgap-open-clicked", m, sizeof m) >= 0, have_rec ? rec : NULL,
-                  read_all("RAM:wbgap-open-sub", m, sizeof m) >= 0, why, sizeof why);
-    if (r > 0) pass("I10");
-    else if (r < 0) skip("I10", why);
-    else fail("I10", why);
-}
-
-static int do_desk(const char *what)
-{
-    static char was[2048], text[2048 + sizeof desk_lines];
-    static STRPTR tt[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchdesk", NULL};
-    static STRPTR tt_open[] = {(STRPTR)"LAUNCHREC=RAM:wbgap-launchopen", NULL};
-    long n;
-    if (!stricmp(what, "SETUP")) {
-        char cmd[320], self[256] = "WBGapTest";
-        BPTR pd = GetProgramDir(), l;
-        if (pd && NameFromLock(pd, (STRPTR)self, sizeof self - 12)) AddPart((STRPTR)self, (CONST_STRPTR)"WBGapTest", sizeof self);
-        if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapI"))) UnLock(l);
-        snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGapI/LaunchT QUIET", self);
-        if (run(cmd) != 0 || !put_icon("RAM:WBGapI/LaunchT", WBTOOL, tt)) {
-            fail("I11", "RAM:WBGapI/LaunchT not made");
-            return 20;
-        }
-        write_file("RAM:WBGapI/p1", "p1\n");
-        put_icon("RAM:WBGapI/p1", WBPROJECT, NULL);
-        write_file("RAM:WBGapI/p2", "p2\n");
-        put_icon("RAM:WBGapI/p2", WBPROJECT, NULL);
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-open-skip");
-        /* I10: OpenT, the same tool recording to its own file, and Sub, a drawer, each double-clicked alone */
-        snprintf(cmd, sizeof cmd, "Copy \"%s\" RAM:WBGapI/OpenT QUIET", self);
-        if (run(cmd) != 0 || !put_icon("RAM:WBGapI/OpenT", WBTOOL, tt_open))
-            write_file("RAM:wbgap-open-skip", "RAM:WBGapI/OpenT not made");
-        if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapI/Sub"))) UnLock(l);
-        if (!put_icon("RAM:WBGapI/Sub", WBDRAWER, NULL)) write_file("RAM:wbgap-open-skip", "RAM:WBGapI/Sub's icon not made");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-launchopen");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-open-sub");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-open-clicked");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-open-bad");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-launchdesk");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-clicked");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-bad");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-desk-covered");
-        /* nothing over the desktop before WBGapDesk.rexx clicks it: BIG's window, if a run left it */
-        if (!wbgap_desk_clickable(clear_drawer("RAM:WBGapBig", "WBGapBig", "I11"))) {
-            write_file("RAM:wbgap-desk-covered", "RAM:WBGapBig's window stays over the desktop\n");
-            skip("I11", "RAM:WBGapBig's window stays over the desktop: no clicks");
-            skip("I10", "RAM:WBGapBig's window stays over the desktop: no clicks");
-            return 0;
-        }
-        n = read_all("RAM:.backdrop", was, sizeof was);
-        if (n < 0) was[0] = 0;
-        /* markers for DONE: wbgap-backdrop-was, the copy to put back; wbgap-backdrop-made, SETUP made the file */
-        switch (wbgap_backdrop_setup(n, (long)sizeof was, n >= 0 && strstr(was, desk_lines) != NULL)) {
-        case WBGAP_BD_TOOLONG:
-            printf("INFO I11 RAM:.backdrop is over %ld bytes: left as it is\n", (long)sizeof was - 2);
-            skip("I11", "RAM:.backdrop too long to keep and put back");
-            skip("I10", "RAM:.backdrop too long to keep and put back");
-            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
-            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
-            return 0;
-        case WBGAP_BD_MADE:
-            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
-            write_file("RAM:wbgap-backdrop-made", "made by WBGapTest LAUNCHDESK SETUP\n");
-            write_file("RAM:.backdrop", desk_lines);
-            break;
-        case WBGAP_BD_SAVED:
-            write_file("RAM:wbgap-backdrop-was", was);
-            DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
-            snprintf(text, sizeof text, "%s%s%s", was, n && was[n - 1] != '\n' ? "\n" : "", desk_lines);
-            write_file("RAM:.backdrop", text);
-            break;
-        default:   /* the lines there already: no marker changed (an earlier SETUP's stay for its DONE) */
-            break;
-        }
-        desk_told();
-        printf("INFO I11 RAM:WBGapI's LaunchT, p1 and p2 left out on the desktop; I10's OpenT and Sub too\n");
-        return 0;
-    }
-    if (!stricmp(what, "CHECK")) {
-        char buf[400];
-        if (read_all("RAM:wbgap-desk-covered", buf, sizeof buf) >= 0) {   /* SETUP said SKIP already */
-            skip("I11", "RAM:WBGapBig's window stays over the desktop: no clicks");
-            skip("I10", "RAM:WBGapBig's window stays over the desktop: no clicks");
-            return 0;
-        }
-        desk_check_i11();
-        desk_check_i10();
-        return fails ? 5 : 0;
-    }
-    if (!stricmp(what, "DONE")) {
-        char m[8];
-        n = read_all("RAM:wbgap-backdrop-was", was, sizeof was);
-        switch (wbgap_backdrop_done(n >= 0, read_all("RAM:wbgap-backdrop-made", m, sizeof m) >= 0)) {
-        case WBGAP_BD_RESTORE: write_file("RAM:.backdrop", was); break;
-        case WBGAP_BD_DELETE: DeleteFile((CONST_STRPTR)"RAM:.backdrop"); break;
-        default: break;   /* SETUP left .backdrop as it was */
-        }
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-was");
-        DeleteFile((CONST_STRPTR)"RAM:wbgap-backdrop-made");
-        if (WorkbenchBase) CloseWorkbenchObjectA((STRPTR)"RAM:WBGapI/Sub", NULL);   /* if WBGapDesk.rexx left it open */
-        {   /* RAM:WBGapI and its icons gone */
-            static const char *const gone[] = {"RAM:WBGapI/LaunchT.info", "RAM:WBGapI/LaunchT", "RAM:WBGapI/p1.info",
-                                               "RAM:WBGapI/p1", "RAM:WBGapI/p2.info", "RAM:WBGapI/p2",
-                                               "RAM:WBGapI/OpenT.info", "RAM:WBGapI/OpenT", "RAM:WBGapI/Sub.info",
-                                               "RAM:WBGapI/Sub", "RAM:WBGapI", "RAM:wbgap-desk-clicked",
-                                               "RAM:wbgap-desk-bad", "RAM:wbgap-desk-covered", "RAM:wbgap-open-skip",
-                                               "RAM:wbgap-open-clicked", "RAM:wbgap-open-bad", "RAM:wbgap-open-sub"};
-            int k;
-            for (k = 0; k < (int)(sizeof gone / sizeof gone[0]); k++) DeleteFile((CONST_STRPTR)gone[k]);
-        }
-        /* told last, so the desktop reads RAM: again with the five icons' files gone as well as their .backdrop
-         * lines (told before the delete, Ivanova's 0658 lab still showed them on the desktop a minute later) */
-        desk_told();
-        return 0;
-    }
-    printf("unknown: LAUNCHDESK %s\n", what);
-    return 20;
 }
 
 /* ---- the report ---- */
@@ -1545,7 +1382,6 @@ int main(int argc, char **argv)
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
     else if (!stricmp(argv[1], "SETUP")) rc = do_setup();
     else if (!stricmp(argv[1], "API")) rc = do_api();
-    else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
     else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);

@@ -496,6 +496,35 @@ static void do_rename(const char *old, const char *newname, answer *a)
     else changed_around(old);
 }
 
+/* DELETE's icon (ob_rexx_take_until_gone): GFOpenBench's own refresh of the drawer's window can be reading it right
+ * then (WBGapTest R2b, lab t2-talkietoaster-x2-20261114, 14 Nov 2026: rexxdir2.info stayed with DELETE's RC 0).
+ * Ten tries a tenth of a second apart. */
+#define ICON_TRIES 10
+typedef struct icon_take {
+    of_fs *fs;
+    of_ctx *c;
+    const char *path;
+} icon_take;
+
+static int icon_gone(void *u)
+{
+    icon_take *t = u;
+    of_stat st;
+    return !(t->fs->stat(t->fs, t->path, &st) == OF_OK && st.type != OF_NONE);   /* as 0.1.67 looked */
+}
+
+static void icon_del(void *u)
+{
+    icon_take *t = u;
+    of_delete_forever(t->c, t->path);
+}
+
+static void icon_wait(void *u)
+{
+    (void)u;
+    Delay(5);
+}
+
 static void do_delete(const char *name, int all, answer *a)
 {
     of_fs fs;
@@ -529,8 +558,18 @@ static void do_delete(const char *name, int all, answer *a)
         fail(a, of_to_dos(rc));
         return;
     }
-    snprintf(icon, sizeof icon, "%s.info", name);       /* its icon goes with it */
-    if (fs.stat(&fs, icon, &st) == OF_OK && st.type != OF_NONE) of_delete_forever(&c, icon);
+    snprintf(icon, sizeof icon, "%s.info", name);       /* its icon goes with it, even from under a refresh */
+    {
+        icon_take t;
+        t.fs = &fs;
+        t.c = &c;
+        t.path = icon;
+        if (!ob_rexx_take_until_gone(icon_gone, icon_del, icon_wait, &t, ICON_TRIES)) {
+            changed_around(name);
+            fail(a, ERROR_OBJECT_IN_USE);               /* the drawer went; say its icon didn't */
+            return;
+        }
+    }
     changed_around(name);
 }
 
