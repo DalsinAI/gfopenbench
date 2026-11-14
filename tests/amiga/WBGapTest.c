@@ -17,6 +17,8 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
+ *   WBGapTest CLOSEWB           row C6: CloseWorkBench() with this Shell's window on the screen (refused: the screen,
+ *                               the desktop and RAM:WBGapC's window stay), else OpenWorkBench() and both come back
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
  *                               its height: Reboot, Restart, Power off, and an Eject row for each USB volume mounted)
  *                               and closed with Esc; nothing in it is picked
@@ -1228,6 +1230,57 @@ static int do_disks(void)
     return fails ? 5 : 0;
 }
 
+/* ---- C6: CloseWorkBench / OpenWorkBench with programs running ---- */
+static int desk_port(void)
+{
+    int up;
+    Forbid();
+    up = FindPort((CONST_STRPTR)"GFOPENBENCH") || FindPort((CONST_STRPTR)"WORKBENCH");
+    Permit();
+    return up;
+}
+
+static struct Screen *wb_screen_now(void)
+{
+    struct Screen *s = LockPubScreen((CONST_STRPTR)"Workbench");
+    if (s) UnlockPubScreen(NULL, s);              /* not held: a lock would stop CloseWorkBench() */
+    return s;
+}
+
+static int do_closewb(void)
+{
+    struct Screen *before, *after;
+    struct Window *w;
+    LONG closed;
+    int how, reopened = 0, t, port = 0, drawer = 0, v;
+    char why[96];
+    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapC");
+    if (l) UnLock(l);
+    put_icon("RAM:WBGapC", WBDRAWER, NULL);
+    if (!(w = open_drawer("RAM:WBGapC", "WBGapC", 10, &how))) { skip("C6", "RAM:WBGapC's window didn't open"); return 0; }
+    if (!(before = wb_screen_now())) { skip("C6", "no Workbench screen"); return 0; }
+    closed = CloseWorkBench();
+    printf("INFO C6 CloseWorkBench() gave %ld\n", (long)closed);
+    if (closed) {
+        reopened = OpenWorkBench() != 0;
+        printf("INFO C6 OpenWorkBench() %s\n", reopened ? "opened the screen again" : "failed");
+    }
+    for (t = 0; t < 100; t++) {                     /* up to 10 s for the desktop and its drawer to be back */
+        port = desk_port();
+        drawer = find_window("WBGapC") != NULL;
+        if (port && drawer) break;
+        Delay(5);
+    }
+    after = wb_screen_now();
+    v = wbgap_closewb_judge(closed != 0, reopened, after == before, port, drawer, why, sizeof why);
+    if (v == WBGAP_PASS) pass("C6");
+    else fail("C6", why);
+    clear_drawer("RAM:WBGapC", "WBGapC", "C6");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapC");
+    return fails ? 5 : 0;
+}
+
 /* ---- the system bar: B1 and B2, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
  * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
  * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
@@ -2088,6 +2141,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
+    else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;

@@ -107,6 +107,11 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
+/* C6: CloseWorkBench() with programs running. Refused (closed 0: the Shell's window is on the screen) the same screen,
+ * the desktop's port and RAM:WBGapC's drawer window must all stay; if it did close, OpenWorkBench() must bring the
+ * screen back (reopened) and the desktop must open the drawer again. WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int drawer, char *why, unsigned cap);
+
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
