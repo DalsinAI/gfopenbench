@@ -73,8 +73,10 @@ Copy WBGapTest SYS:WBStartup/WBGapF QUIET
 Copy WBGapTest SYS:WBStartup/WBGapG QUIET
 ; every mode in tests/amiga/rows marked NEWROWS: a new row needs no line here
 WBGapTest NEWROWS >>RAM:wbgap-results
-WBGapTest CLOSEWB >>RAM:wbgap-results
 WBGapTest STARTUP SETUP >>RAM:wbgap-results
+; C6 last: in its own process, with a time limit, so a CloseWorkBench() that never returns is a FAIL and not a hung run
+Run >RAM:wbgap-c6 WBGapTest CLOSEWB
+WBGapTest CLOSEWBWAIT RAM:wbgap-c6 30 >>RAM:wbgap-results
 WBGapTest REPORT RAM:wbgap-results >RAM:wbgap-report
 Type RAM:wbgap-report
 Copy RAM:wbgap-results RAM:wbgap-menus RAM:wbgap-report SYS:T/WBGap/ QUIET

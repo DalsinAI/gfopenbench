@@ -125,6 +125,11 @@ int wbgap_has_nocase(const char *text, const char *word);
  * the desktop's port and RAM:WBGapC's drawer window must all stay; if it did close, OpenWorkBench() must bring the
  * screen back (reopened) and the desktop must open the drawer again. WBGAP_PASS or WBGAP_FAIL, the reason in why */
 int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int drawer, char *why, unsigned cap);
+/* What the CLOSEWB process (started with Run) has written so far: 1 when it
+ * is over ("INFO C6 done", its last line), 0 while it isn't (or text is
+ * NULL). CLOSEWBWAIT gives the row a FAIL of its own when it isn't over in
+ * time, so a CloseWorkBench() that never returns can't hang the run. */
+int wbgap_closewb_over(const char *text);
 /* W2, keyboard window cycling: GFOpenWindows' switcher (gfopenprefs Windows), Amiga+Tab brings the window at the back
  * of the screen to the front and activates it, Amiga+Shift+Tab sends the front one to the back and activates the one
  * behind it. ENV:GFOpenPrefs/Windows (text, may be NULL): 0 when it says "switcher off", else 1; its "switcher.key"

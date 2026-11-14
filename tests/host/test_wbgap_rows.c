@@ -313,6 +313,14 @@ static void closewb_plan(void)
     CHECK(wbgap_closewb_judge(1, 1, 1, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "opened again"), "closed, drawer not back: FAIL");
     CHECK(wbgap_closewb_judge(0, 0, 1, 1, 1, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
     CHECK(wbgap_find("C6") >= 0 && !strcmp(wbgap_row(wbgap_find("C6"))->mode, "CLOSEWB"), "C6's line comes from CLOSEWB");
+    /* CLOSEWBWAIT: the Run process is over only at its last line */
+    CHECK(!wbgap_closewb_over(NULL) && !wbgap_closewb_over(""), "nothing written: not over");
+    CHECK(!wbgap_closewb_over("INFO workbench.library 47.42\n"), "started, CloseWorkBench() not back: not over");
+    CHECK(!wbgap_closewb_over("INFO C6 CloseWorkBench() gave 0\nPASS C6\n"), "judged but not cleaned up: not over");
+    CHECK(wbgap_closewb_over("INFO C6 CloseWorkBench() gave 0\nPASS C6\nINFO C6 done\n"), "its last line: over");
+    CHECK(wbgap_closewb_over("SKIP C6 no Workbench screen\nINFO C6 done"), "no newline at the end: over");
+    CHECK(wbgap_closewb_over("x\r\nINFO C6 done\r\n"), "CR LF: over");
+    CHECK(!wbgap_closewb_over("XINFO C6 done\n") && !wbgap_closewb_over("INFO C6 doner\n"), "only the whole line counts");
 }
 
 /* I14: a file with no icon shown only with Show All Files */
