@@ -3,7 +3,7 @@
 # files take, so a new row touches no shared line. Run by build.sh, tests/amiga/build-amiga.sh and tests/host/run.sh.
 #   rows/<MODE>.c        the mode, on the Amiga:  WBGAP_MODE(<MODE>, <function>, NEWROWS|SCRIPT)
 #                        and the rows it prints:  WBGAP_ROWMODE(<row id>, <MODE>)
-#   rows/<MODE>_judge.c  its pure judge (host and Amiga), rows/<MODE>.h its prototype
+#   rows/<MODE>_judge.c  its pure judge (host and Amiga), rows/<MODE>.h its prototype; no markers in these
 #   ../host/rows/<MODE>_plan.c  its host checks:  WBGAP_PLAN(<function>)
 # Writes OUT/wbgap_gen_modes.inc, _rowmodes.inc, _modenames.inc and _plans.inc, in file-name order. A WBGAP_ line it
 # can't read, or a mode file without exactly one WBGAP_MODE named as the file, stops it with rc 1: no row goes quiet.
@@ -39,7 +39,12 @@ PLAN_RE='s/^WBGAP_PLAN([A-Za-z_][A-Za-z_0-9]*)$//'
 for f in "$HERE"/rows/*.c; do
   [ -e "$f" ] || continue
   case "$f" in
-    *_judge.c) check "$f" "$ROW_RE"; continue ;;
+    *_judge.c)   # markers belong in the mode file only: one here would be listed nowhere
+      if grep -q '^WBGAP_' "$f"; then
+        echo "gen-rows.sh: $f: a WBGAP_ line in a judge file (put it in the mode file): $(grep '^WBGAP_' "$f")" >&2
+        bad=1
+      fi
+      continue ;;
   esac
   check "$f" "$MODE_RE;$ROW_RE"
   base=$(basename "$f" .c)
