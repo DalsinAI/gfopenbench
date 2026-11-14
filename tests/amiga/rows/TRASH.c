@@ -46,6 +46,11 @@ static void tr_clean(void)
         if (pass) Delay(25);
         for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
     }
+    if (tr_there(TR_DIR)) {      /* something the list doesn't name (a desktop's own note in the trash): all of it */
+        printf("INFO I6 %s was left after the clean (a file not made here); deleted with all in it\n", TR_DIR);
+        wbt_run("C:Delete >NIL: " TR_DIR " ALL QUIET FORCE");
+        DeleteFile((CONST_STRPTR)TR_DIR ".info");
+    }
 }
 
 int wbt_trash(int argc, char **argv)
