@@ -119,6 +119,11 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
 int wbgap_ctl_may_set(int get_ok);
 long wbgap_ctl_reading(int get_ok, long read_back);
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap);
+/* D2 (MOUNTICON): a drive not mounted at the start is mounted; its volume must get a disk icon. was_there: it was
+ * mounted already (SKIP: nothing to watch); before, after: the desktop's icons read (-1 not read; after: 1 if the
+ * volume is a disk among them); mount_rc: Mount's return code; vol_up: a volume came up on the drive.
+ * Only a volume up and no icon is a FAIL; a test that can't be set up is a SKIP. The reason in why */
+int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int after, char *why, unsigned cap);
 /* W3 (TITLES): a drawer's window must be titled with the drawer's name (alone, or followed by a blank and more, as a
  * disk's usage), and the Workbench screen must have a title. win_title NULL: the window wasn't read (SKIP).
  * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
@@ -154,6 +159,34 @@ enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
 
+/* I8, I9: an icon dragged from a drawer onto an AppIcon (I8) and onto an AppWindow (I9); the desktop must send
+ * the AppMessage. A box (left, top, width, height) of w x h for a window or a drawer, in a corner of a screen
+ * sw x sh below its title bar (top), clear of avoid (left, top, width, height; NULL for none), tried in the order
+ * top-right, bottom-right, bottom-left, top-left: 1 and the box, or 0 if no corner is clear */
+int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4]);
+/* the point a drag lets go at: the box's middle */
+void wbgap_drop_point(const long box[4], long xy[2]);
+/* the AppMessage judged: its am_Type and am_ID against those wanted, one argument at least, the first named
+ * want_name, in a drawer whose path (NameFromLock of its wa_Lock) ends in ":" or "/" and want_dir. got 0: no message came.
+ * WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
+                     const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,
+                     unsigned cap);
+/* Where d's icon is in its drawer's window, found the same way on any desktop (a drawer window's toolbar or margins
+ * put it elsewhere than its snapshot says): the window's inside sampled every step pixels (gw x gh samples, row by
+ * row) before d is made and after; the box (left, top, width, height, from the inside's top-left) round every
+ * sample that changed. 1 and the box, or 0 if nothing changed */
+int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4]);
+/* the point to press on to drag the icon in box: across its middle, two-fifths down (on the image, above the label) */
+void wbgap_grab_point(const long box[4], long xy[2]);
+/* "x y w h" (WBGapAppPos.rexx, the AppIcon's box on the screen) into box: 1, or 0 if it isn't four numbers or
+ * the width or height isn't above 0 */
+int wbgap_parse_box(const char *text, long box[4]);
+/* I4, I7: a file dragged within one volume is moved, its icon with it (3.2.3). What is where after the drag: the file
+ * and its .info at the place it came from (src, src_info) and where it was dropped (dst, dst_info), each 1 if there.
+ * name and where for the reason. WBGAP_PASS when both are at dst and neither at src; else WBGAP_FAIL, why says which */
+int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *name, const char *where, char *why,
+                     unsigned cap);
 /* INFOSAVE types into the Information window with DragTest KEY: c's raw key on a US keyboard, or -1 if it has
  * none here (a-z A-Z 0-9 - = . / and space); *shift is set to 1 for an upper-case letter, else 0 */
 int wbgap_rawkey(int c, int *shift);

@@ -29,10 +29,16 @@
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest WBCONTROL         row A5: WorkbenchControlA's stack, restart time, global flags and hidden devices,
  *                               each set, read back and put back
+ *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
+ *                               volume must get a disk icon among the desktop's icons (WBGapRoot.rexx) within 10 s
  *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
+ *   WBGapTest APPDROP           rows I9, I8: RAM:WBGapD's icon d dragged (DragTest) onto a window of ours made an
+ *                               AppWindow, then onto an AppIcon (its place from WBGapAppPos.rexx); the AppMessage read
+ *   WBGapTest DRAGFILE          rows I4, I7: RAM:WBGapD's d dragged into RAM:WBGapE's window (moved, icon and all),
+ *                               then onto the drawer sub's icon in RAM:WBGapD (moved into it); KEEP: left open
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -1845,7 +1851,9 @@ static int do_bar(void)
 }
 
 /* the desktop's icons now (WBGapRoot.rexx D1), and whether vol is a disk among them; -1 if they weren't read */
-static int diskio_has(const char *vol, const char *when)
+static int diskio_has_row(const char *row, const char *vol, const char *when);
+static int diskio_has(const char *vol, const char *when) { return diskio_has_row("D1", vol, when); }
+static int diskio_has_row(const char *row, const char *vol, const char *when)
 {
     static char list[8192];
     char cmd[400], rexx[256];
@@ -1853,12 +1861,13 @@ static int diskio_has(const char *vol, const char *when)
     snprintf(rexx, sizeof rexx, "%s", dragtest);
     *PathPart((STRPTR)rexx) = 0;
     AddPart((STRPTR)rexx, (CONST_STRPTR)"WBGapRoot.rexx", sizeof rexx);
-    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" D1 RAM:wbgap-root-d1", rexx);
+    snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx \"%s\" %s RAM:wbgap-root-d1", rexx, row);
     run(cmd);
     n = read_all("RAM:wbgap-root-d1", list, sizeof list);
     DeleteFile((CONST_STRPTR)"RAM:wbgap-root-d1");
     if (n < 0) return -1;
-    printf("INFO D1 %s: \"%s\" %s\n", when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
+    if (!vol || !*vol) return 0;
+    printf("INFO %s %s: \"%s\" %s\n", row, when, vol, wbgap_root_has_disk(list, vol) ? "has an icon" : "has no icon");
     return wbgap_root_has_disk(list, vol);
 }
 
@@ -1899,6 +1908,527 @@ static int do_diskio(const char *drive)
     if (v == WBGAP_PASS) pass("D1");
     else if (v == WBGAP_SKIP) skip("D1", why);
     else fail("D1", why);
+    return fails ? 5 : 0;
+}
+
+/* ---- D2: a volume mounted later gets an icon ----
+ * The drive (RAD: if none given) must not be mounted yet: looked for in the DOS list, so no "insert volume"
+ * requester. The desktop's icons are read once (can they be read at all?), "Mount <drive>" is run, the volume's
+ * name is taken from a lock on the drive, and the icons are read again once a second for up to 10 s. The drive
+ * stays mounted afterwards, for DISKIO. */
+static int drive_mounted(const char *drive)
+{
+    char name[32];
+    struct DosList *dl;
+    size_t n = strlen(drive);
+    int found;
+    if (n && drive[n - 1] == ':') n--;
+    if (!n || n >= sizeof name) return 0;
+    memcpy(name, drive, n);
+    name[n] = 0;
+    dl = LockDosList(LDF_DEVICES | LDF_READ);
+    found = FindDosEntry(dl, (CONST_STRPTR)name, LDF_DEVICES) != NULL;
+    UnLockDosList(LDF_DEVICES | LDF_READ);
+    return found;
+}
+
+static int do_mounticon(const char *drive)
+{
+    char cmd[80], path[108], vol[40], why[96];
+    int was, before, rc = 0, up = 0, after = -1, k, v;
+    BPTR l;
+    vol[0] = 0;
+    was = drive_mounted(drive);
+    before = was ? 0 : diskio_has_row("D2", "", "before");
+    if (!was && before >= 0) {
+        snprintf(cmd, sizeof cmd, "C:Mount %s", drive);
+        rc = run(cmd);
+        if (!rc) {
+            struct Process *me = (struct Process *)FindTask(NULL);
+            APTR wp = me->pr_WindowPtr;
+            me->pr_WindowPtr = (APTR)-1;            /* no volume on it: the Lock fails quietly, never a requester */
+            if ((l = Lock((CONST_STRPTR)drive, ACCESS_READ))) {
+                if (NameFromLock(l, (STRPTR)path, sizeof path)) { wbgap_volume_name(path, vol, sizeof vol); up = vol[0] != 0; }
+                UnLock(l);
+            }
+            me->pr_WindowPtr = wp;
+        }
+        if (up) {
+            printf("INFO D2 %s mounted, its volume \"%s\"\n", drive, vol);
+            for (k = 0; k < 10; k++) {
+                Delay(50);
+                if ((after = diskio_has_row("D2", vol, "after")) > 0) break;
+            }
+        }
+    }
+    v = wbgap_mount_judge(was, before, rc, up, after, why, sizeof why);
+    say_row("D2", v, why);
+    return fails ? 5 : 0;
+}
+
+static long read_all(const char *path, char *buf, long n);
+
+/* ---- I8, I9: an icon dragged onto an AppIcon and onto an AppWindow ----
+ * RAM:WBGapD's project d, made while its drawer's window is open (a already in it) and found where the window
+ * changed, is dragged with DragTest onto a window of
+ * our own made an AppWindow (I9, id 9), then onto an AppIcon on the desktop (I8, id 8; its place read through the
+ * WORKBENCH port by WBGapAppPos.rexx). The desktop must send the AppMessage, naming d in RAM:WBGapD. */
+static int drop_wait(struct MsgPort *port, long want_type, unsigned long want_id, const char *row)
+{
+    char why[160], name[64] = "", dir[160] = "";
+    long type = 0, nargs = 0;
+    unsigned long id = 0;
+    int got = 0, t;
+    struct AppMessage *am;
+    for (t = 0; t < 60 && !got; t++) {   /* 3 s */
+        while ((am = (struct AppMessage *)GetMsg(port))) {
+            if (!got) {
+                got = 1;
+                type = am->am_Type;
+                id = am->am_ID;
+                nargs = am->am_NumArgs;
+                if (nargs > 0 && am->am_ArgList) {
+                    if (am->am_ArgList[0].wa_Name) snprintf(name, sizeof name, "%s", (const char *)am->am_ArgList[0].wa_Name);
+                    if (am->am_ArgList[0].wa_Lock) NameFromLock(am->am_ArgList[0].wa_Lock, (STRPTR)dir, sizeof dir);
+                }
+            }
+            ReplyMsg((struct Message *)am);
+        }
+        if (!got) Delay(5);
+    }
+    printf("INFO %s AppMessage: %s type %ld id %lu, %ld args, \"%s\" in \"%s\"\n", row, got ? "came," : "none,", type, id, nargs,
+           name, dir);
+    if (wbgap_drop_judge(got, type, want_type, id, want_id, nargs, name, dir, "d", "WBGapD", why, sizeof why) == WBGAP_PASS)
+        pass(row);
+    else fail(row, why);
+    return got;
+}
+
+/* d's icon in RAM:WBGapD's window: where its inside changed when d was made (wbgap_diff_box), from the inside's
+ * top-left; the window's toolbar or margins, which differ from desktop to desktop, don't matter */
+#define DROP_STEP 2
+#define DROP_GW 300
+#define DROP_GH 220
+/* the inside of w sampled every DROP_STEP pixels into buf, row by row, at most DROP_GW x DROP_GH; its size in *gw, *gh */
+static void drop_grab(struct Window *w, unsigned long *buf, int *gw, int *gh)
+{
+    struct RastPort *rp = w->RPort;
+    int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
+    int gx, gy;
+    *gw = (w->Width - w->BorderLeft - w->BorderRight) / DROP_STEP;
+    *gh = (w->Height - w->BorderTop - w->BorderBottom) / DROP_STEP;
+    if (*gw > DROP_GW) *gw = DROP_GW;
+    if (*gh > DROP_GH) *gh = DROP_GH;
+    if (*gw < 0) *gw = 0;
+    if (*gh < 0) *gh = 0;
+    for (gy = 0; gy < *gh; gy++)
+        for (gx = 0; gx < *gw; gx++) {
+            UWORD x = w->BorderLeft + gx * DROP_STEP, y = w->BorderTop + gy * DROP_STEP;
+            buf[gy * *gw + gx] = deep ? rgb_pixel(rp, x, y) : (ULONG)ReadPixel(rp, x, y);
+        }
+}
+
+static long d_box[4];
+
+/* the point on the screen to press on d in RAM:WBGapD's window w */
+static void drop_from(struct Window *w, long xy[2])
+{
+    wbgap_grab_point(d_box, xy);
+    xy[0] += w->LeftEdge + w->BorderLeft;
+    xy[1] += w->TopEdge + w->BorderTop;
+}
+
+/* d made in RAM:WBGapD with its window open, and found: 1, or 0 if its window's inside never changed in 5 s */
+static int drop_make_d(struct Window *w)
+{
+    static unsigned long before[DROP_GW * DROP_GH], after[DROP_GW * DROP_GH];
+    struct DiskObject *d;
+    BPTR dir;
+    long last[4] = {0, 0, 0, 0};
+    int t, same = 0, gw, gh, aw, ah;
+    drop_grab(w, before, &gw, &gh);
+    write_file("RAM:WBGapD/d", "d\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 120;
+        d->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/d", d);
+        FreeDiskObject(d);
+    }
+    if ((dir = Lock((CONST_STRPTR)"RAM:WBGapD", ACCESS_READ))) {
+        UpdateWorkbench((CONST_STRPTR)"d", dir, UPDATEWB_ObjectAdded);
+        UnLock(dir);
+    }
+    for (t = 0; t < 25; t++) {   /* the box the same twice running, 0.2 s apart */
+        Delay(10);
+        drop_grab(w, after, &aw, &ah);
+        if (aw != gw || ah != gh) return 0;   /* the window changed size: no telling */
+        if (!wbgap_diff_box(before, after, gw, gh, DROP_STEP, d_box)) continue;
+        if (!memcmp(last, d_box, sizeof last) && ++same >= 2) break;
+        if (memcmp(last, d_box, sizeof last)) same = 0;
+        memcpy(last, d_box, sizeof last);
+    }
+    if (t == 25 && !wbgap_diff_box(before, after, gw, gh, DROP_STEP, d_box)) return 0;
+    printf("INFO I9 d's icon at %ld,%ld %ldx%ld in RAM:WBGapD's window\n", d_box[0], d_box[1], d_box[2], d_box[3]);
+    return 1;
+}
+
+static void drop_drag(const long from[2], const long to[2], const char *row)
+{
+    char cmd[320];
+    snprintf(cmd, sizeof cmd, "%s DRAG %ld %ld %ld %ld STEPS 16", dragtest, from[0], from[1], to[0], to[1]);
+    printf("INFO %s drag %ld,%ld to %ld,%ld\n", row, from[0], from[1], to[0], to[1]);
+    run(cmd);
+}
+
+/* RAM:WBGapD's window moved to a corner clear of avoid; 1 if it is there within 2 s */
+static int drop_move(struct Window **w, const long *avoid)
+{
+    long box[4];
+    int t;
+    struct Window *x = *w;
+    if (!wbgap_drop_place(x->WScreen->Width, x->WScreen->Height, x->WScreen->BarHeight + 1, x->Width, x->Height, avoid, box))
+        return 0;
+    ChangeWindowBox(x, box[0], box[1], box[2], box[3]);
+    for (t = 0; t < 40; t++) {
+        Delay(5);
+        if (!(x = find_window("WBGapD"))) return 0;
+        if (x->LeftEdge == box[0] && x->TopEdge == box[1]) { *w = x; return 1; }
+    }
+    return 0;
+}
+
+static void drop_clean(void)
+{
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD", NULL);
+    DeleteFile((CONST_STRPTR)"RAM:wbgap-appicon");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/d.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/d");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/a.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/a");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD");
+}
+
+static int do_appdrop(void)
+{
+    struct MsgPort *port = CreateMsgPort();
+    struct DiskObject *d, *aio = GetDefDiskObject(WBTOOL);
+    struct Window *dw, *mine = NULL;
+    struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+    BPTR l;
+    int how;
+    long from[2], to[2], box[4];
+    char cmd[320], text[80];
+    if (!port || !aio || !wb) {
+        fail("I9", "setup");
+        fail("I8", "setup");
+        goto out;
+    }
+    aio->do_CurrentX = aio->do_CurrentY = NO_ICON_POSITION;   /* the desktop places the AppIcon */
+    drop_clean();
+    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
+    put_icon("RAM:WBGapD", WBDRAWER, NULL);
+    /* a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty drawer's window looks otherwise)
+     * and nothing moves when d comes at 120,10 */
+    write_file("RAM:WBGapD/a", "a\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 20;
+        d->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
+        FreeDiskObject(d);
+    }
+    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
+        fail("I9", "RAM:WBGapD's window didn't open");
+        fail("I8", "RAM:WBGapD's window didn't open");
+        goto out;
+    }
+    Delay(50);
+    if (!drop_make_d(dw)) {
+        fail("I9", "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I8", "no icon d to drag");
+        goto out;
+    }
+    {   /* I9: our window, in a corner clear of the drawer's, made an AppWindow */
+        long dbox[4];
+        struct AppWindow *aw = NULL;
+        dbox[0] = dw->LeftEdge; dbox[1] = dw->TopEdge; dbox[2] = dw->Width; dbox[3] = dw->Height;
+        if (wbgap_drop_place(wb->Width, wb->Height, wb->BarHeight + 1, 240, 120, dbox, box))
+            mine = OpenWindowTags(NULL, WA_PubScreen, (ULONG)wb, WA_Left, box[0], WA_Top, box[1], WA_Width, box[2],
+                                  WA_Height, box[3], WA_Title, (ULONG)"Drop target I9", WA_DragBar, TRUE,
+                                  WA_DepthGadget, TRUE, WA_Activate, FALSE, TAG_DONE);
+        if (!mine) fail("I9", "no room for a window of our own clear of RAM:WBGapD's, or it didn't open");
+        else if (!(aw = AddAppWindowA(9, 0, mine, port, NULL))) {
+            snprintf(text, sizeof text, "AddAppWindowA NULL (IoErr %ld)", (long)IoErr());
+            fail("I9", text);
+        } else {
+            Delay(25);
+            drop_from(dw, from);
+            wbgap_drop_point(box, to);
+            drop_drag(from, to, "I9");
+            drop_wait(port, AMTYPE_APPWINDOW, 9, "I9");
+        }
+        if (aw) RemoveAppWindow(aw);
+        if (mine) CloseWindow(mine);
+        mine = NULL;
+    }
+    {   /* I8: an AppIcon on the desktop, found through the WORKBENCH port, and the drawer's window moved off it */
+        struct AppIcon *ai;
+        if (!exists("SYS:Rexxc/rx") || !FindPort((CONST_STRPTR)"WORKBENCH")) {
+            skip("I8", "no rx or no WORKBENCH port to find the AppIcon by");
+            goto out;
+        }
+        if (!(ai = AddAppIconA(8, 0, (STRPTR)"WBGapDrop", port, 0, aio, NULL))) {
+            snprintf(text, sizeof text, "AddAppIconA NULL (IoErr %ld)", (long)IoErr());
+            fail("I8", text);
+            goto out;
+        }
+        Delay(50);
+        snprintf(cmd, sizeof cmd, "SYS:Rexxc/rx SYS:T/WBGap/WBGapAppPos.rexx WBGapDrop");
+        run(cmd);
+        if (read_all("RAM:wbgap-appicon", text, sizeof text) < 0 || !wbgap_parse_box(text, box))
+            skip("I8", "the AppIcon's place not read (WBGapAppPos.rexx)");
+        else if (!(dw = find_window("WBGapD")) || !drop_move(&dw, box))
+            fail("I8", "RAM:WBGapD's window couldn't be moved clear of the AppIcon");
+        else {
+            Delay(25);
+            drop_from(dw, from);
+            wbgap_drop_point(box, to);
+            drop_drag(from, to, "I8");
+            drop_wait(port, AMTYPE_APPICON, 8, "I8");
+        }
+        RemoveAppIcon(ai);
+    }
+out:
+    drop_clean();
+    if (port) {
+        struct Message *m;
+        while ((m = GetMsg(port))) ReplyMsg(m);
+        DeleteMsgPort(port);
+    }
+    if (aio) FreeDiskObject(aio);
+    if (wb) UnlockPubScreen(NULL, wb);
+    return fails ? 5 : 0;
+}
+
+/* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
+ * RAM:WBGapD (a snapshotted at 20,10) at the top-left and RAM:WBGapE (b at 20,10) in a corner clear of it, each
+ * 440x360 (both SKIP on a screen narrower than 880). d is made in
+ * RAM:WBGapD at 120,10 and the drawer sub at 20,100 (under a), each found where the window changed (wbgap_diff_box). I4: d dragged into
+ * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
+ * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
+static long sub_box[4];
+
+/* box: what changed in w since before (gw x gh samples) once it has stayed the same 0.4 s; 1, or 0 in 5 s */
+static int drag_settle(struct Window *w, const unsigned long *before, int gw, int gh, long box[4])
+{
+    static unsigned long after[DROP_GW * DROP_GH];
+    long last[4] = {0, 0, 0, 0};
+    int t, same = 0, aw, ah;
+    for (t = 0; t < 25; t++) {
+        Delay(10);
+        drop_grab(w, after, &aw, &ah);
+        if (aw != gw || ah != gh) return 0;
+        if (!wbgap_diff_box(before, after, gw, gh, DROP_STEP, box)) continue;
+        if (!memcmp(last, box, sizeof last) && ++same >= 2) return 1;
+        if (memcmp(last, box, sizeof last)) same = 0;
+        memcpy(last, box, sizeof last);
+    }
+    return wbgap_diff_box(before, after, gw, gh, DROP_STEP, box);
+}
+
+/* an object made in the drawer dir (its window w open) at x,y and told to the desktop; its box found as d's is */
+static int drag_make(struct Window *w, const char *dir, const char *name, LONG type, int x, int y, long box[4])
+{
+    static unsigned long before[DROP_GW * DROP_GH];
+    char path[96];
+    struct DiskObject *o;
+    BPTR l;
+    int gw, gh;
+    drop_grab(w, before, &gw, &gh);
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    if (type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+    else write_file(path, "x\n");
+    if ((o = GetDefDiskObject(type))) {
+        o->do_CurrentX = x;
+        o->do_CurrentY = y;
+        PutDiskObject((CONST_STRPTR)path, o);
+        FreeDiskObject(o);
+    }
+    if ((l = Lock((CONST_STRPTR)dir, ACCESS_READ))) {
+        UpdateWorkbench((CONST_STRPTR)name, l, UPDATEWB_ObjectAdded);
+        UnLock(l);
+    }
+    return drag_settle(w, before, gw, gh, box);
+}
+
+/* RAM:WBGapX with x snapshotted at 20,10 in it (a drawer that isn't empty: an empty one's window draws otherwise) */
+static void drag_drawer(const char *dir, const char *first)
+{
+    char path[96];
+    struct DiskObject *o;
+    BPTR l;
+    if ((l = CreateDir((CONST_STRPTR)dir))) UnLock(l);
+    put_icon(dir, WBDRAWER, NULL);
+    snprintf(path, sizeof path, "%s/%s", dir, first);
+    write_file(path, "x\n");
+    if ((o = GetDefDiskObject(WBPROJECT))) {
+        o->do_CurrentX = 20;
+        o->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)path, o);
+        FreeDiskObject(o);
+    }
+}
+
+/* the file and its .info, each there or not, in dir */
+static void drag_where(const char *dir, const char *name, int *file, int *info)
+{
+    char path[96];
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    *file = exists(path);
+    snprintf(path, sizeof path, "%s/%s.info", dir, name);
+    *info = exists(path);
+}
+
+/* after a drag of name from src to dst: wait up to 3 s for it at dst, then judge */
+static int drag_judge(const char *row, const char *src, const char *dst, const char *name)
+{
+    char why[160];
+    int sf, si, df = 0, di = 0, t;
+    for (t = 0; t < 30; t++) {
+        drag_where(dst, name, &df, &di);
+        if (df && di) break;
+        Delay(5);
+    }
+    Delay(10);                                    /* the move's other half (the source side) done */
+    drag_where(src, name, &sf, &si);
+    drag_where(dst, name, &df, &di);
+    printf("INFO %s %s: in %s %d/%d (file/icon), in %s %d/%d\n", row, name, src, sf, si, dst, df, di);
+    if (wbgap_move_judge(sf, si, df, di, name, dst, why, sizeof why) == WBGAP_PASS) { pass(row); return 1; }
+    fail(row, why);
+    return 0;
+}
+
+static void drag_clean(void)
+{
+    static const char *const files[] = {
+        "RAM:WBGapD/sub/d.info", "RAM:WBGapD/sub/d", "RAM:WBGapD/sub.info", "RAM:WBGapD/sub", "RAM:WBGapD/d.info",
+        "RAM:WBGapD/d", "RAM:WBGapD/a.info", "RAM:WBGapD/a", "RAM:WBGapD.info", "RAM:WBGapD", "RAM:WBGapE/d.info",
+        "RAM:WBGapE/d", "RAM:WBGapE/b.info", "RAM:WBGapE/b", "RAM:WBGapE.info", "RAM:WBGapE"};
+    unsigned i, pass;
+    int t;
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD/sub", NULL);
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapE", NULL);
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD", NULL);
+    for (t = 0; t < 40 && (find_window("WBGapD") || find_window("WBGapE")); t++) Delay(5);
+    /* twice, 0.5 s apart: a desktop that keeps a closed drawer's window size writes its .info after the close */
+    for (pass = 0; pass < 2; pass++) {
+        if (pass) Delay(25);
+        for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
+    }
+}
+
+/* the window titled title made w x h (at most the screen's) and moved to a corner clear of avoid (avoid NULL: to the
+ * top-left, under the screen's bar); it, or NULL if it isn't there within 2 s */
+static struct Window *drag_place(const char *title, const long *avoid, long w, long h)
+{
+    struct Window *x = find_window(title);
+    long box[4], top;
+    int t;
+    if (!x) return NULL;
+    top = x->WScreen->BarHeight + 1;
+    if (w > x->WScreen->Width) w = x->WScreen->Width;
+    if (h > x->WScreen->Height - top) h = x->WScreen->Height - top;
+    if (!avoid) {
+        box[0] = 0;
+        box[1] = top;
+        box[2] = w;
+        box[3] = h;
+    } else if (!wbgap_drop_place(x->WScreen->Width, x->WScreen->Height, top, w, h, avoid, box))
+        return NULL;
+    ChangeWindowBox(x, box[0], box[1], box[2], box[3]);
+    for (t = 0; t < 40; t++) {
+        Delay(5);
+        if (!(x = find_window(title))) return NULL;
+        if (x->LeftEdge == box[0] && x->TopEdge == box[1] && x->Width == box[2] && x->Height == box[3]) return x;
+    }
+    return NULL;
+}
+
+#define DRAG_WW 440   /* each drawer's window: room for three icons in a row and no scroller */
+#define DRAG_WH 360
+
+static int do_dragfile(int keep)
+{
+    static unsigned long before[DROP_GW * DROP_GH];
+    struct Window *dw, *ew;
+    long from[2], to[2], dbox[4], ebox[4];
+    int how, gw, gh;
+    drag_clean();
+    {   /* two windows side by side: on a narrower screen no corner is clear of the first, through no fault of the
+         * desktop's */
+        struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
+        int narrow = !wb || wb->Width < 2 * DRAG_WW;
+        if (wb) UnlockPubScreen(NULL, wb);
+        if (narrow) {
+            skip("I4", "the Workbench screen is narrower than two 440-wide drawer windows side by side");
+            skip("I7", "the Workbench screen is narrower than two 440-wide drawer windows side by side");
+            return fails ? 5 : 0;
+        }
+    }
+    drag_drawer("RAM:WBGapD", "a");
+    drag_drawer("RAM:WBGapE", "b");
+    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
+        fail("I4", "RAM:WBGapD's window didn't open");
+        fail("I7", "RAM:WBGapD's window didn't open");
+        goto out;
+    }
+    if (!(dw = drag_place("WBGapD", NULL, DRAG_WW, DRAG_WH))) {
+        fail("I4", "RAM:WBGapD's window couldn't be made 440x360");
+        fail("I7", "RAM:WBGapD's window couldn't be sized");
+        goto out;
+    }
+    Delay(50);
+    if (!drag_make(dw, "RAM:WBGapD", "d", WBPROJECT, 120, 10, d_box) ||
+        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 20, 100, sub_box)) {
+        fail("I4", "d or sub never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I7", "no icons to drag");
+        goto out;
+    }
+    printf("INFO I4 in RAM:WBGapD's window: d at %ld,%ld %ldx%ld, sub at %ld,%ld %ldx%ld\n", d_box[0], d_box[1],
+           d_box[2], d_box[3], sub_box[0], sub_box[1], sub_box[2], sub_box[3]);
+    if (!(dw = find_window("WBGapD"))) { fail("I4", "RAM:WBGapD's window went"); fail("I7", "RAM:WBGapD's window went"); goto out; }
+    dbox[0] = dw->LeftEdge; dbox[1] = dw->TopEdge; dbox[2] = dw->Width; dbox[3] = dw->Height;
+    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox, DRAG_WW, DRAG_WH))) {
+        fail("I4", "RAM:WBGapE's window didn't open, or couldn't be put clear of RAM:WBGapD's");
+        fail("I7", "no second window");
+        goto out;
+    }
+    Delay(50);
+    /* I4: d from RAM:WBGapD's window into RAM:WBGapE's, dropped across the middle, two-thirds down: clear of b and
+     * of any toolbar along the top */
+    drop_grab(ew, before, &gw, &gh);
+    drop_from(dw, from);
+    to[0] = ew->LeftEdge + ew->Width / 2;
+    to[1] = ew->TopEdge + ew->Height * 2 / 3;
+    drop_drag(from, to, "I4");
+    if (!drag_judge("I4", "RAM:WBGapD", "RAM:WBGapE", "d")) { fail("I7", "I4 failed: no d in RAM:WBGapE to drag"); goto out; }
+    /* I7: d, where RAM:WBGapE's window changed, onto sub's icon in RAM:WBGapD's window */
+    if (!(ew = find_window("WBGapE")) || !drag_settle(ew, before, gw, gh, ebox)) {
+        fail("I7", "d's icon not seen in RAM:WBGapE's window after I4");
+        goto out;
+    }
+    printf("INFO I7 d at %ld,%ld %ldx%ld in RAM:WBGapE's window\n", ebox[0], ebox[1], ebox[2], ebox[3]);
+    wbgap_grab_point(ebox, from);
+    from[0] += ew->LeftEdge + ew->BorderLeft;
+    from[1] += ew->TopEdge + ew->BorderTop;
+    if (!(dw = find_window("WBGapD"))) { fail("I7", "RAM:WBGapD's window went"); goto out; }
+    wbgap_grab_point(sub_box, to);
+    to[0] += dw->LeftEdge + dw->BorderLeft;
+    to[1] += dw->TopEdge + dw->BorderTop;
+    drop_drag(from, to, "I7");
+    drag_judge("I7", "RAM:WBGapE", "RAM:WBGapD/sub", "d");
+out:
+    if (!keep) drag_clean();   /* KEEP: the windows left open, to look at */
     return fails ? 5 : 0;
 }
 
@@ -2630,7 +3160,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | SWITCH | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | INFOSAVE | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | SWITCH | BIG | APPDROP | DRAGFILE [KEEP] | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | INFOSAVE | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -2645,8 +3175,11 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "WBCONTROL")) rc = do_wbcontrol();
+    else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
+    else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
+    else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
