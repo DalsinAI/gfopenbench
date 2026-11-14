@@ -30,8 +30,8 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
- *   WBGapTest WBCONTROL         row A5: WorkbenchControlA's stack, restart time, global flags and hidden devices,
- *                               each set, read back and put back
+ *   WBGapTest WBCONTROL         row A5 (rows/WBCONTROL.c): WorkbenchControlA's stack, restart time, global flags and
+ *                               hidden devices, each set, read back and put back
  *   WBGapTest MOUNTICON [drive] row D2: the drive (RAD: if none given), not mounted yet, mounted with C:Mount; its
  *                               volume must get a disk icon among the desktop's icons (WBGapRoot.rexx) within 10 s
  *   WBGapTest TITLES            row W3 (rows/TITLES.c): RAM:WBGapW3's window titled with the drawer's name, its screen with a title
@@ -630,6 +630,17 @@ static int tools_item_within(const char *item, int want, int ticks)
     }
 }
 
+/* "FAIL <id> why" for each row of mode whose id starts with letter: the mode's checks didn't run. Named row by
+ * row, not "FAIL A*", whose mode is the first A row's that has one, and A1 (APPWIN, rows/APPWIN.c) is that now */
+static void fail_mode_rows(const char *mode, char letter, const char *why)
+{
+    int i;
+    for (i = 0; i < wbgap_row_count(); i++) {
+        const struct wbgap_row *r = wbgap_row(i);
+        if (r->mode && !strcmp(r->mode, mode) && r->id[0] == letter) fail(r->id, why);
+    }
+}
+
 static int do_api(void)
 {
     struct MsgPort *port = CreateMsgPort();
@@ -640,7 +651,7 @@ static int do_api(void)
     LONG seen = 0;
     BOOL ok;
     do_setup();
-    if (!port || !dob) { fail("A*", "setup"); return 20; }
+    if (!port || !dob) { fail_mode_rows("API", 'A', "setup"); return 20; }
     ai = AddAppIconA(1, 0, (STRPTR)"WBGapIcon", port, 0, dob, NULL);
     if (ai) { pass("A3"); RemoveAppIcon(ai); } else printf("FAIL A3 AddAppIconA NULL (IoErr %ld)\n", (long)IoErr()), fails++;
     mi = AddAppMenuItemA(2, 0, (STRPTR)"WBGapItem", port, NULL);
@@ -2126,14 +2137,39 @@ static void drop_clean(void)
     DeleteFile((CONST_STRPTR)"RAM:WBGapD");
 }
 
+/* RAM:WBGapD made afresh with a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty
+ * drawer's window looks otherwise) and nothing moves when d comes at 120,10; its window opened, then d made in it
+ * and found (drop_make_d). The window, or NULL with *stage 1 (the window didn't open) or 2 (d never showed) */
+static struct Window *drop_ready(int *stage)
+{
+    struct DiskObject *d;
+    struct Window *dw;
+    BPTR l;
+    int how;
+    drop_clean();
+    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
+    put_icon("RAM:WBGapD", WBDRAWER, NULL);
+    write_file("RAM:WBGapD/a", "a\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 20;
+        d->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
+        FreeDiskObject(d);
+    }
+    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) { *stage = 1; return NULL; }
+    Delay(50);
+    if (!drop_make_d(dw)) { *stage = 2; return NULL; }
+    *stage = 0;
+    return dw;
+}
+
 static int do_appdrop(void)
 {
     struct MsgPort *port = CreateMsgPort();
-    struct DiskObject *d, *aio = GetDefDiskObject(WBTOOL);
+    struct DiskObject *aio = GetDefDiskObject(WBTOOL);
     struct Window *dw, *mine = NULL;
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
-    BPTR l;
-    int how;
+    int stage;
     long from[2], to[2], box[4];
     char cmd[320], text[80];
     if (!port || !aio || !wb) {
@@ -2142,27 +2178,10 @@ static int do_appdrop(void)
         goto out;
     }
     aio->do_CurrentX = aio->do_CurrentY = NO_ICON_POSITION;   /* the desktop places the AppIcon */
-    drop_clean();
-    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
-    put_icon("RAM:WBGapD", WBDRAWER, NULL);
-    /* a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty drawer's window looks otherwise)
-     * and nothing moves when d comes at 120,10 */
-    write_file("RAM:WBGapD/a", "a\n");
-    if ((d = GetDefDiskObject(WBPROJECT))) {
-        d->do_CurrentX = 20;
-        d->do_CurrentY = 10;
-        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
-        FreeDiskObject(d);
-    }
-    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
-        fail("I9", "RAM:WBGapD's window didn't open");
-        fail("I8", "RAM:WBGapD's window didn't open");
-        goto out;
-    }
-    Delay(50);
-    if (!drop_make_d(dw)) {
-        fail("I9", "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
-        fail("I8", "no icon d to drag");
+    if (!(dw = drop_ready(&stage))) {
+        fail("I9", stage == 1 ? "RAM:WBGapD's window didn't open"
+                              : "d's icon never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I8", stage == 1 ? "RAM:WBGapD's window didn't open" : "no icon d to drag");
         goto out;
     }
     {   /* I9: our window, in a corner clear of the drawer's, made an AppWindow */
@@ -2769,73 +2788,6 @@ static int do_lowmem(int secs, const char *path)
     return seen ? 0 : 5;
 }
 
-/* ---- A5: WorkbenchControlA's tags ----
- * Each settable value is read, set to a test value, read back and put back as it was: the default stack size, the
- * type restart time, the global flags (WBF_OLDDATESFIRST flipped) and the hidden devices (WBGAPA5 added, looked
- * for, removed). Every reading must be what 3.2.3's workbench.library gives (wbgap_pairs_judge). */
-static int hidden_has(const char *name)
-{
-    struct List *hidden = NULL;
-    struct Node *nd;
-    int found = 0;
-    if (!WorkbenchControl(NULL, WBCTRLA_GetHiddenDeviceList, (ULONG)&hidden, TAG_END)) return -1;
-    if (!hidden) return 0;
-    for (nd = hidden->lh_Head; nd->ln_Succ; nd = nd->ln_Succ)
-        if (nd->ln_Name && !stricmp(nd->ln_Name, name)) found++;
-    WorkbenchControl(NULL, WBCTRLA_FreeHiddenDeviceList, (ULONG)hidden, TAG_END);
-    return found;
-}
-
-static int do_wbcontrol(void)
-{
-    static const char *const names[] = {
-        "GetDefaultStackSize", "the stack after SetDefaultStackSize 12344", "GetTypeRestartTime",
-        "the restart time after SetTypeRestartTime 7", "GetGlobalFlags", "the flags after OLDDATESFIRST flipped",
-        "AddHiddenDeviceName WBGAPA5", "WBGAPA5 in GetHiddenDeviceList", "RemoveHiddenDeviceName WBGAPA5",
-        "WBGAPA5 in the list after Remove"
-    };
-    long want[10], got[10];
-    ULONG stack = 0, restart = 0, flags = 0, v;
-    char why[160];
-    int n = 0, ok;
-    /* a value is set and put back only if its Get worked: a Set with nothing to put back would leave it changed */
-    ok = WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&stack, TAG_END) != 0;
-    got[n] = ok; want[n++] = 1;
-    v = 0;
-    if (wbgap_ctl_may_set(ok)) {
-        WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, 12344, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_GetDefaultStackSize, (ULONG)&v, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_SetDefaultStackSize, stack, TAG_END);
-    }
-    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = 12344;
-    ok = WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&restart, TAG_END) != 0;
-    got[n] = ok; want[n++] = 1;
-    v = 0;
-    if (wbgap_ctl_may_set(ok)) {
-        WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, 7, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_GetTypeRestartTime, (ULONG)&v, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_SetTypeRestartTime, restart, TAG_END);
-    }
-    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = 7;
-    ok = WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&flags, TAG_END) != 0;
-    got[n] = ok; want[n++] = 1;
-    v = 0;
-    if (wbgap_ctl_may_set(ok)) {
-        WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags ^ WBF_OLDDATESFIRST, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_GetGlobalFlags, (ULONG)&v, TAG_END);
-        WorkbenchControl(NULL, WBCTRLA_SetGlobalFlags, flags, TAG_END);
-    }
-    got[n] = wbgap_ctl_reading(ok, (long)v); want[n++] = (long)(flags ^ WBF_OLDDATESFIRST);
-    got[n] = WorkbenchControl(NULL, WBCTRLA_AddHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
-    got[n] = hidden_has("WBGAPA5"); want[n++] = 1;
-    got[n] = WorkbenchControl(NULL, WBCTRLA_RemoveHiddenDeviceName, (ULONG)"WBGAPA5", TAG_END) != 0; want[n++] = 1;
-    got[n] = hidden_has("WBGAPA5"); want[n++] = 0;
-    printf("INFO A5 default stack %lu, restart time %lu, flags $%lx (each put back if its Get worked)\n", (unsigned long)stack,
-           (unsigned long)restart, (unsigned long)flags);
-    say_row("A5", wbgap_pairs_judge(n, names, want, got, why, sizeof why), why);
-    return fails ? 5 : 0;
-}
-
 /* ---- launching (row 6's launcher) ---- */
 /* the stack the launch tests ask for, in the icon's stack field (3.2.3 starts a tool with that) and as STACK=: 1 MB over the Workbench's default stack and over 1 MB, so neither the
  * default nor a launcher that gives every tool 1 MB (both seen in the labs) can pass for it */
@@ -3231,6 +3183,10 @@ int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type
 {
     return drag_make(w, dir, name, (LONG)type, x, y, box);
 }
+struct Window *wbt_drop_ready(int *stage) { return drop_ready(stage); }
+void wbt_drop_from(struct Window *w, long xy[2]) { drop_from(w, xy); }
+void wbt_drop_drag(const long from[2], const long to[2], const char *row) { drop_drag(from, to, row); }
+void wbt_drop_clean(void) { drop_clean(); }
 
 int main(int argc, char **argv)
 {
@@ -3256,7 +3212,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
-    else if (!stricmp(argv[1], "WBCONTROL")) rc = do_wbcontrol();
     else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
