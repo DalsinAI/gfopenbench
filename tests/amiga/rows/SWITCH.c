@@ -13,6 +13,7 @@
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
+#include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/intuition.h>
 #include <proto/layers.h>
