@@ -25,6 +25,14 @@ int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4]);
  * of name_w (its image by its name, without its label; 0 when not read) and f_w (f's box, label and all), so a long
  * label under a narrow image doesn't count as a second icon. */
 int wbgap_trashnote_crowded(long changed_w, long name_w, long f_w);
+/* wbgap_trashnote_mapped: where the window drew the Trashcan, from its place by its name, when the RAM Disk's window
+ * re-laid other icons as it was added (a full run's RAM: holds wbgap-results and more, all after "Trashcan" by name,
+ * 14 Nov gap count): f's place by its name (name_f) and where its window drew it (changed_f, an uncrowded change in
+ * the same kind of drawer window) give the offset from the layout frame to the window's inside; out is name_t moved
+ * by it. 1 when out's middle lies in changed_t (what the RAM Disk's window changed in) and out fits the window's inside
+ * (inner_w x inner_h, 0 not checked); 0 otherwise (no drop, as before). */
+int wbgap_trashnote_mapped(const long *name_t, const long *name_f, const long *changed_f, const long *changed_t,
+                           long inner_w, long inner_h, long out[4]);
 #define WBGAP_PUTBACK_NOLIB (-1000)
 #define WBGAP_PUTBACK_NOTRIED (-1001)
 #define WBGAP_PUTBACK_NOCTX (-1002)
