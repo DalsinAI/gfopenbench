@@ -71,9 +71,21 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
 # WBGapTest: the Workbench gap rows (amicradle-teams designs/OPENBENCH-GAPS-20261112.md), with DragTest
+sh "$HERE/tests/amiga/gen-rows.sh" "$OUT/wbgap-gen"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c" "$HERE/tests/amiga/wbgap_menu.c"
+"$CC" $COMMON -I"$HERE/tests/amiga" -I"$HERE/tests/amiga/rows" -I"$OUT/wbgap-gen" -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c" "$HERE/tests/amiga/wbgap_menu.c" "$HERE"/tests/amiga/rows/*.c
 cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapCheck.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$HERE/tests/amiga/WBGapLayout.rexx" "$HERE/tests/amiga/WBGapX4.rexx" "$HERE/tests/amiga/WBGapX3.rexx" "$HERE/tests/amiga/WBGapF3.rexx" "$HERE/tests/amiga/WBGapDesk.rexx" "$HERE/tests/amiga/WBGapRoot.rexx" "$OUT/"
+cp "$HERE/tests/amiga/WBGapAppPos.rexx" "$OUT/"
+# WBGapIndex: the ACFS index's rows (row X2), with amicradle-guest's tools/openindex: AMICRADLE_GUEST, its checkout
+# (launcher/build-amiga.sh fetches one for Cradle's job, tests/amiga/guest-index.sh); without it, not built
+if [ -n "${AMICRADLE_GUEST:-}" ]; then
+  OIX="$AMICRADLE_GUEST/tools/openindex"
+  # shellcheck disable=SC2086
+  "$CC" $COMMON -I"$OIX/amiga" -I"$OIX/core" -I"$AMICRADLE_GUEST/devices/acscsi.device/include" -o "$OUT/WBGapIndex" \
+    "$HERE/tests/amiga/WBGapIndex.c" "$HERE/tests/amiga/wbgap_index.c" "$OIX/amiga/oix_acfs.c" "$OIX/core/oix_core.c"
+else
+  echo "WBGapIndex not built: set AMICRADLE_GUEST to an amicradle-guest checkout"
+fi
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/wbspy" "$HERE/tools/wbspy.c" "$HERE/tools/spyfmt.c"
 # r1swap: lets OS 3.2's own Workbench start under R1, for step L2 (lab only)

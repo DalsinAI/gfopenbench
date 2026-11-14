@@ -12,9 +12,13 @@ COMMON="-noixemul -m68040 -specs=$HERE/../../toolchain/m68k-soft-m68040.specs -s
 if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/null; then COMMON="$COMMON -fno-late-combine-instructions"; fi
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
+sh "$HERE/gen-rows.sh" "$OUT/gen"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c"
-# WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout)
+"$CC" $COMMON -I"$HERE" -I"$HERE/rows" -I"$OUT/gen" -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c" "$HERE"/rows/*.c
+# WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout, else
+# fetched here: guest-index.sh, row X2)
+. "$HERE/guest-index.sh"
+guest_index_fetch "$OUT/deps"
 if [ -n "${AMICRADLE_GUEST:-}" ]; then
   OIX="$AMICRADLE_GUEST/tools/openindex"
   # shellcheck disable=SC2086
@@ -23,5 +27,7 @@ if [ -n "${AMICRADLE_GUEST:-}" ]; then
 else
   echo "WBGapIndex not built: set AMICRADLE_GUEST to an amicradle-guest checkout"
 fi
+guest_index_done
 cp "$HERE/WBGapTest.script" "$HERE/WBGapCheck.script" "$HERE/WBGapRexx.rexx" "$HERE/WBGapLayout.rexx" "$HERE/WBGapX4.rexx" "$HERE/WBGapX3.rexx" "$HERE/WBGapF3.rexx" "$HERE/WBGapDesk.rexx" "$HERE/WBGapRoot.rexx" "$OUT/"
+cp "$HERE/WBGapAppPos.rexx" "$OUT/"
 ls -l "$OUT"

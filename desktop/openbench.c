@@ -304,7 +304,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.65"
+#define OPENBENCH_VERSION "0.1.67"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -5330,8 +5330,36 @@ static int wbreq_open_args(const char *path, const char *const *args, int n)
     return ok;
 }
 
+/* WhichWorkbenchObjectA (gap row A8c; Ivanova's 0.1.65 run, 14 November 2026: WBO_NONE on an icon, as nothing
+ * answered it): what w has at (x, y) in it, asked as a drop asks (drop_drawer_at, desk_icon_at). The desktop's own
+ * space is the Workbench's drawer space, path "" (WBO_DRAWER, no name). */
+static int wbreq_which(struct Window *w, LONG x, LONG y, char *out, int n)
+{
+    WORD sx, sy;
+    int i, at;
+    if (n > 0) out[0] = 0;
+    if (!root || !w) return OB_WBP_AT_NONE;
+    /* w is read only once it is known to be ours (the desktop or a drawer window): a program may ask about a window
+     * that has gone (G'Kar's #164 note) */
+    if (w == root) {
+        if (x < 0 || y < 0 || x >= w->Width || y >= w->Height) return OB_WBP_AT_NONE;
+        sx = (WORD)(w->LeftEdge + x);
+        sy = (WORD)(w->TopEdge + y);
+        if (desk_icon_at(sx, sy, out, n) != OB_DESK_NONE) return OB_WBP_AT_ICON;
+        if (n > 0) out[0] = 0;
+        return OB_WBP_AT_SPACE;
+    }
+    if ((i = drawer_of_window(w)) < 0) return OB_WBP_AT_NONE;
+    sx = (WORD)(w->LeftEdge + x);
+    sy = (WORD)(w->TopEdge + y);
+    at = ob_dt_at(drawers[i], sx, sy, out, n);
+    if (at == WB_AT_DRAWER || at == WB_AT_FILE) return OB_WBP_AT_ICON;
+    if (at == WB_AT_SPACE) return OB_WBP_AT_SPACE;
+    return OB_WBP_AT_NONE;
+}
+
 static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_show_name, wbreq_window, wbreq_each, wb_changed,
-                                  wbreq_reread, wbreq_info, wbreq_open_args };
+                                  wbreq_reread, wbreq_info, wbreq_open_args, wbreq_which };
 
 /* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
 
@@ -5403,9 +5431,67 @@ static const char *rx_type(int type)
     }
 }
 
-/* a drawer window's icons, read when the first is asked for (each GETATTR starts there) */
+/* a drawer window's icons, read when the first is asked for (each GETATTR starts there): the drawer with every file
+ * (rx_dir), then what its window shows of it, from its task (rx_shown: Show All Files' files with no icon too, the
+ * selection and the places). 0.1.66: before, the reading was icons only and the window's own state never asked, so
+ * ARexx (WBGapTest I14) never saw a file with no icon, nor a selection in a drawer. When the task can't answer
+ * (held), the icons-only reading is used as before. */
 static wb_dir rx_dir;
 static int rx_dir_read;
+static ob_shown_icon *rx_shown;
+static int rx_nshown;
+
+static const char *rx_name_at(void *ctx, int i)
+{
+    (void)ctx;
+    return i >= 0 && i < rx_dir.n ? rx_dir.e[i].name : NULL;
+}
+
+static void rx_forget(void)
+{
+    if (rx_dir_read) wb_dir_free(&rx_dir);
+    rx_dir_read = 0;
+    if (rx_shown) FreeVec(rx_shown);
+    rx_shown = NULL;
+    rx_nshown = 0;
+}
+
+static int rx_read_drawer(int k)
+{
+    ob_shown sh;
+    int i;
+    rx_forget();
+    memset(&rx_dir, 0, sizeof rx_dir);
+    if (!(rx_dir_read = wb_dir_read(&rx_dir, ob_dt_path(drawers[k]), 1))) return 0;
+    wb_dir_sort(&rx_dir, WB_SORT_NAME, 0);
+    if (rx_dir.n && (rx_shown = AllocVec(sizeof *rx_shown * rx_dir.n, MEMF_ANY | MEMF_CLEAR))) {
+        memset(&sh, 0, sizeof sh);
+        sh.name_at = rx_name_at;
+        sh.n = rx_dir.n;
+        sh.out = rx_shown;
+        sh.cap = rx_dir.n;
+        if (ob_dt_each(drawers[k], ob_shown_take, &sh) >= 0) {
+            ob_shown_sort(&sh);
+            rx_nshown = sh.count;
+            return 1;
+        }
+        FreeVec(rx_shown);
+        rx_shown = NULL;
+    } else if (!rx_dir.n) return 1;
+    /* the task didn't answer: the icons-only reading, as before 0.1.66 */
+    wb_dir_free(&rx_dir);
+    memset(&rx_dir, 0, sizeof rx_dir);
+    if (!(rx_dir_read = wb_dir_read(&rx_dir, ob_dt_path(drawers[k]), 0))) return 0;
+    wb_dir_sort(&rx_dir, WB_SORT_NAME, 0);
+    if (!rx_dir.n || !(rx_shown = AllocVec(sizeof *rx_shown * rx_dir.n, MEMF_ANY | MEMF_CLEAR))) return rx_dir.n == 0;
+    for (i = 0; i < rx_dir.n; i++) {
+        rx_shown[i].at = i;
+        rx_shown[i].x = rx_dir.e[i].x;
+        rx_shown[i].y = rx_dir.e[i].y;
+    }
+    rx_nshown = rx_dir.n;
+    return 1;
+}
 
 static int rx_icon_at(struct Window *w, int i, ob_rexx_icon *out, int detail)
 {
@@ -5431,32 +5517,21 @@ static int rx_icon_at(struct Window *w, int i, ob_rexx_icon *out, int detail)
         return 0;
     }
     if ((k = drawer_of_window(w)) < 0) return 0;
-    if (i == 0 || !rx_dir_read || ci_cmp(rx_dir.path, ob_dt_path(drawers[k]))) {
-        if (rx_dir_read) wb_dir_free(&rx_dir);
-        memset(&rx_dir, 0, sizeof rx_dir);
-        rx_dir_read = wb_dir_read(&rx_dir, ob_dt_path(drawers[k]), 0);
-        if (!rx_dir_read) return 0;
-        wb_dir_sort(&rx_dir, WB_SORT_NAME, 0);
-    }
-    if (i < 0 || i >= rx_dir.n) return 0;
-    snprintf(out->name, sizeof out->name, "%s", rx_dir.e[i].name);
-    out->selected = 0;                              /* a drawer's selection isn't told yet */
-    out->type = rx_dir.e[i].drawer ? "DRAWER" : "PROJECT";
-    if (detail) {
-        if (wb_entry_icon(&rx_dir, i, look.scr) && rx_dir.e[i].icon_type) out->type = rx_type(rx_dir.e[i].icon_type);
-        /* the places the drawer's task laid its icons at (a fresh read has none: 0, 0 when they aren't snapshotted) */
-        {
-            ob_place p = { rx_dir.e[i].name, 0, 0, 0 };
-            if (ob_dt_each(drawers[k], ob_place_take, &p) >= 0 && p.found) {
-                out->left = p.x;
-                out->top = p.y;
-            } else {
-                out->left = rx_dir.e[i].x;
-                out->top = rx_dir.e[i].y;
-            }
+    if (i == 0 || !rx_dir_read || ci_cmp(rx_dir.path, ob_dt_path(drawers[k])))
+        if (!rx_read_drawer(k)) return 0;
+    if (i < 0 || i >= rx_nshown) return 0;
+    {
+        int at = rx_shown[i].at;
+        snprintf(out->name, sizeof out->name, "%s", rx_dir.e[at].name);
+        out->selected = rx_shown[i].selected;
+        out->type = rx_dir.e[at].drawer ? "DRAWER" : "PROJECT";
+        if (detail) {
+            if (wb_entry_icon(&rx_dir, at, look.scr) && rx_dir.e[at].icon_type) out->type = rx_type(rx_dir.e[at].icon_type);
+            out->left = rx_shown[i].x;          /* where the drawer's task laid it (0, 0 in the list view) */
+            out->top = rx_shown[i].y;
+            out->width = rx_dir.e[at].iw;
+            out->height = rx_dir.e[at].ih;
         }
-        out->width = rx_dir.e[i].iw;
-        out->height = rx_dir.e[i].ih;
     }
     return 1;
 }
@@ -5490,8 +5565,7 @@ static void rx_changed(const char *dir)
         if (same) ob_dt_note(drawers[i], OB_DT_REREAD);
     }
     if (l) UnLock(l);
-    if (rx_dir_read) wb_dir_free(&rx_dir);
-    rx_dir_read = 0;
+    rx_forget();
 }
 
 static const ob_rexx_env rexx_env = {
@@ -5883,7 +5957,7 @@ static int run(void)
 
 out:
     ob_arexx_stop();                            /* 0.1.53: the ARexx ports, their messages answered */
-    if (rx_dir_read) wb_dir_free(&rx_dir);
+    rx_forget();
     aloha_stop();                               /* 0.1.22: Intuition's Workbench port given back first */
     ob_builtin_quit_all();                      /* the built-ins first: their code is ours */
 #ifdef OB_HAVE_TATA

@@ -7,11 +7,39 @@
 #include <string.h>
 
 #include "wbgap_rows.h"
+#include "wbgap_check.h"
 
-static int failures, checks;
+int failures, checks;
 
-#define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); \
-    printf(__VA_ARGS__); printf("\n"); } } while (0)
+/* the per-row plans (tests/host/rows, listed by tests/amiga/gen-rows.sh) */
+#define WBGAP_GEN_PLAN(fn) void fn(void);
+#include "wbgap_gen_plans.inc"
+#undef WBGAP_GEN_PLAN
+
+/* the modes the row files register (WBGAP_MODE) */
+static const char *const gen_modenames[] = {
+#define WBGAP_GEN_MODENAME(name) name,
+#include "wbgap_gen_modenames.inc"
+#undef WBGAP_GEN_MODENAME
+    NULL
+};
+
+/* every row a file of its own names (WBGAP_ROWMODE) is in the table, its mode the file's and a registered mode */
+static void gen_rowmodes_plan(void)
+{
+    const char *id, *mode;
+    int k, i, m;
+    for (k = 0; (id = wbgap_gen_rowmode(k, &mode)); k++) {
+        i = wbgap_find(id);
+        CHECK(i >= 0, "%s (WBGAP_ROWMODE, mode %s) is in the table", id, mode);
+        CHECK(i < 0 || (wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, mode)),
+              "%s's mode is %s, its file's, not the table's %s", id, mode, i >= 0 && wbgap_row(i)->mode ? wbgap_row(i)->mode : "(none)");
+        for (m = 0; gen_modenames[m] && strcmp(gen_modenames[m], mode); m++) {}
+        CHECK(gen_modenames[m] != NULL, "%s's mode %s is one a row file registers (WBGAP_MODE)", id, mode);
+    }
+    CHECK(gen_modenames[0] != NULL, "the row files' modes are listed: %s", gen_modenames[0] ? gen_modenames[0] : "none");
+    CHECK(k >= 1, "the row files are listed (gen-rows.sh): %d", k);
+}
 
 /* the ids in the gaps document's tables, 12 Nov 2026 */
 static const char *const doc_ids[] = {
@@ -66,9 +94,15 @@ static void every_id(void)
     CHECK(wbgap_has_parts(wbgap_find("A8")) && wbgap_has_parts(wbgap_find("I12")) && wbgap_has_parts(wbgap_find("C2")),
           "A8, C2 and I12 are made of parts");
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
+    CHECK(wbgap_find("D5r") == wbgap_find("D5") + 1 && wbgap_row(wbgap_find("D5r"))->how == WBGAP_AUTO
+          && !strcmp(wbgap_row(wbgap_find("D5r"))->mode, "DISKS") && !wbgap_row(wbgap_find("D5r"))->parent
+          && !wbgap_has_parts(wbgap_find("D5")),
+          "D5r, RAM Disk first on the column, is a row of its own after D5, checked by DISKS");
     CHECK(wbgap_row(wbgap_find("I11"))->how == WBGAP_AUTO && wbgap_row(wbgap_find("I12a"))->how == WBGAP_AUTO,
           "I11 and I12a are checked by WBGapTest (row 6's launcher)");
     CHECK(!strcmp(wbgap_row(wbgap_find("I11"))->mode, "LAUNCHDESK"), "I11 is the desktop's Shift-double-click (LAUNCHDESK)");
+    CHECK(wbgap_row(wbgap_find("I10"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I10"))->mode, "LAUNCHDESK"),
+          "I10, double-click opens or runs, is checked in LAUNCHDESK");
     CHECK(wbgap_row(wbgap_find("I3"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I3"))->mode, "LAUNCHDESK"),
           "I3, the lasso, is checked by WBGapDesk.rexx in LAUNCHDESK");
 }
@@ -89,6 +123,28 @@ static void launch_args(void)
     CHECK(wbgap_launch_args("launch stack 4096 pri 0 args 1 LaunchT\n", "LaunchT"), "the tool alone");
 }
 
+/* I10: a double-click runs a tool (OpenT, its one argument itself) and opens a drawer (Sub) */
+static void i10_plan(void)
+{
+    char why[96];
+    const char *ok = "launch stack 4096 pri 0 args 1 OpenT\n";
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 1, why, sizeof why) == 1 && !why[0], "both: PASS, nothing to say");
+    CHECK(wbgap_i10(NULL, 0, 1, NULL, 1, why, sizeof why) == 0 && strstr(why, "started nothing"), "no record: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 0, why, sizeof why) == 0 && strstr(why, "Sub opened no window"), "no window: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, NULL, 0, why, sizeof why) == 0 && strstr(why, "and Sub's"), "neither: FAIL, both said");
+    CHECK(wbgap_i10(NULL, 0, 1, "launch stack 4096 pri 0 args 2 OpenT p1\n", 1, why, sizeof why) == 0 &&
+          strstr(why, "not with itself"), "a selection carried along: FAIL");
+    CHECK(wbgap_i10(NULL, 0, 1, "launch stack 4096 pri 0 args 1 LaunchT\n", 1, why, sizeof why) == 0,
+          "another tool's record isn't OpenT's");
+    CHECK(wbgap_i10(NULL, 1, 1, ok, 1, why, sizeof why) == -1 && strstr(why, "failed"), "a failed click: SKIP");
+    CHECK(wbgap_i10(NULL, 0, 0, ok, 1, why, sizeof why) == -1, "not clicked: SKIP");
+    CHECK(wbgap_i10("OpenT lies in the lasso's box", 0, 1, ok, 1, why, sizeof why) == -1 &&
+          !strcmp(why, "OpenT lies in the lasso's box"), "the script's own SKIP, as it said it");
+    CHECK(wbgap_i10("", 0, 1, ok, 1, why, sizeof why) == 1, "an empty skip file isn't a SKIP");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 0, why, 8) == 0 && strlen(why) == 7, "a cut buffer");
+    CHECK(wbgap_i10(NULL, 0, 1, ok, 1, NULL, 0) == 1, "no buffer");
+}
+
 /* LAUNCHDESK SETUP and DONE: DONE deletes RAM:.backdrop only when SETUP made it */
 static void backdrop_plan(void)
 {
@@ -103,6 +159,26 @@ static void backdrop_plan(void)
           "a kept copy is put back");
     CHECK(wbgap_backdrop_done(0, 1) == WBGAP_BD_DELETE, "made by SETUP: deleted");
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
+}
+
+/* BIG's RAM:WBGapBig off the desktop before the rows that click it */
+static void clear_plan(void)
+{
+    long b[4];
+    wbgap_park_box(640, 512, 120, 60, b);
+    CHECK(b[0] == 520 && b[1] == 452 && b[2] == 120 && b[3] == 60, "parked in the bottom-right corner at its smallest");
+    CHECK(b[0] + b[2] == 640 && b[1] + b[3] == 512, "its edges on the screen's");
+    wbgap_park_box(320, 200, 400, 300, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 320 && b[3] == 200, "no bigger than the screen, never off it");
+    wbgap_park_box(640, 480, 0, 0, b);
+    CHECK(b[2] == 1 && b[3] == 1 && b[0] == 639 && b[1] == 479, "no minimum given: one pixel, still on the screen");
+    wbgap_park_box(0, 0, 10, 10, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 1 && b[3] == 1, "a screen of no size: nothing negative");
+    CHECK(wbgap_clear_result(1, 0) == WBGAP_CL_GONE && wbgap_clear_result(1, 1) == WBGAP_CL_GONE, "closed: gone");
+    CHECK(wbgap_clear_result(0, 1) == WBGAP_CL_PARKED, "still open but in the corner: parked");
+    CHECK(wbgap_clear_result(0, 0) == WBGAP_CL_STUCK, "still open where it was: stuck");
+    CHECK(wbgap_desk_clickable(WBGAP_CL_GONE) && wbgap_desk_clickable(WBGAP_CL_PARKED), "gone or parked: the desktop is clicked");
+    CHECK(!wbgap_desk_clickable(WBGAP_CL_STUCK), "stuck: no clicks (they'd land on its icons)");
 }
 
 /* D5: the RAM Disk's icon among the desktop's, as WBGapRoot.rexx writes them */
@@ -122,12 +198,39 @@ static void ramdisk_plan(void)
     CHECK(wbgap_root_has_disk(root, "RAM DISK") && wbgap_root_has_disk("disk ram disk", "Ram Disk"), "case not minded");
     CHECK(wbgap_root_has_disk("DISK Ram Disk\r\n", "Ram Disk") && wbgap_root_has_disk("DISK Ram Disk  \n", "Ram Disk"),
           "a line's CR and trailing blanks don't count");
+    CHECK(wbgap_root_has_disk("DISK RAM Disk:\n", "Ram Disk") && wbgap_root_has_disk("DISK System:\nDISK RAM Disk: \r\n", "Ram Disk"),
+          "the port's \"RAM Disk:\" (a trailing colon, as Ivanova's lab gave) is the disk");
+    CHECK(!wbgap_root_has_disk("DISK RAM Disk::\n", "Ram Disk") && !wbgap_root_has_disk("DISK :\n", ""),
+          "only one colon is the port's");
+    CHECK(wbgap_has_nocase("DRAWER RAM DISK\n", "Ram Disk") && wbgap_has_nocase("x ram disk", "RAM Disk"),
+          "the hint's search: case not minded");
+    CHECK(!wbgap_has_nocase("DISK System\n", "Ram Disk") && !wbgap_has_nocase("Ram Dis", "Ram Disk") &&
+          !wbgap_has_nocase(NULL, "x") && !wbgap_has_nocase("x", ""), "the hint's search: not there, or nothing to look for");
     CHECK(!wbgap_root_has_disk("DISK System\nDRAWER WBGapI\n", "Ram Disk"), "no RAM Disk icon");
     CHECK(!wbgap_root_has_disk("DRAWER Ram Disk\n", "Ram Disk"), "a drawer of that name isn't the disk");
     CHECK(!wbgap_root_has_disk("DISK Ram Disk 2\n", "Ram Disk") && !wbgap_root_has_disk("DISK Ram\n", "Ram Disk"),
           "a longer or shorter name isn't it");
     CHECK(!wbgap_root_has_disk("", "Ram Disk") && !wbgap_root_has_disk(root, "") && !wbgap_root_has_disk(NULL, "Ram Disk"),
           "nothing read, or no name: no");
+}
+
+/* I14: a file with no icon shown only with Show All Files */
+static void showall_plan(void)
+{
+    char why[64];
+    const char *drawer = "PROJECT noicon\nDRAWER Sub\r\nTOOL WBGapW\n";
+    CHECK(wbgap_root_has_name(drawer, "noicon") && wbgap_root_has_name(drawer, "NOICON") && wbgap_root_has_name(drawer, "Sub"),
+          "a name of any type, case not minded, CR dropped");
+    CHECK(!wbgap_root_has_name(drawer, "noico") && !wbgap_root_has_name("PROJECT noicon2\n", "noicon") &&
+          !wbgap_root_has_name("noicon\n", "noicon") && !wbgap_root_has_name("PROJECT \n", ""),
+          "a shorter or longer name, a line with no type, no name: no");
+    CHECK(!wbgap_root_has_name(NULL, "x") && !wbgap_root_has_name("", "x"), "nothing read: no");
+    CHECK(wbgap_showall_judge(0, 1, why, sizeof why) == WBGAP_PASS && !why[0], "hidden, then shown: PASS");
+    CHECK(wbgap_showall_judge(1, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "Only Icons"), "shown with Only Icons: FAIL");
+    CHECK(wbgap_showall_judge(0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "not shown"), "never shown: FAIL");
+    CHECK(wbgap_showall_judge(-1, 1, why, sizeof why) == WBGAP_SKIP && wbgap_showall_judge(0, -1, why, sizeof why) == WBGAP_SKIP,
+          "a read failed: SKIP");
+    CHECK(wbgap_find("I14") >= 0 && !strcmp(wbgap_row(wbgap_find("I14"))->mode, "MENUS"), "I14's line comes from MENUS");
 }
 
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
@@ -137,16 +240,146 @@ static void which_plan(void)
     char why[96];
     wbgap_which_point(4, 11, 20, 10, xy);
     CHECK(xy[0] == 28 && xy[1] == 25, "the icon's image's top-left + 4, from the window's corner (%ld,%ld)", xy[0], xy[1]);
-    CHECK(wbgap_which_judge(2, "w", "w", 1, why, sizeof why) == WBGAP_PASS && !why[0], "WBO_ICON \"w\", WBO_DRAWER: PASS");
+    CHECK(WBGAP_WBO_NONE == 0 && WBGAP_WBO_DRAWER == 1 && WBGAP_WBO_ICON == 2, "workbench.h's WBO_ values");
+    CHECK(wbgap_which_judge(WBGAP_WBO_ICON, "w", "w", WBGAP_WBO_DRAWER, why, sizeof why) == WBGAP_PASS && !why[0],
+          "WBO_ICON \"w\", WBO_DRAWER: PASS");
     CHECK(wbgap_which_judge(0, "", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "type 0"),
           "WBO_NONE everywhere (no desktop's answer): FAIL, \"%s\"", why);
     CHECK(wbgap_which_judge(1, "", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "on the icon"), "the drawer, not the icon: FAIL");
     CHECK(wbgap_which_judge(2, "x", "w", 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "\"x\""), "another icon's name: FAIL");
     CHECK(wbgap_which_judge(2, NULL, "w", 1, why, sizeof why) == WBGAP_FAIL, "no name given back: FAIL");
-    CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty corner"),
-          "the empty corner not the drawer: FAIL");
+    CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty point"),
+          "the empty point not the drawer: FAIL");
+    {
+        long ex[2];
+        CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, 30, 60, ex) && ex[0] == 4 + 618 * 3 / 4 && ex[1] == 11 + 385 * 3 / 4,
+              "the empty point: three quarters across and down the inside (%ld,%ld)", ex[0], ex[1]);
+        CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, ex[0] - 20, ex[1] - 20, ex) && ex[0] == 4 + 618 / 4,
+              "the icon there: a quarter across instead (%ld)", ex[0]);
+        CHECK(!wbgap_which_empty(20, 20, 4, 11, 18, 4, 0, 0, ex), "no inside: 0");
+        wbgap_which_view_point(4, 11, 20, 10, ex);
+        CHECK(ex[0] == 28 && ex[1] == 25, "the view's place: the borders + ism_Left/Top + 4 (%ld,%ld)", ex[0], ex[1]);
+    }
+    {
+        char seen[96];
+        wbgap_which_seen(WBGAP_WHICH_UNSET, WBGAP_WHICH_UNSET, 1, seen, sizeof seen);
+        CHECK(strstr(seen, "drawer's tags untouched") && strstr(seen, "answered WBO_DRAWER"),
+              "no answer for the drawer, the desktop answering: \"%s\"", seen);
+        wbgap_which_seen(0, 0, 0, seen, sizeof seen);
+        CHECK(strstr(seen, "answered the drawer") && strstr(seen, "not WBO_DRAWER"), "both answered WBO_NONE: \"%s\"", seen);
+        wbgap_which_seen(2, WBGAP_WHICH_UNSET, WBGAP_WHICH_UNSET, seen, sizeof seen);
+        CHECK(strstr(seen, "one of the drawer's") && strstr(seen, "window's tag untouched"), "one tag untouched: \"%s\"", seen);
+        wbgap_which_seen(0, 0, -1, seen, sizeof seen);
+        CHECK(strstr(seen, "not asked"), "no desktop window: \"%s\"", seen);
+    }
+    {
+        /* Talkie's lab, 14 November 2026: the bar strip (0,0 1920x24, flags 0a020940) came first, then the
+         * desktop (0,24 1920x1056, flags 0a203b40); a dock window (no backdrop) and a plain window are left out */
+        long w[4] = {1920, 1920, 904, 292}, h[4] = {24, 1056, 89, 157};
+        unsigned long f[4] = {0x0a020940UL, 0x0a203b40UL, 0x0a200800UL, 0x08200840UL};
+        CHECK(wbgap_pick_desk(w, h, f, 4) == 1, "the desktop, not the bar strip before it (%d)", wbgap_pick_desk(w, h, f, 4));
+        CHECK(wbgap_pick_desk(w + 2, h + 2, f + 2, 2) == -1, "no backdrop Workbench window: -1");
+        CHECK(wbgap_pick_desk(w, h, f, 0) == -1, "no windows: -1");
+    }
     CHECK(wbgap_find("A8c") >= 0 && wbgap_row(wbgap_find("A8c"))->mode && !strcmp(wbgap_row(wbgap_find("A8c"))->mode, "API"),
           "A8c's line comes from API");
+}
+
+/* I8, I9: an icon dragged onto an AppIcon and onto an AppWindow */
+static void drop_plan(void)
+{
+    long b[4], xy[2], drawer[4] = {600, 11, 300, 200}, all[4] = {0, 0, 1920, 1080};
+    CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, NULL, b) && b[0] == 1680 && b[1] == 11 && b[2] == 240 && b[3] == 120,
+          "nothing in the way: the top-right corner, below the title bar (%ld,%ld)", b[0], b[1]);
+    drawer[0] = 1700;
+    CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, drawer, b) && b[0] == 1680 && b[1] == 960,
+          "the drawer in the top-right: the bottom-right (%ld,%ld)", b[0], b[1]);
+    {
+        long tall[4] = {1600, 0, 320, 1080};
+        CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, tall, b) && b[0] == 0 && b[1] == 960,
+              "the right side taken: the bottom-left (%ld,%ld)", b[0], b[1]);
+    }
+    {
+        long low[4] = {0, 500, 1920, 580}, right[4] = {1000, 0, 920, 1080};
+        CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, low, b) && b[0] == 1680 && b[1] == 11, "the bottom taken: the top-right");
+        CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, right, b) && b[0] == 0 && b[1] == 960, "the right taken: the bottom-left first");
+    }
+    CHECK(!wbgap_drop_place(1920, 1080, 11, 240, 120, all, b), "the whole screen in the way: no place");
+    CHECK(!wbgap_drop_place(200, 100, 11, 240, 120, NULL, b) && !wbgap_drop_place(640, 120, 11, 240, 120, NULL, b),
+          "bigger than the screen, or than the room below its title bar: no place");
+    CHECK(!wbgap_drop_place(640, 480, 11, 0, 120, NULL, b), "no size: no place");
+    {
+        long a[4] = {1680, 11, 240, 120}, edge[4] = {1440, 11, 240, 120};
+        CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, edge, b) && b[0] == 1680 && b[1] == 11,
+              "a box that only touches the corner's edge isn't in the way");
+        CHECK(wbgap_drop_place(1920, 1080, 11, 240, 120, a, b) && b[1] == 960, "a box on the corner exactly is");
+    }
+    wbgap_drop_point(drawer, xy);
+    CHECK(xy[0] == 1850 && xy[1] == 111, "let go at the box's middle (%ld,%ld)", xy[0], xy[1]);
+    {
+        unsigned long a[6 * 4], c[6 * 4];
+        memset(a, 0, sizeof a);
+        memcpy(c, a, sizeof c);
+        CHECK(!wbgap_diff_box(a, c, 6, 4, 2, b), "nothing changed: no box");
+        c[1 * 6 + 2] = 7;
+        c[2 * 6 + 4] = 9;
+        CHECK(wbgap_diff_box(a, c, 6, 4, 2, b) && b[0] == 4 && b[1] == 2 && b[2] == 6 && b[3] == 4,
+              "two samples changed: the box round both, in pixels (%ld,%ld %ldx%ld)", b[0], b[1], b[2], b[3]);
+        c[0] = 1;
+        c[23] = 1;
+        CHECK(wbgap_diff_box(a, c, 6, 4, 2, b) && b[0] == 0 && b[1] == 0 && b[2] == 12 && b[3] == 8, "corners: the whole inside");
+        CHECK(!wbgap_diff_box(NULL, c, 6, 4, 2, b) && !wbgap_diff_box(a, c, 0, 4, 2, b) && !wbgap_diff_box(a, c, 6, 4, 0, b),
+              "nothing to compare: no box");
+    }
+    {
+        long ib[4] = {40, 30, 50, 60};
+        wbgap_grab_point(ib, xy);
+        CHECK(xy[0] == 65 && xy[1] == 54, "pressed on the image: across the middle, two-fifths down (%ld,%ld)", xy[0], xy[1]);
+    }
+    {   /* I4, I7: moved, icon and all */
+        char why[160];
+        CHECK(wbgap_move_judge(0, 0, 1, 1, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_PASS && !why[0], "moved with its icon: PASS");
+        CHECK(wbgap_move_judge(1, 1, 0, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "still where it was"),
+              "nothing moved: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 0, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "gone from"),
+              "gone from both: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(1, 1, 1, 1, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "copied"),
+              "in both: copied, FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 1, 1, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "stayed behind"),
+              "the file without its icon: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 1, 0, "d", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, "without its icon"),
+              "the icon lost: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 1, 1, 1, "d", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, ".info"),
+              "the icon in both: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 1, 1, NULL, NULL, why, 0) == WBGAP_PASS, "no names, no room for a reason: no write");
+        CHECK(wbgap_find("I4") >= 0 && wbgap_row(wbgap_find("I4"))->how == WBGAP_AUTO && wbgap_find("I7") >= 0 &&
+              wbgap_row(wbgap_find("I7"))->how == WBGAP_AUTO, "I4 and I7 are automatic (DRAGFILE, rows/DRAGFILE.c)");
+    }
+}
+
+/* N2-N5: INFOSAVE drives the Information window; its typing's raw keys (US keyboard) */
+static void infosave_rows(void)
+{
+    static const char *const n[] = { "N2", "N3", "N4", "N5" };
+    int i, sh;
+    for (i = 0; i < 4; i++)
+        CHECK(wbgap_find(n[i]) >= 0 && wbgap_row(wbgap_find(n[i]))->how == WBGAP_AUTO && wbgap_row(wbgap_find(n[i]))->mode
+              && !strcmp(wbgap_row(wbgap_find(n[i]))->mode, "INFOSAVE"), "%s's line comes from INFOSAVE", n[i]);
+    CHECK(wbgap_rawkey('a', &sh) == 0x20 && !sh, "a is 0x20");
+    CHECK(wbgap_rawkey('q', &sh) == 0x10 && wbgap_rawkey('p', &sh) == 0x19, "q 0x10, p 0x19");
+    CHECK(wbgap_rawkey('z', &sh) == 0x31 && wbgap_rawkey('m', &sh) == 0x37, "z 0x31, m 0x37");
+    CHECK(wbgap_rawkey('1', &sh) == 0x01 && wbgap_rawkey('0', &sh) == 0x0A, "1 0x01, 0 0x0A");
+    CHECK(wbgap_rawkey('=', &sh) == 0x0C && wbgap_rawkey('-', &sh) == 0x0B, "= 0x0C, - 0x0B");
+    CHECK(wbgap_rawkey(' ', &sh) == 0x40 && wbgap_rawkey('.', &sh) == 0x39 && wbgap_rawkey('/', &sh) == 0x3A, "space . /");
+    CHECK(wbgap_rawkey('G', &sh) == 0x24 && sh, "G is Shift and g (0x24)");
+    CHECK(wbgap_rawkey(':', &sh) == -1 && !sh && wbgap_rawkey('*', &sh) == -1, "no key for : or * here: -1");
+    {   /* every character INFOSAVE types has a key */
+        static const char *const typed[] = { "gapnote", "dir", "a=3", "b=2" };
+        int k;
+        const char *c;
+        for (k = 0; k < 4; k++)
+            for (c = typed[k]; *c; c++) CHECK(wbgap_rawkey(*c, &sh) > 0, "'%c' of \"%s\" has a key", *c, typed[k]);
+    }
 }
 
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
@@ -222,8 +455,10 @@ static void wildcard(void)
     CHECK(r.state[m2] == WBGAP_PASS, "M* leaves a row that has a line");
     CHECK(r.state[m19] == WBGAP_FAIL && !strcmp(r.why[m19], "no Workbench screen"), "M* fails M19, which had none");
     CHECK(r.state[a3] == WBGAP_NONE, "M* leaves the A rows");
-    CHECK(wbgap_report_line(&r, "FAIL A* setup") == 1 && r.state[a3] == WBGAP_FAIL, "A* fails A3 (API)");
-    CHECK(r.state[wbgap_find("A8b")] == WBGAP_FAIL, "and A8b, API's too");
+    /* A1 (APPWIN, rows/APPWIN.c) is the first A row with a mode: A* is APPWIN's, so API names its rows itself */
+    CHECK(wbgap_report_line(&r, "FAIL A* setup") == 1 && r.state[wbgap_find("A1")] == WBGAP_FAIL &&
+          r.state[wbgap_find("A2")] == WBGAP_FAIL, "A* fails A1 and A2 (APPWIN)");
+    CHECK(r.state[a3] == WBGAP_NONE && r.state[wbgap_find("A8b")] == WBGAP_NONE, "and leaves A3 and A8b, API's");
     CHECK(r.state[wbgap_find("A10a")] == WBGAP_NONE, "A* leaves A10a, STARTUP CHECK's");
     CHECK(r.state[wbgap_find("M16t")] == WBGAP_NONE, "M* leaves M16t, which MENUS doesn't check");
     CHECK(wbgap_report_line(&r, "FAIL Q* nothing") == -1, "a wildcard that matches no row");
@@ -281,10 +516,12 @@ static void print_all(void)
     CHECK(!strcmp(line_of("I12"), "PASS I12"), "I12 passes by its parts: \"%s\"", line_of("I12"));
     CHECK(!strncmp(line_of("P6"), "SKIP P6 look: ", 14) && strstr(line_of("P6"), "P6r"), "a look row with parts: \"%s\"", line_of("P6"));
     CHECK(!strncmp(line_of("P4"), "SKIP P4 not settled: P4a P4b", 28), "an automatic row whose parts did not run: \"%s\"", line_of("P4"));
-    CHECK(!strncmp(line_of("I1"), "SKIP I1 look", 12), "a look row with no line: \"%s\"", line_of("I1"));
+    CHECK(!strncmp(line_of("I13"), "SKIP I13 look", 13), "a look row with no line: \"%s\"", line_of("I13"));
     CHECK(!strncmp(line_of("X3"), "SKIP X3 hand", 12), "a hand row: \"%s\"", line_of("X3"));
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
-    CHECK(!strncmp(line_of("N2"), "SKIP N2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N2"));
+    CHECK(wbgap_find("M27") >= 0 && wbgap_row(wbgap_find("M27"))->mode && !strcmp(wbgap_row(wbgap_find("M27"))->mode, "API"),
+          "M27's line comes from API (its AddAppMenuItemA check), so a run without API says \"not run\", never \"not written\"");
+    CHECK(!strncmp(line_of("N6"), "SKIP N6 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N6"));
     CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
     CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
 }
@@ -301,6 +538,23 @@ static void print_empty(void)
     CHECK(skips == wbgap_row_count(), "nothing run: every row a SKIP (%d of %d)", skips, wbgap_row_count());
 }
 
+/* rx runs a quoted first argument as ARexx text (Error 47 in line 1), so the script's path goes in bare */
+static void rx_line_plan(void)
+{
+    char b[64];
+    CHECK(wbgap_rx_line(b, sizeof b, "SYS:T/WBGap/WBGapRoot.rexx", "I14 RAM:o RAM:WBGap") &&
+          !strcmp(b, "SYS:Rexxc/rx SYS:T/WBGap/WBGapRoot.rexx I14 RAM:o RAM:WBGap"), "the path bare, then the args (%s)", b);
+    CHECK(!strchr(b, '"'), "no quote on the line");
+    CHECK(wbgap_rx_line(b, sizeof b, "SYS:T/WBGap/WBGapRoot.rexx", NULL) && !strcmp(b, "SYS:Rexxc/rx SYS:T/WBGap/WBGapRoot.rexx"),
+          "no args: no trailing space (%s)", b);
+    CHECK(wbgap_rx_line(b, sizeof b, "S:x.rexx", "") && !strcmp(b, "SYS:Rexxc/rx S:x.rexx"), "empty args (%s)", b);
+    CHECK(!wbgap_rx_line(b, sizeof b, "RAM Disk:T/WBGapRoot.rexx", "D1") && !b[0], "a space in the path: refused, buf empty");
+    CHECK(!wbgap_rx_line(b, sizeof b, "SYS:T/\"x\".rexx", "D1") && !b[0], "a quote in the path: refused");
+    CHECK(!wbgap_rx_line(b, sizeof b, "", "D1") && !wbgap_rx_line(b, sizeof b, NULL, "D1"), "no path: refused");
+    CHECK(!wbgap_rx_line(b, 20, "SYS:T/WBGap/WBGapRoot.rexx", "D1") && !b[0], "too long for buf: refused, buf empty");
+    CHECK(!wbgap_rx_line(b, 0, "S:x.rexx", "D1"), "no room at all: refused, nothing written");
+}
+
 int main(int argc, char **argv)
 {
     list_shape();
@@ -309,10 +563,20 @@ int main(int argc, char **argv)
     lines();
     wildcard();
     launch_args();
+    i10_plan();
     backdrop_plan();
+    clear_plan();
     i11_lines();
+    infosave_rows();
     ramdisk_plan();
     which_plan();
+    showall_plan();
+    rx_line_plan();
+    drop_plan();
+#define WBGAP_GEN_PLAN(fn) fn();
+#include "wbgap_gen_plans.inc"
+#undef WBGAP_GEN_PLAN
+    gen_rowmodes_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);

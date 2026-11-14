@@ -2,6 +2,7 @@
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "wbgap_rows.h"
 
@@ -14,7 +15,7 @@
 #define INDEX "WBGapIndex"
 
 /* in the document's order; a part ("A8a") straight after its row. Rows added for the 13 Nov decisions say "(13 Nov)". */
-static const struct wbgap_row rows[] = {
+static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amiga/rows (gen_modes) */
     /* 1. Menus */
     {"M1", NULL, A, MENUS, "Workbench > Backdrop; removed in GFOS (13 Nov)"},
     {"M2", NULL, A, MENUS, "Workbench > Execute Command"},
@@ -47,7 +48,7 @@ static const struct wbgap_row rows[] = {
     {"M24", NULL, A, MENUS, "Icons > Format Disk; in GFOS a separate Format application (13 Nov)"},
     {"M25", NULL, A, MENUS, "Icons > Empty Trash"},
     {"M26", NULL, A, MENUS, "Tools > ResetWB; in GFOS Refresh OpenBench (13 Nov)"},
-    {"M27", NULL, A, NULL, "Tools items added by programs (AddAppMenuItemA) shown"},
+    {"M27", NULL, A, API, "Tools items added by programs (AddAppMenuItemA) shown"},
     {"M28", NULL, A, MENUS, "Amiga-keys as 3.2.3"},
     {"M28k", "M28", H, NULL, "KEYS= on the Workbench icon remaps them (13 Nov)"},
     {"M29", NULL, A, MENUS, "Window > Open volume (13 Nov)"},
@@ -62,23 +63,25 @@ static const struct wbgap_row rows[] = {
     {"M34t", "M34", A, INDEX, "Auto-arrange kept per drawer as ARRANGE=, (ARRANGE=) when off (13 Nov)"},
     {"M35", NULL, A, MENUS, "Icons > Eject, any disk (13 Nov)"},
     /* 2. Icons */
-    {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
-    {"I2", NULL, L, NULL, "Shift-click adds to the selection"},
+    {"I1", NULL, A, NULL, "click selects, click elsewhere deselects"},
+    {"I2", NULL, A, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
-    {"I4", NULL, L, NULL, "drag between drawer windows"},
-    {"I5", NULL, L, NULL, "drag to the backdrop"},
-    {"I6", NULL, L, NULL, "drag to the Trashcan"},
-    {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
+    {"I4", NULL, A, NULL, "drag between drawer windows (a file moved, within a volume)"},
+    {"I5", NULL, A, NULL, "drag to the backdrop"},
+    {"I6", NULL, A, NULL, "drag to the Trashcan"},
+    {"I6t", "I6", A, NULL, "onto its volume's own Trashcan: filed there with a note of where it came from (GFOS, 14 Nov)"},
+    {"I6p", "I6", A, NULL, "put back from the Trashcan to where it came from (GFOS, gfopenfiles.library, 14 Nov)"},
+    {"I7", NULL, A, NULL, "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
     {"I8", NULL, A, NULL, "drag onto an AppIcon"},
     {"I9", NULL, A, NULL, "drag onto an AppWindow"},
-    {"I10", NULL, A, NULL, "double-click opens or runs"},
+    {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
     {"I12c", "I12", A, "STARTUP CHECK", "STACK= alone, the icon's stack field the default, gives that stack; GFOS (3.2.3 reads the field)"},
     {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
-    {"I14", NULL, A, NULL, "files with no icon shown (Show All Files)"},
+    {"I14", NULL, A, MENUS, "files with no icon shown (Show All Files)"},
     {"I15", NULL, L, NULL, "a disk's status window with a pie chart, no gauge (13 Nov)"},
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
@@ -123,37 +126,38 @@ static const struct wbgap_row rows[] = {
     {"D2", NULL, A, NULL, "a volume mounted later gets an icon"},
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
-    {"D5", NULL, A, "DISKS", "RAM Disk icon"},
+    {"D5", NULL, A, NULL, "RAM Disk icon"},
+    {"D5r", NULL, A, NULL, "RAM Disk first in the desktop's volume column (14 Nov)"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
-    {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},
+    {"C1", NULL, A, NULL, "depth gadget with a second screen"},
     {"C2", NULL, A, NULL, "Left-Amiga-M and N"},
-    {"C2a", "C2", A, "SCREENS", "Left-Amiga-M"},
-    {"C2b", "C2", A, "SCREENS", "Left-Amiga-N"},
+    {"C2a", "C2", A, NULL, "Left-Amiga-M"},
+    {"C2b", "C2", A, NULL, "Left-Amiga-N"},
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
-    {"C4", NULL, A, "SCREENS", "LockPubScreen(Workbench)"},
+    {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
-    {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
+    {"W1", NULL, A, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
     {"W3", NULL, A, NULL, "window and screen titles"},
     /* 10. Notifications */
-    {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
-    {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
+    {"F1", NULL, A, NULL, "a new file shows without Update"},
+    {"F2", NULL, A, NULL, "a changed .info updates its icon"},
     /* 11. Prefs */
     {"P1", NULL, L, NULL, "WBPattern"},
     {"P2", NULL, L, NULL, "icon text font"},
     {"P3", NULL, L, NULL, "Palette, through GFOpenLayout's pens (13 Nov)"},
     {"P4", NULL, A, NULL, "Pointer, as 3.2.3 (13 Nov)"},
-    {"P4a", "P4", A, "SCREENS", "the pointer goes where it is moved, as 3.2.3 (13 Nov)"},
-    {"P4b", "P4", A, "SCREENS", "on RTG the pointer is a sprite layer: the screen's pixels under it are untouched (13 Nov)"},
+    {"P4a", "P4", A, NULL, "the pointer goes where it is moved, as 3.2.3 (13 Nov)"},
+    {"P4b", "P4", A, NULL, "on RTG the pointer is a sprite layer: the screen's pixels under it are untouched (13 Nov)"},
     {"P5", NULL, H, NULL, "IControl, as 3.2.3 (13 Nov)"},
     {"P6", NULL, L, NULL, "locale dates, sizes and sort order in lists"},
     {"P6r", "P6", L, NULL, "relative dates in lists, as an option (13 Nov)"},
     {"P7", NULL, A, NULL, "Workbench prefs: hidden devices, default stack"},
     /* 12. Robustness */
-    {"X1", NULL, A, "BIG", "a drawer of 1000 files opens in 10 s"},
+    {"X1", NULL, A, NULL, "a drawer of 1000 files opens in 10 s"},
     {"X2", NULL, A, NULL, "long names and deep paths (13 Nov: GFOS and compat modes)"},
     {"X2a", "X2", A, INDEX, "GFOS mode: a 200-character name on an ACFS drive"},
     {"X2b", "X2", A, INDEX, "compat mode: the compat name ACFS offers, 107 characters at most"},
@@ -164,18 +168,49 @@ static const struct wbgap_row rows[] = {
     {"L1a", "L1", A, "WBGapLayout.rexx", "grouped tools, then projects, then drawers, by name in each"},
     {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
+    /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
+    {"B1", NULL, A, NULL, "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
+    {"B2", NULL, A, NULL, "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
+    {"B3", NULL, A, NULL, "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
 #define NROWS ((int)(sizeof rows / sizeof rows[0]))
 typedef char wbgap_rows_fit[NROWS <= WBGAP_MAXROWS ? 1 : -1];   /* the report has room for every row */
 
-int wbgap_row_count(void) { return NROWS; }
+/* the modes of rows that have files of their own (tests/amiga/rows: WBGAP_ROWMODE lines, gen-rows.sh) */
+static const char *const gen_rowmodes[][2] = {
+#define WBGAP_GEN_ROWMODE(id, mode) { id, mode },
+#include "wbgap_gen_rowmodes.inc"
+#undef WBGAP_GEN_ROWMODE
+    { NULL, NULL }
+};
 
-const struct wbgap_row *wbgap_row(int i) { return i >= 0 && i < NROWS ? &rows[i] : NULL; }
+static void gen_modes(void)
+{
+    static int done;
+    int k, i;
+    if (done) return;
+    done = 1;
+    for (k = 0; gen_rowmodes[k][0]; k++)
+        for (i = 0; i < NROWS; i++)
+            if (!strcmp(rows[i].id, gen_rowmodes[k][0]) && !rows[i].mode) rows[i].mode = gen_rowmodes[k][1];
+}
+
+const char *wbgap_gen_rowmode(int k, const char **mode)
+{
+    if (k < 0 || k >= (int)(sizeof gen_rowmodes / sizeof gen_rowmodes[0]) - 1) return NULL;
+    if (mode) *mode = gen_rowmodes[k][1];
+    return gen_rowmodes[k][0];
+}
+
+int wbgap_row_count(void) { gen_modes(); return NROWS; }
+
+const struct wbgap_row *wbgap_row(int i) { gen_modes(); return i >= 0 && i < NROWS ? &rows[i] : NULL; }
 
 int wbgap_find(const char *id)
 {
     int i;
+    gen_modes();
     if (!id || !*id) return -1;
     for (i = 0; i < NROWS; i++)
         if (!strcmp(rows[i].id, id)) return i;
@@ -185,6 +220,7 @@ int wbgap_find(const char *id)
 int wbgap_has_parts(int i)
 {
     int j;
+    gen_modes();
     if (i < 0 || i >= NROWS) return 0;
     for (j = 0; j < NROWS; j++)
         if (rows[j].parent && !strcmp(rows[j].parent, rows[i].id)) return 1;
@@ -208,6 +244,7 @@ int wbgap_report_line(struct wbgap_report *r, const char *line)
     char key[16];
     size_t n, wl;
     int state, i, hit = 0;
+    gen_modes();
     while (*p == ' ' || *p == '\t') p++;
     if (!strncmp(p, "PASS ", 5)) state = WBGAP_PASS;
     else if (!strncmp(p, "FAIL ", 5)) state = WBGAP_FAIL;
@@ -222,7 +259,7 @@ int wbgap_report_line(struct wbgap_report *r, const char *line)
     while (*why == ' ') why++;
     for (wl = strlen(why); wl && (why[wl - 1] == '\n' || why[wl - 1] == '\r' || why[wl - 1] == ' '); wl--) {}
     if (key[n - 1] == '*') {   /* "FAIL M* why": the mode's checks didn't run, for each of its M rows with no line yet;
-                                 * the mode is the first M row's that has one (M1's MENUS, A3's API) */
+                                 * the mode is the first M row's that has one (M1's MENUS, A1's APPWIN) */
         const char *mode = NULL;
         for (i = 0; i < NROWS && !mode; i++)
             if (rows[i].mode && !strncmp(rows[i].id, key, n - 1) && rows[i].id[n - 1] >= '0' && rows[i].id[n - 1] <= '9')
@@ -247,6 +284,7 @@ int wbgap_report_print(const struct wbgap_report *r, wbgap_out out, void *ctx)
 {
     char line[256];
     int i, j, npass = 0, nfail = 0, nskip = 0, notrun = 0;
+    gen_modes();
     for (i = 0; i < NROWS; i++) {
         const struct wbgap_row *row = &rows[i];
         int state = r->state[i];
@@ -310,6 +348,24 @@ int wbgap_launch_args(const char *rec, const char *want)
     return !*p && args == words;
 }
 
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap)
+{
+    int ran = run_rec && wbgap_launch_args(run_rec, "OpenT");
+    const char *w;
+    if (skip && *skip) w = skip;
+    else if (bad) w = "a double-click failed (WBGapDesk.rexx)";
+    else if (!clicked) w = "not clicked: WBGapDesk.rexx didn't get to OpenT and Sub";
+    else if (!ran && !sub_opened) w = run_rec ? "OpenT started with other arguments, and Sub's window didn't open"
+                                              : "double-clicking OpenT started nothing, and Sub's window didn't open";
+    else if (!ran) w = run_rec ? "OpenT started, but not with itself as its one argument"
+                               : "double-clicking OpenT started nothing";
+    else if (!sub_opened) w = "double-clicking the drawer Sub opened no window";
+    else w = "";
+    if (why && cap) snprintf(why, cap, "%s", w);
+    if ((skip && *skip) || bad || !clicked) return -1;
+    return ran && sub_opened;
+}
+
 int wbgap_backdrop_setup(long n, long cap, int has_lines)
 {
     if (n >= cap - 1) return WBGAP_BD_TOOLONG;   /* more than the buffer holds: written back cut, it would lose lines */
@@ -321,6 +377,30 @@ int wbgap_backdrop_done(int have_was, int have_made)
 {
     if (have_was) return WBGAP_BD_RESTORE;
     return have_made ? WBGAP_BD_DELETE : WBGAP_BD_LEAVE;
+}
+
+void wbgap_park_box(long sw, long sh, long minw, long minh, long box[4])
+{
+    long w = minw > 0 ? minw : 1, h = minh > 0 ? minh : 1;
+    if (sw < 1) sw = 1;
+    if (sh < 1) sh = 1;
+    if (w > sw) w = sw;
+    if (h > sh) h = sh;
+    box[0] = sw - w;
+    box[1] = sh - h;
+    box[2] = w;
+    box[3] = h;
+}
+
+int wbgap_clear_result(int gone, int at_park_box)
+{
+    if (gone) return WBGAP_CL_GONE;
+    return at_park_box ? WBGAP_CL_PARKED : WBGAP_CL_STUCK;
+}
+
+int wbgap_desk_clickable(int clear_result)
+{
+    return clear_result == WBGAP_CL_GONE || clear_result == WBGAP_CL_PARKED;
 }
 
 void wbgap_volume_name(const char *path, char *out, unsigned cap)
@@ -354,12 +434,68 @@ int wbgap_root_has_disk(const char *list, const char *vol)
         while (*e && *e != '\n') e++;
         n = (size_t)(e - p);
         while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        if (n > 6 && p[n - 1] == ':') n--;          /* the WORKBENCH port names a disk "RAM Disk:" */
         if (n > 5 && same_nocase(p, "DISK ", 5)) {
             name = p + 5;
             if ((size_t)(p + n - name) == vn && same_nocase(name, vol, vn)) return 1;
         }
         p = *e ? e + 1 : e;
     }
+    return 0;
+}
+
+int wbgap_root_has_name(const char *list, const char *name)
+{
+    size_t nn = name ? strlen(name) : 0;
+    const char *p = list;
+    if (!list || !nn) return 0;
+    while (*p) {
+        const char *e = p, *sp;
+        size_t n;
+        while (*e && *e != '\n') e++;
+        n = (size_t)(e - p);
+        while (n && (p[n - 1] == '\r' || p[n - 1] == ' ')) n--;
+        for (sp = p; sp < p + n && *sp != ' '; sp++) ;
+        if (sp < p + n) {
+            sp++;
+            if ((size_t)(p + n - sp) == nn && same_nocase(sp, name, nn)) return 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    return 0;
+}
+
+int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap)
+{
+    const char *r = "";
+    int v = WBGAP_PASS;
+    if (only_icons < 0 || all_files < 0) { r = "the drawer's icons not read each time"; v = WBGAP_SKIP; }
+    else if (only_icons) { r = "noicon was shown with Only Icons"; v = WBGAP_FAIL; }
+    else if (!all_files) { r = "noicon not shown with All Files"; v = WBGAP_FAIL; }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
+int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap)
+{
+    int k, bad = 0, first = -1;
+    for (k = 0; k < n; k++)
+        if (want[k] != got[k]) { bad++; if (first < 0) first = k; }
+    if (why && cap) {
+        if (first < 0) why[0] = 0;
+        else snprintf(why, cap, "%s: %ld, not %ld%s", names[first], got[first], want[first],
+                      bad > 1 ? " (and more wrong)" : "");
+    }
+    return n <= 0 ? WBGAP_SKIP : bad ? WBGAP_FAIL : WBGAP_PASS;
+}
+
+int wbgap_has_nocase(const char *text, const char *word)
+{
+    size_t wn = word ? strlen(word) : 0;
+    const char *p;
+    if (!text || !wn) return 0;
+    for (p = text; *p; p++)
+        if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
     return 0;
 }
 
@@ -372,7 +508,7 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap)
 {
-    if (on_icon != 2) {
+    if (on_icon != WBGAP_WBO_ICON) {
         snprintf(why, cap, "on the icon: type %lu, not WBO_ICON", on_icon);
         return WBGAP_FAIL;
     }
@@ -380,10 +516,156 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
         snprintf(why, cap, "on the icon: named \"%s\", not \"%s\"", name ? name : "", want ? want : "");
         return WBGAP_FAIL;
     }
-    if (on_empty != 1) {
-        snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
+    if (on_empty != WBGAP_WBO_DRAWER) {
+        snprintf(why, cap, "on the drawer's empty point: type %lu, not WBO_DRAWER", on_empty);
         return WBGAP_FAIL;
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+void wbgap_which_view_point(long bl, long bt, long ix, long iy, long xy[2])
+{
+    xy[0] = bl + ix + 4;
+    xy[1] = bt + iy + 4;
+}
+
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
+{
+    long iw = w - bl - br, ih = h - bt - bb;
+    if (iw < 8 || ih < 8) return 0;
+    xy[0] = bl + iw * 3 / 4;
+    xy[1] = bt + ih * 3 / 4;
+    if (xy[0] >= ix - 8 && xy[0] < ix + 128 && xy[1] >= iy - 8 && xy[1] < iy + 108) xy[0] = bl + iw / 4;
+    return 1;
+}
+
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap)
+{
+    const char *drawer, *desk;
+    if (t1 == WBGAP_WHICH_UNSET && t2 == WBGAP_WHICH_UNSET) drawer = "the drawer's tags untouched (no answer reached them)";
+    else if (t1 == WBGAP_WHICH_UNSET || t2 == WBGAP_WHICH_UNSET) drawer = "one of the drawer's tags untouched";
+    else drawer = "the desktop answered the drawer";
+    if (t3 < 0) desk = "the desktop window not asked";
+    else if ((unsigned long)t3 == WBGAP_WHICH_UNSET) desk = "the desktop window's tag untouched";
+    else if ((unsigned long)t3 == WBGAP_WBO_DRAWER) desk = "the desktop window answered WBO_DRAWER";
+    else desk = "the desktop window answered, not WBO_DRAWER";
+    snprintf(out, cap, "%s, %s", drawer, desk);
+}
+
+int wbgap_pick_desk(const long *w, const long *h, const unsigned long *flags, int n)
+{
+    int i, best = -1;
+    for (i = 0; i < n; i++) {
+        if ((flags[i] & 0x2000100UL) != 0x2000100UL || w[i] <= 0 || h[i] <= 0) continue;
+        if (best < 0 || w[i] * h[i] > w[best] * h[best]) best = i;
+    }
+    return best;
+}
+
+static int boxes_meet(const long a[4], const long b[4])
+{
+    return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+}
+
+int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avoid, long box[4])
+{
+    int k;
+    if (w < 1 || h < 1 || top < 0 || w > sw || h > sh - top) return 0;
+    for (k = 0; k < 4; k++) {
+        long b[4];
+        b[0] = (k == 0 || k == 1) ? sw - w : 0;
+        b[1] = (k == 1 || k == 2) ? sh - h : top;
+        b[2] = w;
+        b[3] = h;
+        if (avoid && boxes_meet(b, avoid)) continue;
+        memcpy(box, b, sizeof b);
+        return 1;
+    }
+    return 0;
+}
+
+void wbgap_drop_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] / 2;
+}
+
+int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *name, const char *where, char *why,
+                     unsigned cap)
+{
+    if (!name) name = "";
+    if (!where) where = "";
+    if (!dst) {
+        snprintf(why, cap, "%s isn't in %s after the drag%s", name, where, src ? " (still where it was)" : " (and gone from where it was)");
+        return WBGAP_FAIL;
+    }
+    if (src) {
+        snprintf(why, cap, "%s is in %s and still where it was: copied, not moved", name, where);
+        return WBGAP_FAIL;
+    }
+    if (!dst_info) {
+        snprintf(why, cap, "%s moved to %s without its icon (%s.info)%s", name, where, name, src_info ? ", which stayed behind" : "");
+        return WBGAP_FAIL;
+    }
+    if (src_info) {
+        snprintf(why, cap, "%s.info is in %s and still where it was", name, where);
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
+}
+
+int wbgap_diff_box(const unsigned long *before, const unsigned long *after, int gw, int gh, int step, long box[4])
+{
+    int x, y, x0 = gw, y0 = gh, x1 = -1, y1 = -1;
+    if (!before || !after || gw < 1 || gh < 1 || step < 1) return 0;
+    for (y = 0; y < gh; y++)
+        for (x = 0; x < gw; x++)
+            if (before[y * gw + x] != after[y * gw + x]) {
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
+            }
+    if (x1 < 0) return 0;
+    box[0] = (long)x0 * step;
+    box[1] = (long)y0 * step;
+    box[2] = (long)(x1 - x0 + 1) * step;
+    box[3] = (long)(y1 - y0 + 1) * step;
+    return 1;
+}
+
+void wbgap_grab_point(const long box[4], long xy[2])
+{
+    xy[0] = box[0] + box[2] / 2;
+    xy[1] = box[1] + box[3] * 2 / 5;
+}
+
+int wbgap_rawkey(int c, int *shift)
+{
+    static const char *const rows[] = { "1234567890-=", "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+    static const int base[] = { 0x01, 0x10, 0x20, 0x31 };
+    int r, i;
+    *shift = c >= 'A' && c <= 'Z';
+    if (*shift) c += 32;
+    if (c == ' ') return 0x40;
+    if (c == '.') return 0x39;
+    if (c == '/') return 0x3A;
+    for (r = 0; r < 4; r++)
+        for (i = 0; rows[r][i]; i++)
+            if (rows[r][i] == c) return base[r] + i;
+    *shift = 0;
+    return -1;
+}
+
+int wbgap_rx_line(char *buf, unsigned cap, const char *path, const char *args)
+{
+    int n;
+    if (!cap) return 0;
+    buf[0] = 0;
+    if (!path || !*path || strpbrk(path, " \t\"'")) return 0;
+    n = snprintf(buf, cap, "SYS:Rexxc/rx %s%s%s", path, args && *args ? " " : "", args ? args : "");
+    if (n < 0 || (unsigned)n >= cap) { buf[0] = 0; return 0; }
+    return 1;
 }
