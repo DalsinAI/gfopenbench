@@ -83,7 +83,8 @@ void wingad_plan(void)
     {
         static const long want[4] = {0, 25, 400, 300}, roomy[4] = {80, 40, 1920, 1080}, tight[4] = {80, 40, 320, 187};
         long got[4] = {0, 25, 400, 300};
-        CHECK(wbgap_wingad_place_why(want, got, roomy, 1, why, sizeof why) == 0 && !why[0], "put where asked: 0");
+        CHECK(wbgap_wingad_place_why(want, got, roomy, 1, why, sizeof why) == 0 && strstr(why, "placed late"),
+              "where asked by the time it's read: 0, and why says placed late, \"%s\"", why);
         got[0] = 530; got[1] = 160;
         CHECK(wbgap_wingad_place_why(want, got, roomy, 1, why, sizeof why) == 1 && strstr(why, "at 530,160 400x300")
               && strstr(why, "moved or sized it back"), "moved back, within its limits: the desktop set it, \"%s\"", why);

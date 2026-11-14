@@ -98,7 +98,9 @@ int wbgap_wingad_place_why(const long want[4], const long got[4], const long lim
         snprintf(r, sizeof r, "it opened, then went while it was being put at %ld,%ld %ldx%ld", want[0], want[1],
                  want[2], want[3]);
     } else if (got[0] == want[0] && got[1] == want[1] && got[2] == want[2] && got[3] == want[3]) {
-        if (why && cap) why[0] = 0;
+        if (why && cap)
+            snprintf(why, cap, "placed late: at %ld,%ld %ldx%ld as asked, but only after the 2 s wait", want[0],
+                     want[1], want[2], want[3]);
         return 0;
     } else {
         snprintf(r, sizeof r, "it opened, but put at %ld,%ld %ldx%ld it is at %ld,%ld %ldx%ld", want[0], want[1],

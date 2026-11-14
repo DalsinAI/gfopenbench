@@ -123,10 +123,20 @@ int wbt_wingad(int argc, char **argv)
     if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) { wbt_skip("W1", "no layers.library"); return 0; }
     wg_clean();
     wbt_drawer(WG_DIR, "a");
+    /* a second go 10 s later when it doesn't open: the first run after a boot can take the desktop longer than
+     * 10 s, and a run 10 s later opens it (Legion's lab on GFOS, t2-legion-appdrop-20261114); an INFO says so */
     if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, &how)) {
-        wbt_fail("W1", how ? WG_DIR "'s window didn't open in 10 s (OpenWorkbenchObjectA refused it; DragTest OPEN too)"
-                           : WG_DIR "'s window didn't open in 10 s (OpenWorkbenchObjectA took it)");
-        goto out;
+        printf("INFO W1 %s's window didn't open in 10 s, once: again in 10 s\n", WG_DIR);
+        wg_clean();
+        Delay(500);
+        wbt_drawer(WG_DIR, "a");
+        if (!wbt_open_drawer(WG_DIR, "WBGapW", 10, &how)) {
+            wbt_fail("W1", how ? WG_DIR "'s window didn't open in 10 s, and again 10 s later (OpenWorkbenchObjectA "
+                                 "refused it; DragTest OPEN too)"
+                               : WG_DIR "'s window didn't open in 10 s, and again 10 s later (OpenWorkbenchObjectA "
+                                 "took it)");
+            goto out;
+        }
     }
     if (!(w = wbt_place("WBGapW", NULL, WG_W, WG_H))) {
         long want[4], got[4] = {0, 0, 0, 0}, lim[4] = {0, 0, 0, 0};

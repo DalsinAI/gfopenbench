@@ -29,6 +29,6 @@ void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int 
  * window went while it was being placed. The text says which, so the gap table can tell the row from the desktop:
  * outside its own limits (the desktop opened it with a size that can't be had), or within them and moved or sized
  * back (the desktop set it again after the row's ChangeWindowBox). 1 and why if the box isn't the one asked for (or
- * the window went), 0 if it is */
+ * the window went), 0 if it is, with why "placed late ..." (it got there after wbt_place gave up waiting) */
 int wbgap_wingad_place_why(const long want[4], const long got[4], const long lim[4], int found, char *why,
                            unsigned cap);
