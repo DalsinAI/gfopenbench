@@ -4,6 +4,7 @@
 #include "wbgap_rows.h"
 #include "wbgap_check.h"
 #include "TRASH.h"
+#include "WINGAD.h"
 
 void trash_plan(void);
 WBGAP_PLAN(trash_plan)
@@ -22,5 +23,22 @@ void trash_plan(void)
     CHECK(wbgap_trash_judge(0, 0, 1, 1, -1, "f", why, sizeof why) == WBGAP_SKIP && strstr(why, "looked at"),
           "not looked at: SKIP, \"%s\"", why);
     CHECK(wbgap_trash_judge(0, 0, 1, 1, 1, NULL, NULL, 0) == WBGAP_PASS, "no name, no room for a reason: still judged");
+    {   /* why RAM:WBGapT's window isn't ready: never found, someone else's window, or not put where asked */
+        const long want[4] = {0, 11, 400, 300}, got[4] = {0, 11, 400, 300}, off[4] = {120, 40, 400, 300},
+                   lim[4] = {80, 40, 640, 512};
+        CHECK(wbgap_trash_title_ours("WBGapT") && wbgap_trash_title_ours("WBGapT (12 free)") &&
+                  wbgap_trash_title_ours("RAM:WBGapT"), "RAM:WBGapT's own titles are its");
+        CHECK(!wbgap_trash_title_ours("WBGapTest") && !wbgap_trash_title_ours("WBGapTx") && !wbgap_trash_title_ours("") &&
+                  !wbgap_trash_title_ours(NULL), "WBGapTest's window (\"WBGapT\" inside a longer name) isn't");
+        CHECK(wbgap_trash_open_why(0, NULL, want, got, lim, why, sizeof why) && strstr(why, "never showed"),
+              "no window: \"%s\"", why);
+        CHECK(wbgap_trash_open_why(1, "WBGapTest", want, got, lim, why, sizeof why) && strstr(why, "WBGapTest") &&
+                  strstr(why, "not " "RAM:WBGapT's"), "another window found by the name: \"%s\"", why);
+        CHECK(wbgap_trash_open_why(1, "WBGapT", want, off, lim, why, sizeof why) && strstr(why, "120,40") &&
+                  strstr(why, "within its limits"), "not put where asked: \"%s\"", why);
+        CHECK(!wbgap_trash_open_why(1, "WBGapT", want, got, lim, why, sizeof why) && strstr(why, "placed late"),
+              "there, but late: 0, \"%s\"", why);
+        CHECK(wbgap_trash_open_why(1, "WBGapT", want, off, lim, NULL, 0), "no room for a reason: still judged");
+    }
     CHECK(i >= 0 && wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, "TRASH"), "I6's line comes from TRASH");
 }
