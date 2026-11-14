@@ -602,6 +602,20 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* A8c: where ChangeWorkbenchSelectionA says the icon named in want[] has its picture (relative to the window) */
+struct which_find { const char *want; long x, y; int found; };
+static LONG which_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), struct IconSelectMsg *ism __asm("a1"))
+{
+    struct which_find *f = (struct which_find *)h->h_Data;
+    (void)reserved;
+    if (ism->ism_Name && !strcmp((const char *)ism->ism_Name, f->want)) {
+        f->x = ism->ism_Left;
+        f->y = ism->ism_Top;
+        f->found = 1;
+    }
+    return ISMACTION_Ignore;
+}
+
 /* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
  * Workbench's windows */
 static int tools_item_within(const char *item, int want, int ticks)
@@ -715,8 +729,10 @@ static int do_api(void)
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) pass("A8b"); else printf("FAIL A8b ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)\n", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), fails++;
-    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, snapshotted at 20,10, asked about on its image and on the
-         * window's empty bottom-right corner (WBO_ICON named "w", then WBO_DRAWER) */
+    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, asked about on its picture and on an empty point of the
+         * drawer's inside (WBO_ICON named "w", then WBO_DRAWER). Where the picture is comes from the Workbench itself
+         * (ChangeWorkbenchSelectionA's ism_Left, ism_Top): a drawer with a bar along its top (GFOpenBench's) or a
+         * fitted layout doesn't put it at the snapshot's 20,10 from the borders. With no answer there, 20,10. */
 #ifdef WBOBJA_Name
         BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW");
         struct DiskObject *d;
@@ -733,20 +749,69 @@ static int do_api(void)
         }
         if (!(ww = open_drawer("RAM:WBGapW", "WBGapW", 10, &how))) fail("A8c", "RAM:WBGapW's window didn't open");
         else {
-            char name[64] = "", why[96];
-            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, t1 = WBO_NONE, t2 = WBO_NONE;
+            /* the tags start at WBGAP_WHICH_UNSET, so the INFO lines say whether the desktop's answer reached them */
+            char name[64] = "?", why[160], seen[96];
+            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, on_desk = WBO_NONE;
+            ULONG t1 = WBGAP_WHICH_UNSET, t2 = WBGAP_WHICH_UNSET, t3 = WBGAP_WHICH_UNSET;
+            LONG e1, e2, e3 = 0;
             long xy[2];
+            struct Window *desk = NULL, *o;
+            struct Task *wt = ww->UserPort ? ww->UserPort->mp_SigTask : NULL;
             struct TagItem tg1[] = {{WBOBJA_Type, (ULONG)&t1}, {WBOBJA_Name, (ULONG)name}, {WBOBJA_NameSize, sizeof name},
                                     {TAG_DONE, 0}};
             struct TagItem tg2[] = {{WBOBJA_Type, (ULONG)&t2}, {TAG_DONE, 0}};
+            struct TagItem tg3[] = {{WBOBJA_Type, (ULONG)&t3}, {TAG_DONE, 0}};
+            struct which_find wf;
+            struct Hook wh;
+            long ex[2];
             Delay(25);
-            wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            memset(&wf, 0, sizeof wf);
+            wf.want = "w";
+            memset(&wh, 0, sizeof wh);
+            wh.h_Entry = (HOOKFUNC)which_hook_fn;
+            wh.h_Data = &wf;
+            ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGapW", &wh, NULL);
+            if (wf.found) { xy[0] = wf.x + 4; xy[1] = wf.y + 4; }
+            else wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            if (!wbgap_which_empty(ww->Width, ww->Height, ww->BorderLeft, ww->BorderTop, ww->BorderRight, ww->BorderBottom,
+                                   xy[0] - 4, xy[1] - 4, ex)) { ex[0] = ww->Width / 2; ex[1] = ww->Height / 2; }
+            printf("INFO A8c w's picture %s at %ld,%ld; the empty point %ld,%ld\n", wf.found ? "(the Workbench says)" : "(not said: 20,10)",
+                   xy[0] - 4, xy[1] - 4, ex[0], ex[1]);
+            SetIoErr(0);
             on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
-            on_empty = WhichWorkbenchObjectA(ww, ww->Width - ww->BorderRight - 6, ww->Height - ww->BorderBottom - 6, tg2);
-            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\"); on the empty corner: %lu (type %lu)\n", xy[0], xy[1],
-                   (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
+            e1 = IoErr();
+            SetIoErr(0);
+            on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
+            e2 = IoErr();
+            printf("INFO A8c window \"%s\" at %d,%d %dx%d, borders %d,%d,%d,%d, task \"%s\"\n",
+                   ww->Title ? (const char *)ww->Title : "", ww->LeftEdge, ww->TopEdge, ww->Width, ww->Height, ww->BorderLeft,
+                   ww->BorderTop, ww->BorderRight, ww->BorderBottom, wt && wt->tc_Node.ln_Name ? wt->tc_Node.ln_Name : "?");
+            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\", IoErr %ld); on the empty point: %lu (type %lu, IoErr %ld)\n",
+                   xy[0], xy[1], (unsigned long)on_icon, (unsigned long)t1, name, (long)e1, (unsigned long)on_empty,
+                   (unsigned long)t2, (long)e2);
+            /* the desktop's own window (backdrop, a Workbench window), asked about its bottom-right corner: INFO
+             * only, it tells a desktop that answers nothing from one that doesn't know this drawer's window */
+            {
+                ULONG lk = LockIBase(0);
+                for (o = ww->WScreen ? ww->WScreen->FirstWindow : NULL; o && !desk; o = o->NextWindow)
+                    if ((o->Flags & WFLG_BACKDROP) && (o->Flags & WFLG_WBENCHWINDOW)) desk = o;
+                UnlockIBase(lk);
+            }
+            if (desk) {
+                SetIoErr(0);
+                on_desk = WhichWorkbenchObjectA(desk, desk->Width - 4, desk->Height - 4, tg3);
+                e3 = IoErr();
+                printf("INFO A8c the desktop's corner: %lu (type %lu, IoErr %ld)\n", (unsigned long)on_desk,
+                       (unsigned long)t3, (long)e3);
+            } else
+                printf("INFO A8c no desktop window (backdrop, Workbench) on the drawer's screen\n");
+            wbgap_which_seen(t1, t2, desk ? (long)t3 : -1L, seen, sizeof seen);
             if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
-            else fail("A8c", why);
+            else {
+                size_t k = strlen(why);
+                snprintf(why + k, sizeof why - k, "; %s", seen);
+                fail("A8c", why);
+            }
             clear_drawer("RAM:WBGapW", "WBGapW", "A8c");   /* closed, else parked off the desktop rows */
         }
         DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");

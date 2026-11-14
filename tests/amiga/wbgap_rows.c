@@ -588,6 +588,29 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     return WBGAP_PASS;
 }
 
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
+{
+    long iw = w - bl - br, ih = h - bt - bb;
+    if (iw < 8 || ih < 8) return 0;
+    xy[0] = bl + iw * 3 / 4;
+    xy[1] = bt + ih * 3 / 4;
+    if (xy[0] >= ix - 8 && xy[0] < ix + 128 && xy[1] >= iy - 8 && xy[1] < iy + 108) xy[0] = bl + iw / 4;
+    return 1;
+}
+
+void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap)
+{
+    const char *drawer, *desk;
+    if (t1 == WBGAP_WHICH_UNSET && t2 == WBGAP_WHICH_UNSET) drawer = "the drawer's tags untouched (no answer reached them)";
+    else if (t1 == WBGAP_WHICH_UNSET || t2 == WBGAP_WHICH_UNSET) drawer = "one of the drawer's tags untouched";
+    else drawer = "the desktop answered the drawer";
+    if (t3 < 0) desk = "the desktop window not asked";
+    else if ((unsigned long)t3 == WBGAP_WHICH_UNSET) desk = "the desktop window's tag untouched";
+    else if ((unsigned long)t3 == WBGAP_WBO_DRAWER) desk = "the desktop window answered WBO_DRAWER";
+    else desk = "the desktop window answered, not WBO_DRAWER";
+    snprintf(out, cap, "%s, %s", drawer, desk);
+}
+
 static int boxes_meet(const long a[4], const long b[4])
 {
     return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
