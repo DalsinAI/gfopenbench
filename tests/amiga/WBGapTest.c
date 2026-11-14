@@ -602,6 +602,20 @@ static LONG sel_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), s
     return ISMACTION_Ignore;
 }
 
+/* A8c: where ChangeWorkbenchSelectionA says the icon named in want[] has its picture (relative to the window) */
+struct which_find { const char *want; long x, y; int found; };
+static LONG which_hook_fn(struct Hook *h __asm("a0"), APTR reserved __asm("a2"), struct IconSelectMsg *ism __asm("a1"))
+{
+    struct which_find *f = (struct which_find *)h->h_Data;
+    (void)reserved;
+    if (ism->ism_Name && !strcmp((const char *)ism->ism_Name, f->want)) {
+        f->x = ism->ism_Left;
+        f->y = ism->ism_Top;
+        f->found = 1;
+    }
+    return ISMACTION_Ignore;
+}
+
 /* 1 when, within ticks/50 s, the item named (normalised) is (want 1) or is not (want 0) in a Tools menu of the
  * Workbench's windows */
 static int tools_item_within(const char *item, int want, int ticks)
@@ -715,8 +729,10 @@ static int do_api(void)
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) pass("A8b"); else printf("FAIL A8b ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)\n", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), fails++;
-    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, snapshotted at 20,10, asked about on its image and on the
-         * window's empty bottom-right corner (WBO_ICON named "w", then WBO_DRAWER) */
+    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, asked about on its picture and on an empty point of the
+         * drawer's inside (WBO_ICON named "w", then WBO_DRAWER). Where the picture is comes from the Workbench itself
+         * (ChangeWorkbenchSelectionA's ism_Left, ism_Top): a drawer with a bar along its top (GFOpenBench's) or a
+         * fitted layout doesn't put it at the snapshot's 20,10 from the borders. With no answer there, 20,10. */
 #ifdef WBOBJA_Name
         BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW");
         struct DiskObject *d;
@@ -745,18 +761,32 @@ static int do_api(void)
                                     {TAG_DONE, 0}};
             struct TagItem tg2[] = {{WBOBJA_Type, (ULONG)&t2}, {TAG_DONE, 0}};
             struct TagItem tg3[] = {{WBOBJA_Type, (ULONG)&t3}, {TAG_DONE, 0}};
+            struct which_find wf;
+            struct Hook wh;
+            long ex[2];
             Delay(25);
-            wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            memset(&wf, 0, sizeof wf);
+            wf.want = "w";
+            memset(&wh, 0, sizeof wh);
+            wh.h_Entry = (HOOKFUNC)which_hook_fn;
+            wh.h_Data = &wf;
+            ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGapW", &wh, NULL);
+            if (wf.found) { xy[0] = wf.x + 4; xy[1] = wf.y + 4; }
+            else wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            if (!wbgap_which_empty(ww->Width, ww->Height, ww->BorderLeft, ww->BorderTop, ww->BorderRight, ww->BorderBottom,
+                                   xy[0] - 4, xy[1] - 4, ex)) { ex[0] = ww->Width / 2; ex[1] = ww->Height / 2; }
+            printf("INFO A8c w's picture %s at %ld,%ld; the empty point %ld,%ld\n", wf.found ? "(the Workbench says)" : "(not said: 20,10)",
+                   xy[0] - 4, xy[1] - 4, ex[0], ex[1]);
             SetIoErr(0);
             on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
             e1 = IoErr();
             SetIoErr(0);
-            on_empty = WhichWorkbenchObjectA(ww, ww->Width - ww->BorderRight - 6, ww->Height - ww->BorderBottom - 6, tg2);
+            on_empty = WhichWorkbenchObjectA(ww, ex[0], ex[1], tg2);
             e2 = IoErr();
             printf("INFO A8c window \"%s\" at %d,%d %dx%d, borders %d,%d,%d,%d, task \"%s\"\n",
                    ww->Title ? (const char *)ww->Title : "", ww->LeftEdge, ww->TopEdge, ww->Width, ww->Height, ww->BorderLeft,
                    ww->BorderTop, ww->BorderRight, ww->BorderBottom, wt && wt->tc_Node.ln_Name ? wt->tc_Node.ln_Name : "?");
-            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\", IoErr %ld); on the empty corner: %lu (type %lu, IoErr %ld)\n",
+            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\", IoErr %ld); on the empty point: %lu (type %lu, IoErr %ld)\n",
                    xy[0], xy[1], (unsigned long)on_icon, (unsigned long)t1, name, (long)e1, (unsigned long)on_empty,
                    (unsigned long)t2, (long)e2);
             /* the desktop's own window (backdrop, a Workbench window), asked about its bottom-right corner: INFO

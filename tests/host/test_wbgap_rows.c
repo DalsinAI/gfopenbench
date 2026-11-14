@@ -384,6 +384,14 @@ static void which_plan(void)
     CHECK(wbgap_which_judge(2, "w", "w", 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "empty corner"),
           "the empty corner not the drawer: FAIL");
     {
+        long ex[2];
+        CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, 30, 60, ex) && ex[0] == 4 + 618 * 3 / 4 && ex[1] == 11 + 385 * 3 / 4,
+              "the empty point: three quarters across and down the inside (%ld,%ld)", ex[0], ex[1]);
+        CHECK(wbgap_which_empty(640, 400, 4, 11, 18, 4, ex[0] - 20, ex[1] - 20, ex) && ex[0] == 4 + 618 / 4,
+              "the icon there: a quarter across instead (%ld)", ex[0]);
+        CHECK(!wbgap_which_empty(20, 20, 4, 11, 18, 4, 0, 0, ex), "no inside: 0");
+    }
+    {
         char seen[96];
         wbgap_which_seen(WBGAP_WHICH_UNSET, WBGAP_WHICH_UNSET, 1, seen, sizeof seen);
         CHECK(strstr(seen, "drawer's tags untouched") && strstr(seen, "answered WBO_DRAWER"),

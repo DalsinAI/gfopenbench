@@ -659,6 +659,16 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     return WBGAP_PASS;
 }
 
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
+{
+    long iw = w - bl - br, ih = h - bt - bb;
+    if (iw < 8 || ih < 8) return 0;
+    xy[0] = bl + iw * 3 / 4;
+    xy[1] = bt + ih * 3 / 4;
+    if (xy[0] >= ix - 8 && xy[0] < ix + 128 && xy[1] >= iy - 8 && xy[1] < iy + 108) xy[0] = bl + iw / 4;
+    return 1;
+}
+
 void wbgap_which_seen(unsigned long t1, unsigned long t2, long t3, char *out, unsigned cap)
 {
     const char *drawer, *desk;

@@ -137,6 +137,11 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);
 enum { WBGAP_WBO_NONE = 0, WBGAP_WBO_DRAWER = 1, WBGAP_WBO_ICON = 2 };
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
                       unsigned cap);
+/* A8c's empty point, relative to the window: three quarters across and down its inside (window w x h, borders
+ * bl bt br bb), past a drawer's bar at the top and short of a scroller or a bar at the bottom. When that is within
+ * 128 x 108 of the icon's picture at (ix, iy) (also relative to the window), a quarter across and three quarters
+ * down instead. 0 for a window too small to have an inside. */
+int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2]);
 /* What the tags show of where the answer stopped: each WBOBJA_Type starts at WBGAP_WHICH_UNSET, and one left
  * there means the desktop's answer never reached the caller's tags. t1, t2 the drawer's two asks, t3 the desktop
  * window's (-1: not asked). Into out, for the FAIL line. */
