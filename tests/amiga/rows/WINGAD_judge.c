@@ -59,24 +59,52 @@ static int wg_word(const char **p, const char *word)
     return 1;
 }
 
-int wbgap_wingad_zoom_off(const char *look)
+/* 1 if look has a line of just these words (any case, split by spaces or tabs, spaces round them, a CR at the end) */
+static int wg_line(const char *look, const char *const *words)
 {
     const char *s = look;
-    if (!s) return 0;
-    while (*s) {
+    while (s && *s) {
         const char *q = s;
-        while (*q == ' ' || *q == '\t') q++;
-        if (wg_word(&q, "zoom") && (*q == ' ' || *q == '\t')) {
+        int i, ok = 1;
+        for (i = 0; ok && words[i]; i++) {
             while (*q == ' ' || *q == '\t') q++;
-            if (wg_word(&q, "off")) {
-                while (*q == ' ' || *q == '\t' || *q == '\r') q++;
-                if (!*q || *q == '\n') return 1;
-            }
+            ok = wg_word(&q, words[i]) && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q);
+        }
+        if (ok) {
+            while (*q == ' ' || *q == '\t' || *q == '\r') q++;
+            if (!*q || *q == '\n') return 1;
         }
         while (*s && *s != '\n') s++;
         if (*s) s++;
     }
     return 0;
+}
+
+/* 1 if the look's theme is Classic, as GFOpenLook itself reads it (gfopengadtools look/openlook.c read_look_text, the
+ * reader that takes zoom gadgets away; not lib/ogt_look.c's ogt_look_load, which the apps use for colours): the
+ * theme is the first word of line 1 ("Classic", "Classic light", "\"Classic\" dark"...), and it stays Classic when
+ * line 1 is blank or its first word starts with ';'. Classic on a later line doesn't count. The name is a file's, so
+ * any case. */
+static int wg_classic_theme(const char *look)
+{
+    const char *q = look;
+    int quoted = 0;
+    if (!q) return 0;
+    while (*q == ' ' || *q == '\t') q++;
+    if (!*q || *q == '\r' || *q == '\n' || *q == ';') return 1;   /* line 1 names no theme: GFOpenLook keeps Classic */
+    if (*q == '"') quoted = 1, q++;
+    if (!wg_word(&q, "classic")) return 0;
+    return (quoted && *q == '"') || (!quoted && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n' || !*q));
+}
+
+/* gfopengadtools DESIGN.md: the Classic theme passes everything through, and Classic screens keep their zoom gadgets,
+ * whatever "zoom off" says. Out of scope here: a "never" line naming Workbench, "profile" presets, and which of two
+ * "screen workbench" lines wins: in GFOpenLook the last one does (read_look_text); here any Classic one counts */
+int wbgap_wingad_zoom_off(const char *look)
+{
+    static const char *const zoom_off[] = {"zoom", "off", NULL};
+    static const char *const classic[] = {"screen", "workbench", "classic", NULL};
+    return wg_line(look, zoom_off) && !wg_line(look, classic) && !wg_classic_theme(look);
 }
 
 void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int relbottom, int relwidth,
@@ -87,4 +115,31 @@ void wbgap_gadget_middle(long left, long top, long w, long h, int relright, int 
     if (relheight) h += win_h;
     xy[0] = x + w / 2;
     xy[1] = y + h / 2;
+}
+
+int wbgap_wingad_place_why(const long want[4], const long got[4], const long lim[4], int found, char *why,
+                           unsigned cap)
+{
+    char r[240];
+    size_t n;
+    if (!found) {
+        snprintf(r, sizeof r, "it opened, then went while it was being put at %ld,%ld %ldx%ld", want[0], want[1],
+                 want[2], want[3]);
+    } else if (got[0] == want[0] && got[1] == want[1] && got[2] == want[2] && got[3] == want[3]) {
+        if (why && cap)
+            snprintf(why, cap, "placed late: at %ld,%ld %ldx%ld as asked, but only after the 2 s wait", want[0],
+                     want[1], want[2], want[3]);
+        return 0;
+    } else {
+        snprintf(r, sizeof r, "it opened, but put at %ld,%ld %ldx%ld it is at %ld,%ld %ldx%ld", want[0], want[1],
+                 want[2], want[3], got[0], got[1], got[2], got[3]);
+        n = strlen(r);
+        if (want[2] < lim[0] || want[3] < lim[1] || want[2] > lim[2] || want[3] > lim[3])
+            snprintf(r + n, sizeof r - n, ": outside its limits %ldx%ld to %ldx%ld (the desktop's)", lim[0], lim[1],
+                     lim[2], lim[3]);
+        else
+            snprintf(r + n, sizeof r - n, ", within its limits: the desktop moved or sized it back");
+    }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return 1;
 }

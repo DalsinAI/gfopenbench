@@ -10,7 +10,7 @@
 #define L WBGAP_LOOK
 #define H WBGAP_HAND
 #define MENUS "MENUS"
-#define API "API"
+/* API: rows/API.c (WBGAP_ROWMODE) */
 #define REXX "WBGapRexx.rexx"
 #define INDEX "WBGapIndex"
 
@@ -48,7 +48,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"M24", NULL, A, MENUS, "Icons > Format Disk; in GFOS a separate Format application (13 Nov)"},
     {"M25", NULL, A, MENUS, "Icons > Empty Trash"},
     {"M26", NULL, A, MENUS, "Tools > ResetWB; in GFOS Refresh OpenBench (13 Nov)"},
-    {"M27", NULL, A, API, "Tools items added by programs (AddAppMenuItemA) shown"},
+    {"M27", NULL, A, NULL, "Tools items added by programs (AddAppMenuItemA) shown"},
     {"M28", NULL, A, MENUS, "Amiga-keys as 3.2.3"},
     {"M28k", "M28", H, NULL, "KEYS= on the Workbench icon remaps them (13 Nov)"},
     {"M29", NULL, A, MENUS, "Window > Open volume (13 Nov)"},
@@ -74,8 +74,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I7", NULL, A, NULL, "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
     {"I8", NULL, A, NULL, "drag onto an AppIcon"},
     {"I9", NULL, A, NULL, "drag onto an AppWindow"},
-    {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
-    {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
+    {"I10", NULL, A, NULL, "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
+    {"I11", NULL, A, NULL, "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
@@ -92,21 +92,21 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"N5", NULL, A, NULL, "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
-    {"N8", NULL, A, API, "WBInfo from a program opens it"},
+    {"N8", NULL, A, NULL, "WBInfo from a program opens it"},
     /* 4. workbench.library */
     {"A1", NULL, A, NULL, "AddAppWindowA and its messages"},
     {"A2", NULL, A, NULL, "AddAppWindowDropZoneA"},
-    {"A3", NULL, A, API, "AddAppIconA"},
-    {"A4", NULL, A, API, "AddAppMenuItemA"},
+    {"A3", NULL, A, NULL, "AddAppIconA"},
+    {"A4", NULL, A, NULL, "AddAppMenuItemA"},
     {"A5", NULL, A, NULL, "WorkbenchControlA tags"},
-    {"A6", NULL, A, API, "OpenWorkbenchObjectA"},
-    {"A6b", "A6", A, API, "CloseWorkbenchObjectA"},
-    {"A7", NULL, A, API, "UpdateWorkbench, the refresh proven (13 Nov)"},
+    {"A6", NULL, A, NULL, "OpenWorkbenchObjectA"},
+    {"A6b", "A6", A, NULL, "CloseWorkbenchObjectA"},
+    {"A7", NULL, A, NULL, "UpdateWorkbench, the refresh proven (13 Nov)"},
     {"A8", NULL, A, NULL, "the object calls"},
-    {"A8a", "A8", A, API, "MakeWorkbenchObjectVisibleA"},
-    {"A8b", "A8", A, API, "ChangeWorkbenchSelectionA"},
-    {"A8c", "A8", A, API, "WhichWorkbenchObjectA"},
-    {"A9", NULL, A, API, "WBInfo"},
+    {"A8a", "A8", A, NULL, "MakeWorkbenchObjectVisibleA"},
+    {"A8b", "A8", A, NULL, "ChangeWorkbenchSelectionA"},
+    {"A8c", "A8", A, NULL, "WhichWorkbenchObjectA"},
+    {"A9", NULL, A, NULL, "WBInfo"},
     {"A10", NULL, A, NULL, "LoadWB switches as 3.2.3 (13 Nov)"},
     {"A10a", "A10", A, "STARTUP CHECK", "the switches GFOpenBench took (ENV:GFOpenBench/LoadWB) are the Startup-Sequence's"},
     {"A10b", "A10", H, NULL, "LoadWB SKIPWBSTARTUP: nothing in SYS:WBStartup runs (a boot of its own)"},
@@ -137,6 +137,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
     {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
+    {"C5a", "C5", A, NULL, "the reset requester: lists the windows in the way, goes when they close, Cancel"},
     {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
     {"W1", NULL, A, NULL, "sizing, zoom, depth on drawer windows"},

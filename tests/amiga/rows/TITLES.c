@@ -20,7 +20,7 @@ WBGAP_ROWMODE(W3, TITLES)
 int wbt_titles(int argc, char **argv)
 {
     struct Window *w;
-    char wt[128], st[128], sw[128], why[200];
+    char wt[128], st[128], sw[128], why[320];
     int how, v, got = 0;
     ULONG lock;
     BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW3");
@@ -41,6 +41,7 @@ int wbt_titles(int argc, char **argv)
     if (got) printf("INFO W3 the window \"%s\"; the screen \"%s\"; the window's screen title \"%s\"\n", wt, st, sw);
     v = wbgap_title_judge(got ? wt : NULL, "WBGapW3", st, why, sizeof why);
     if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapW3's window didn't open");
+    if (v == WBGAP_PASS && why[0]) printf("INFO W3 %s\n", why);   /* the chosen difference (TITLES.h) */
     wbt_say("W3", v, why);
     wbt_clear_drawer("RAM:WBGapW3", "WBGapW3", "W3");
     DeleteFile((CONST_STRPTR)"RAM:WBGapW3.info");

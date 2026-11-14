@@ -10,6 +10,19 @@
 
 static int failures, checks;
 
+/* a file that refuses busy times, then goes; or that someone else takes */
+typedef struct fake { int there, busy, takes, pauses, other_at; } fake;
+static int f_gone(void *u) { fake *f = u; return !f->there; }
+static void f_take(void *u)
+{
+    fake *f = u;
+    f->takes++;
+    if (f->other_at && f->takes == f->other_at) { f->there = 0; return; }
+    if (f->busy) f->busy--;
+    else f->there = 0;
+}
+static void f_pause(void *u) { ((fake *)u)->pauses++; }
+
 #define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); \
     printf(__VA_ARGS__); printf("\n"); } } while (0)
 
@@ -65,6 +78,27 @@ int main(void)
     CHECK(ob_rexx_help(help, sizeof help, "rename", 0) && !strcmp(help, "OLDNAME/A,NEWNAME/A"), "HELP RENAME: %s", help);
     CHECK(!ob_rexx_help(help, sizeof help, "NOSUCH", 0), "HELP NOSUCH");
     CHECK(ob_rexx_help(help, 20, NULL, 0) && !strcmp(help, "ACTIVATEWINDOW"), "whole names only: %s", help);
+
+    /* DELETE's icon, taken until it is gone (R2b) */
+    {
+        fake f = { 1, 0, 0, 0, 0 };
+        CHECK(ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 10) && f.takes == 1 && f.pauses == 0,
+              "free: one try, no wait (%d, %d)", f.takes, f.pauses);
+        f = (fake){ 1, 3, 0, 0, 0 };
+        CHECK(ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 10) && f.takes == 4 && f.pauses == 3,
+              "busy 3 times: the 4th try (%d, %d)", f.takes, f.pauses);
+        f = (fake){ 1, 100, 0, 0, 0 };
+        CHECK(!ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 10) && f.takes == 10 && f.there,
+              "busy for good: 0 after 10 tries (%d)", f.takes);
+        f = (fake){ 0, 0, 0, 0, 0 };
+        CHECK(ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 10) && f.takes == 0,
+              "not there: nothing tried (%d)", f.takes);
+        f = (fake){ 1, 100, 0, 0, 2 };
+        CHECK(ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 10) && f.takes == 2,
+              "taken by someone else between tries: 1 (%d)", f.takes);
+        f = (fake){ 1, 0, 0, 0, 0 };
+        CHECK(!ob_rexx_take_until_gone(f_gone, f_take, f_pause, &f, 0) && f.takes == 0, "no tries: still there");
+    }
 
     printf("ob_rexx: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
