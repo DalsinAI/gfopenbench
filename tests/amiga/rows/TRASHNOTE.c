@@ -5,7 +5,12 @@
  * RAM:AWBGapR (a snapshotted at 20,10) is opened at the top-left, half the screen wide at most 400, and the RAM Disk's
  * own window beside it, clear of it (found by "RAM: - ", GFOpenDrawer's title, or by the volume's name). RAM:Trashcan
  * is made, with a trashcan's icon, at 200,150 in that window, and f at 120,10 in RAM:AWBGapR, each found where its
- * window's inside changed. f is dragged onto the Trashcan with DragTest.
+ * window's inside changed. The Trashcan is also read by its name, through the Workbench's ARexx port (GETATTR
+ * window.icons.all.N, as DESKDROP's list): its size is its own icon's, so when what changed is wider than two of it,
+ * more than the Trashcan moved (the window lays its icons out again by name) and the drop could miss: I6t fails with
+ * that reason. Its place is the drawer's layout frame, not the window's (14 Nov lab: 130,78 by name, drawn at
+ * 146,58), so the drop stays on what changed. With no ARexx, f's size is the yardstick, as before. f is dragged onto
+ * the Trashcan with DragTest.
  * I6t: f and f.info must leave RAM:AWBGapR for RAM:Trashcan, and the note must have a line for each, from
  * ...AWBGapR/f and ...AWBGapR/f.info. I6p: gfopenfiles.library's OFRestore of RAM:Trashcan/f must put f and its icon
  * back in RAM:AWBGapR, out of the Trashcan, and take their lines out of the note.
@@ -75,8 +80,9 @@ static const char tn_rexx[] =
     "END\n"
     "EXIT 5\n";
 
-/* RAM:Trashcan's box in the RAM Disk's window by its name (inside the window, as wbt_make_icon's), checked against
- * changed: wbgap_trashnote_iconbox's 1, 0 (no rx, no port, not listed: tried 5 times half a second apart) or -1 */
+/* RAM:Trashcan's icon in the RAM Disk's window by its name (its size, and its place in the drawer's layout),
+ * checked against changed: wbgap_trashnote_iconbox's 1, 0 (no rx, no port, not listed: tried 5 times half a second
+ * apart) or -1 */
 static int tn_byname(const long *changed, long box[4])
 {
     char cmd[240], line[96];
@@ -272,21 +278,22 @@ int wbt_trashnote(int argc, char **argv)
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
     }
-    if ((v = tn_byname(box_t, byname)) == 1) {
-        printf("INFO I6t RAM:Trashcan found by its name at %ld,%ld %ldx%ld (its window's inside changed in %ld,%ld "
-               "%ldx%ld)\n", byname[0], byname[1], byname[2], byname[3], box_t[0], box_t[1], box_t[2], box_t[3]);
-        memcpy(box_t, byname, sizeof byname);
-    } else if (v < 0)
-        printf("INFO I6t RAM:Trashcan by its name at %ld,%ld %ldx%ld, outside where its window changed (%ld,%ld "
-               "%ldx%ld): not used\n", byname[0], byname[1], byname[2], byname[3], box_t[0], box_t[1], box_t[2],
-               box_t[3]);
+    /* both boxes shown: the name's place is the drawer's layout frame, not the window's inside, so the drop stays on
+     * what changed, and the name's own width tells whether more than its icon moved */
+    if ((v = tn_byname(box_t, byname)) == 1)
+        printf("INFO I6t RAM:Trashcan by its name: %ldx%ld (at %ld,%ld in the drawer's layout); its window's inside "
+               "changed in %ld,%ld %ldx%ld\n", byname[2], byname[3], byname[0], byname[1], box_t[0], box_t[1],
+               box_t[2], box_t[3]);
+    else if (v < 0)
+        printf("INFO I6t RAM:Trashcan by its name is %ldx%ld, bigger than where its window changed (%ld,%ld %ldx%ld): "
+               "not used\n", byname[2], byname[3], box_t[0], box_t[1], box_t[2], box_t[3]);
     else
         printf("INFO I6t RAM:Trashcan not found by its name (no rx, no WORKBENCH port, or not listed)\n");
-    if (v != 1 && box_t[2] > box_f[2] * 2) {   /* more than one icon changed: the drop point could miss the Trashcan */
-        printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two of f's (%ldx%ld): more than its icon moved\n",
-               box_t[2], box_t[3], box_f[2], box_f[3]);
-        wbt_fail("I6t", "RAM:Trashcan's icon not told apart: not found by its name, and other icons moved in its "
-                        "window when it was added");
+    if (box_t[2] > (v == 1 ? byname[2] : box_f[2]) * 2) {   /* more than one icon changed: the drop could miss it */
+        printf("INFO I6t RAM:Trashcan's box is %ldx%ld, wider than two of %s (%ldx%ld): more than its icon moved\n",
+               box_t[2], box_t[3], v == 1 ? "its own icon" : "f's", v == 1 ? byname[2] : box_f[2],
+               v == 1 ? byname[3] : box_f[3]);
+        wbt_fail("I6t", "RAM:Trashcan's icon not told apart: other icons moved in its window when it was added");
         wbt_skip("I6p", "not tried (I6t failed)");
         goto out;
     }
