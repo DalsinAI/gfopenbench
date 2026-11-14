@@ -76,7 +76,7 @@ int wbgap_drop_place(long sw, long sh, long top, long w, long h, const long *avo
 /* the point a drag lets go at: the box's middle */
 void wbgap_drop_point(const long box[4], long xy[2]);
 /* the AppMessage judged: its am_Type and am_ID against those wanted, one argument at least, the first named
- * want_name, in a drawer whose path (NameFromLock of its wa_Lock) ends in want_dir. got 0: no message came.
+ * want_name, in a drawer whose path (NameFromLock of its wa_Lock) ends in ":" or "/" and want_dir. got 0: no message came.
  * WBGAP_PASS or WBGAP_FAIL, the reason in why */
 int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,
                      const char *name, const char *dir, const char *want_name, const char *want_dir, char *why,

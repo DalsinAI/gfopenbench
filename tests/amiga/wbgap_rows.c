@@ -398,7 +398,7 @@ int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsig
         snprintf(why, cap, "its first argument is \"%s\", not \"%s\"", name ? name : "", want_name ? want_name : "");
         return WBGAP_FAIL;
     }
-    if (!wn || dn < wn || strcmp(dir + dn - wn, want_dir)) {
+    if (!wn || dn <= wn || strcmp(dir + dn - wn, want_dir) || (dir[dn - wn - 1] != ':' && dir[dn - wn - 1] != '/')) {
         snprintf(why, cap, "its first argument's drawer is \"%s\", not ...%s", dir ? dir : "", want_dir ? want_dir : "");
         return WBGAP_FAIL;
     }

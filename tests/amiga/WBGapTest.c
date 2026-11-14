@@ -1101,7 +1101,8 @@ static int do_big(void)
 static long read_all(const char *path, char *buf, long n);
 
 /* ---- I8, I9: an icon dragged onto an AppIcon and onto an AppWindow ----
- * RAM:WBGapD's project d, made while its drawer's window is open and found where the window changed, is dragged with DragTest onto a window of
+ * RAM:WBGapD's project d, made while its drawer's window is open (a already in it) and found where the window
+ * changed, is dragged with DragTest onto a window of
  * our own made an AppWindow (I9, id 9), then onto an AppIcon on the desktop (I8, id 8; its place read through the
  * WORKBENCH port by WBGapAppPos.rexx). The desktop must send the AppMessage, naming d in RAM:WBGapD. */
 static int drop_wait(struct MsgPort *port, long want_type, unsigned long want_id, const char *row)
@@ -1180,6 +1181,8 @@ static int drop_make_d(struct Window *w)
     drop_grab(w, before, &gw, &gh);
     write_file("RAM:WBGapD/d", "d\n");
     if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 120;
+        d->do_CurrentY = 10;
         PutDiskObject((CONST_STRPTR)"RAM:WBGapD/d", d);
         FreeDiskObject(d);
     }
@@ -1232,6 +1235,8 @@ static void drop_clean(void)
     DeleteFile((CONST_STRPTR)"RAM:wbgap-appicon");
     DeleteFile((CONST_STRPTR)"RAM:WBGapD/d.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapD/d");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/a.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapD/a");
     DeleteFile((CONST_STRPTR)"RAM:WBGapD.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapD");
 }
@@ -1239,7 +1244,7 @@ static void drop_clean(void)
 static int do_appdrop(void)
 {
     struct MsgPort *port = CreateMsgPort();
-    struct DiskObject *aio = GetDefDiskObject(WBTOOL);
+    struct DiskObject *d, *aio = GetDefDiskObject(WBTOOL);
     struct Window *dw, *mine = NULL;
     struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
     BPTR l;
@@ -1255,6 +1260,15 @@ static int do_appdrop(void)
     drop_clean();
     if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapD"))) UnLock(l);
     put_icon("RAM:WBGapD", WBDRAWER, NULL);
+    /* a, already there and snapshotted at 20,10, so the drawer isn't empty (an empty drawer's window looks otherwise)
+     * and nothing moves when d comes at 120,10 */
+    write_file("RAM:WBGapD/a", "a\n");
+    if ((d = GetDefDiskObject(WBPROJECT))) {
+        d->do_CurrentX = 20;
+        d->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapD/a", d);
+        FreeDiskObject(d);
+    }
     if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
         fail("I9", "RAM:WBGapD's window didn't open");
         fail("I8", "RAM:WBGapD's window didn't open");
