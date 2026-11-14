@@ -1,5 +1,5 @@
 #!/bin/sh
-# tests/amiga/build-amiga.sh with WBGapIndex (row X2): with AMICRADLE_GUEST unset it fetches amicradle-guest's
+# tests/amiga/build-amiga.sh and launcher/build-amiga.sh with WBGapIndex (row X2): with AMICRADLE_GUEST unset it fetches amicradle-guest's
 # tools/openindex itself, builds WBGapIndex and leaves no sources in OUT; with no amicradle-guest to fetch it builds
 # the rest and says WBGapIndex wasn't built. A stand-in stove (its m68k-amigaos-gcc writes each -o file and logs
 # its sources) and a local DalsinAI/amicradle-guest (AMIGACHROME_GIT_BASE) stand in for Cradle's.
@@ -30,6 +30,10 @@ done
 exit 0
 GCC
 chmod +x "$T/stove/prefix/bin/m68k-amigaos-gcc"
+# for benchmark/build.sh's checks (case 5): no undefined symbols, the FSGL instructions there
+printf '#!/bin/sh\nexit 0\n' > "$T/stove/prefix/bin/m68k-amigaos-nm"
+printf '#!/bin/sh\necho fsglmul fsgldiv\n' > "$T/stove/prefix/bin/m68k-amigaos-objdump"
+chmod +x "$T/stove/prefix/bin/m68k-amigaos-nm" "$T/stove/prefix/bin/m68k-amigaos-objdump"
 
 # a local amicradle-guest with the files WBGapIndex is built from, and one it isn't
 G="$T/git/DalsinAI/amicradle-guest"
@@ -38,6 +42,17 @@ echo '/* stand-in */' > "$G/tools/openindex/amiga/oix_acfs.c"
 echo '/* stand-in */' > "$G/tools/openindex/core/oix_core.c"
 echo '/* stand-in */' > "$G/devices/acscsi.device/include/acscsi.h"
 echo 'not wanted' > "$G/libraries/big/big.c"
+# the parts benchmark/build-amiga.sh fetches (case 5 runs the top build.sh, which builds GFOpenBenchmark too)
+mkdir -p "$G/common/sysprobe" "$G/devices/accontrol.device/include"
+echo '/* stand-in */' > "$G/common/sysprobe/sysprobe.c"
+echo '/* stand-in */' > "$G/devices/accontrol.device/include/accontrol.h"
+R="$T/git/DalsinAI/gfopenrtg"
+mkdir -p "$R/library/ogles3"
+echo '# stand-in' > "$R/library/ogles3/gen_ogles3.py"
+echo '' > "$R/library/ogles3/ogles3_api.txt"
+git -C "$R" init -q
+git -C "$R" -c user.name=t -c user.email=t@t add -A
+git -C "$R" -c user.name=t -c user.email=t@t commit -q -m rtg
 git -C "$G" init -q
 git -C "$G" -c user.name=t -c user.email=t@t add -A
 git -C "$G" -c user.name=t -c user.email=t@t commit -q -m guest
@@ -95,6 +110,15 @@ if GCC_LOG="$T/log4" STOVE="$T/stove" OUT="$OUT" AMIGACHROME_GIT_BASE="file://$T
   sh "$HERE/tests/amiga/build-amiga.sh" > "$T/run4" 2>&1; then ok "no guest to fetch: rc 0"; else bad "no guest to fetch: rc $?"; fi
 if [ ! -e "$OUT/WBGapIndex" ] && [ -f "$OUT/WBGapTest" ] && grep -q "WBGapIndex not built" "$T/run4"; then
   ok "no guest: WBGapTest built, WBGapIndex said not built"; else bad "no guest"; cat "$T/run4"; fi
+
+# 5. launcher/build-amiga.sh (the launcher job, which runs the top build.sh): fetched, built, nothing left
+OUT="$T/out5"
+rc=0
+GCC_LOG="$T/log5" STOVE="$T/stove" OUT="$OUT" AMIGACHROME_GIT_BASE="file://$T/git/" \
+  sh "$HERE/launcher/build-amiga.sh" > "$T/run5" 2>&1 || rc=$?
+if [ "$rc" -eq 0 ] && [ -f "$OUT/WBGapIndex" ] && grep -q "tools/openindex/amiga/oix_acfs.c" "$T/log5" && [ ! -e "$OUT/deps" ]; then
+  ok "launcher job: WBGapIndex built from the fetch, deps removed (rc 0)"
+else bad "launcher job: rc $rc, deps $(ls "$OUT/deps" 2>&1)"; tail -5 "$T/run5"; fi
 
 [ "$fails" -eq 0 ] && echo "test_guest_index: all passed" || echo "test_guest_index: $fails failed"
 exit $(( fails != 0 ))
