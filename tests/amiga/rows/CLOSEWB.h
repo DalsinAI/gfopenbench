@@ -13,3 +13,6 @@ int wbgap_closewb_over(const char *text);
  * there is none (or text is NULL; out is then ""). CLOSEWBWAIT names it in its
  * FAIL, so a run shows whether CloseWorkBench() itself or a later step hung. */
 int wbgap_closewb_last_step(const char *text, char *out, unsigned cap);
+/* CLOSEWB's step lines also go to this file, opened and closed for each one:
+ * the Run >file output stays open (and may be held) until CLOSEWB ends. */
+#define WBGAP_C6_STEPS "RAM:wbgap-c6-steps"

@@ -8,6 +8,7 @@
 
 #include <exec/types.h>
 #include <exec/ports.h>
+#include <dos/dos.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <workbench/workbench.h>
@@ -23,12 +24,22 @@ WBGAP_MODE(CLOSEWB, wbt_closewb, SCRIPT)
 WBGAP_ROWMODE(C6, CLOSEWB)
 
 /* CLOSEWB's stdout is a file (Run >RAM:wbgap-c6), which stdio holds until
- * exit; each step is flushed, so CLOSEWBWAIT can name the last one reached
- * when the process doesn't end in time (wbgap_closewb_last_step). */
+ * exit; each step is flushed, and also appended to WBGAP_C6_STEPS (closed each
+ * time, so it can be read while CLOSEWB runs), so CLOSEWBWAIT can name the
+ * last one reached when the process doesn't end in time (wbgap_closewb_last_step). */
 static void step(const char *what)
 {
-    printf("INFO C6 step: %s\n", what);
+    char line[96];
+    BPTR fh;
+    int n = snprintf(line, sizeof line, "INFO C6 step: %s\n", what);
+    printf("%s", line);
     fflush(stdout);
+    /* the Run >file output may be held while CLOSEWB runs: the same line, appended to a file closed each time */
+    if (n > 0 && (fh = Open((CONST_STRPTR)WBGAP_C6_STEPS, MODE_READWRITE))) {
+        Seek(fh, 0, OFFSET_END);
+        Write(fh, line, n < (int)sizeof line ? n : (int)sizeof line - 1);
+        Close(fh);
+    }
 }
 
 static int desk_port(void)
@@ -55,6 +66,7 @@ static int closewb_row(void)
     int how, reopened = 0, t, port = 0, drawer = 0, v;
     char why[96];
     BPTR l;
+    DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);
     step("making RAM:WBGapC");
     l = CreateDir((CONST_STRPTR)"RAM:WBGapC");
     if (l) UnLock(l);
