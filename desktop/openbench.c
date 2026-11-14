@@ -302,8 +302,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.61"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.62"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -5265,8 +5265,39 @@ static int wbreq_info(const char *path)
     return rx_info(path);
 }
 
+/* 0.1.62: OpenWorkbenchObjectA with arguments (row I11 through LAUNCH, as the desktop's Shift-double-click since
+ * 0.1.60): a tool started with them, a project's default tool with the project and then them (ob_wbp_open_how);
+ * anything else opened as with none. Tata asked as desk_open_selected asks. 1 when started. */
+static int wbreq_open_args(const char *path, const char *const *args, int n)
+{
+    struct DiskObject *o;
+    const char *argv[33];
+    char toolpath[300];
+    const char *run = NULL;
+    int kind, how, i, k = 0, ok = 0;
+    if (!root) return 0;
+    if (is_drawer(path) || !(o = GetDiskObject((CONST_STRPTR)path))) return wbreq_open(path);
+    kind = o->do_Type == WBTOOL ? OB_WBP_K_TOOL : o->do_Type == WBPROJECT ? OB_WBP_K_PROJECT : OB_WBP_K_OTHER;
+    how = ob_wbp_open_how(kind, n);
+    if (how == OB_WBP_RUN_OPEN) { FreeDiskObject(o); return wbreq_open(path); }
+    if (how == OB_WBP_RUN_TOOL) run = path;
+    else if (find_tool(path, (const char *)o->do_DefaultTool, toolpath, sizeof toolpath)) {
+        run = toolpath;
+        argv[k++] = path;
+    }
+    for (i = 0; i < n && k < (int)(sizeof argv / sizeof argv[0]); i++) argv[k++] = args[i];
+    if (run && tata_lets(run, 0)) {
+        for (i = 0, ok = 1; i < k && ok; i++) if (!tata_lets(argv[i], 1)) ok = 0;
+        memset(&open_ctx, 0, sizeof open_ctx);
+        if (ok) ok = start_tool_args(run, argv, k, o->do_StackSize, (const char *const *)o->do_ToolTypes);
+        memset(&open_ctx, 0, sizeof open_ctx);
+    }
+    FreeDiskObject(o);
+    return ok;
+}
+
 static const ob_wb_env wb_env = { wbreq_open, wbreq_close, wbreq_show_name, wbreq_window, wbreq_each, wb_changed,
-                                  wbreq_reread, wbreq_info };
+                                  wbreq_reread, wbreq_info, wbreq_open_args };
 
 /* ---- the ARexx ports, WORKBENCH and OPENBENCH (0.1.53; gap rows R1 and R2): what ob_arexx.c is given ----------- */
 

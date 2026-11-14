@@ -113,6 +113,29 @@ int main(void)
         CHECK(ob_wbp_items(m, 0, NULL, rows, 32) == 0 && ob_wbp_own(m, 0, rows, 32) == 0, "none");
     }
 
+    /* row I11 through LAUNCH: OpenWorkbenchObjectA's WBOPENA_ArgLock/ArgName as paths (0.1.62) */
+    {
+        char out[64], tiny[6];
+        CHECK(ob_wbp_arg_path("RAM:WBGap", "p1", out, sizeof out) && !strcmp(out, "RAM:WBGap/p1"), "arg in drawer: %s", out);
+        CHECK(ob_wbp_arg_path("RAM:", "p2", out, sizeof out) && !strcmp(out, "RAM:p2"), "arg at volume top: %s", out);
+        CHECK(ob_wbp_arg_path("Work:a/", "x", out, sizeof out) && !strcmp(out, "Work:a/x"), "arg after slash: %s", out);
+        CHECK(ob_wbp_arg_path(NULL, "p1", out, sizeof out) && !strcmp(out, "p1"), "no lock: name as it is: %s", out);
+        CHECK(ob_wbp_arg_path("", "p1", out, sizeof out) && !strcmp(out, "p1"), "empty drawer: name as it is: %s", out);
+        CHECK(ob_wbp_arg_path("RAM:WBGap", "Work:full", out, sizeof out) && !strcmp(out, "Work:full"), "full path kept: %s", out);
+        CHECK(!ob_wbp_arg_path("RAM:", "", out, sizeof out) && !out[0], "empty name refused");
+        CHECK(!ob_wbp_arg_path("RAM:", NULL, out, sizeof out) && !out[0], "no name refused");
+        CHECK(!ob_wbp_arg_path("RAM:WBGap", "p1", tiny, sizeof tiny) && !tiny[0], "too long refused");
+        CHECK(!ob_wbp_arg_path(NULL, "toolong", tiny, sizeof tiny) && !tiny[0], "too long bare name refused");
+        CHECK(ob_wbp_arg_path(NULL, "abcde", tiny, sizeof tiny) && !strcmp(tiny, "abcde"), "just fits");
+        CHECK(!ob_wbp_arg_path("RAM:", "x", out, 0), "no room");
+        CHECK(ob_wbp_open_how(OB_WBP_K_TOOL, 2) == OB_WBP_RUN_TOOL, "tool with args: run with them");
+        CHECK(ob_wbp_open_how(OB_WBP_K_PROJECT, 1) == OB_WBP_RUN_PROJECT, "project with args: default tool");
+        CHECK(ob_wbp_open_how(OB_WBP_K_TOOL, 0) == OB_WBP_RUN_OPEN, "tool, no args: opened as usual");
+        CHECK(ob_wbp_open_how(OB_WBP_K_PROJECT, 0) == OB_WBP_RUN_OPEN, "project, no args: as usual");
+        CHECK(ob_wbp_open_how(OB_WBP_K_DRAWER, 3) == OB_WBP_RUN_OPEN, "drawer: args left out");
+        CHECK(ob_wbp_open_how(OB_WBP_K_OTHER, 3) == OB_WBP_RUN_OPEN, "other: as usual");
+    }
+
     printf("ob_wbplan: %d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

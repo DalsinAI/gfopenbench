@@ -96,6 +96,50 @@ static int select_one(void *c, const char *name, int type, int selected, WORD x,
     return ob_wbp_hook_answer(r);
 }
 
+/* OpenWorkbenchObjectA's arguments (row I11 through LAUNCH; Kill Crazy's and Ivanova's 0.1.60 runs, 13 November
+ * 2026: LaunchT got 1 argument, not LaunchT, p1, p2): each WBOPENA_ArgName, in the drawer of the WBOPENA_ArgLock
+ * before it, as one path, in the order given. The tags are the caller's, read while it waits. How many (at most
+ * max), each path in its own OB_WB_ARGPATH of buf. */
+#define OB_WB_ARGPATH 512
+static int open_args(struct TagItem *t, char *buf, const char **args, int max)
+{
+    char dir[OB_WB_ARGPATH];
+    int n = 0;
+    dir[0] = 0;
+    while (t && n < max) {
+        switch (t->ti_Tag) {
+        case TAG_DONE: t = NULL; continue;
+        case TAG_MORE: t = (struct TagItem *)t->ti_Data; continue;
+        case TAG_SKIP: t += 1 + t->ti_Data; continue;
+        case WBOPENA_ArgLock:
+            if (!t->ti_Data || !NameFromLock((BPTR)t->ti_Data, (STRPTR)dir, sizeof dir)) dir[0] = 0;
+            break;
+        case WBOPENA_ArgName:
+            if (ob_wbp_arg_path(dir, (const char *)t->ti_Data, buf + n * OB_WB_ARGPATH, OB_WB_ARGPATH)) {
+                args[n] = buf + n * OB_WB_ARGPATH;
+                n++;
+            }
+            break;
+        }
+        t++;
+    }
+    return n;
+}
+
+#define OB_WB_MAXARGS 32
+static int open_with_args(struct OWBRequest *rq)
+{
+    const char *args[OB_WB_MAXARGS];
+    char *buf;
+    int n, ok = 0;
+    if (!rq->or_Tags || !env.open_args) return -1;
+    if (!(buf = AllocVec(OB_WB_MAXARGS * OB_WB_ARGPATH, MEMF_ANY))) return -1;
+    n = open_args(rq->or_Tags, buf, args, OB_WB_MAXARGS);
+    if (n > 0) ok = env.open_args((const char *)rq->or_Name, args, n);
+    FreeVec(buf);
+    return n > 0 ? ok : -1;                         /* -1: no arguments, opened as usual */
+}
+
 static void answer(struct OWBRequest *rq)
 {
     char dir[512];
@@ -104,9 +148,13 @@ static void answer(struct OWBRequest *rq)
     rq->or_Result = FALSE;
     rq->or_IoErr = ERROR_OBJECT_NOT_FOUND;
     switch (rq->or_Call) {
-    case OWBREQ_OPEN:
-        if (rq->or_Name && env.open && env.open((const char *)rq->or_Name)) rq->or_Result = TRUE;
+    case OWBREQ_OPEN: {
+        int r;
+        if (!rq->or_Name) break;
+        if ((r = open_with_args(rq)) < 0) r = env.open && env.open((const char *)rq->or_Name);
+        if (r) rq->or_Result = TRUE;
         break;
+    }
     case OWBREQ_CLOSE:
         if (rq->or_Name && env.close && env.close((const char *)rq->or_Name)) rq->or_Result = TRUE;
         break;

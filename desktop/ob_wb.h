@@ -85,6 +85,9 @@ typedef struct ob_wb_env {
     void (*reread)(const char *dir);
     /* WBInfo: path's Information window. 1 when it is open. */
     int (*info)(const char *path);
+    /* OpenWorkbenchObjectA with arguments (WBOPENA_ArgLock/WBOPENA_ArgName, row I11 through LAUNCH): path started
+     * with args[0..n) as its WBArgs after it (ob_wbp_open_how). 1 when started. NULL: the arguments are left out. */
+    int (*open_args)(const char *path, const char *const *args, int n);
 } ob_wb_env;
 
 /* A program's AppIcon, as the desktop shows it */
