@@ -85,3 +85,18 @@ int wbgap_putback_judge(long rc, int back, int back_info, int left, int noted, c
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
 }
+
+int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4])
+{
+    long b[4];
+    char extra;
+    const long slack = 2;
+    if (!line || !box || sscanf(line, "%ld %ld %ld %ld %c", &b[0], &b[1], &b[2], &b[3], &extra) != 4) return 0;
+    if (b[0] < 0 || b[1] < 0 || b[2] <= 0 || b[3] <= 0) return 0;
+    memcpy(box, b, sizeof b);
+    if (changed && changed[2] > 0 && changed[3] > 0 &&
+        (b[0] < changed[0] - slack || b[1] < changed[1] - slack || b[0] + b[2] > changed[0] + changed[2] + slack ||
+         b[1] + b[3] > changed[1] + changed[3] + slack))
+        return -1;
+    return 1;
+}

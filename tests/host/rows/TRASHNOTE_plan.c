@@ -30,7 +30,7 @@ void trashnote_plan(void)
 
     /* I6t: the Trashcan's icon by its name (the window re-lays its icons when one is added, 14 Nov gap count) */
     {
-        long box[4], changed[4] = {10, 20, 300, 90}, small[4] = {146, 58, 64, 72};
+        long box[4], changed[4] = {10, 20, 300, 200}, small[4] = {146, 58, 64, 72};
         CHECK(wbgap_trashnote_iconbox("146 58 64 72\n", changed, box) == 1 && box[0] == 146 && box[1] == 58 &&
               box[2] == 64 && box[3] == 72, "four numbers inside the changed box: found, as given");
         CHECK(wbgap_trashnote_iconbox("146 58 64 72", small, box) == 1, "the changed box is the icon's own: found");
