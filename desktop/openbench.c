@@ -304,7 +304,7 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.64"
+#define OPENBENCH_VERSION "0.1.65"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -3278,15 +3278,40 @@ static void select_only(dicon *keep)
 /* Shift-double-click (WBGapTest I11, ol_shift_args): every icon selected on the desktop goes to the program run,
  * in the order selected: the clicked icon when it is a tool, else the first tool selected, else the clicked
  * project's default tool. 0 when it isn't such a launch (one icon, a disk clicked): the caller opens it as usual. */
-#define OB_SHIFT_MAX 32
+#define OB_SHIFT_MAX 33                     /* a tool and 32 arguments, as a drawer window hands them (wb_look open_with) */
+
+/* Shift-double-click's start, the desktop's and the drawer windows': path[0..n-1] in the order selected, kind[] as
+ * ol_kind gives them, path[at] the icon double-clicked. 0 when it isn't such a launch (a drawer or disk clicked):
+ * the caller opens it as usual. 1 when handled, started or not. */
+static int shift_launch(const char *const *path, const int *kind, int n, int at)
+{
+    int argi[OB_SHIFT_MAX], i, tool, nargs, ok;
+    const char *argv[OB_SHIFT_MAX];
+    struct DiskObject *o;
+    char toolpath[300];
+    const char *run;
+    if (n < 2 || n > OB_SHIFT_MAX || (nargs = ol_shift_args(kind, n, at, &tool, argi)) < 0) return 0;
+    if (!(o = GetDiskObject((CONST_STRPTR)path[tool >= 0 ? tool : at]))) return 0;
+    if (tool >= 0) run = path[tool];
+    else if (find_tool(path[at], (const char *)o->do_DefaultTool, toolpath, sizeof toolpath)) run = toolpath;
+    else run = NULL;
+    if (run && tata_lets(run, 0)) {
+        for (i = 0; i < nargs; i++) argv[i] = path[argi[i]];
+        for (i = 0, ok = 1; i < nargs && ok; i++) if (kind[argi[i]] == OL_K_PROJECT && !tata_lets(argv[i], 1)) ok = 0;
+        if (ok) start_tool_args(run, argv, nargs, o->do_StackSize, (const char *const *)o->do_ToolTypes);
+    }
+    FreeDiskObject(o);
+    return 1;
+}
+
+/* Shift-double-click (WBGapTest I11, ol_shift_args): every icon selected on the desktop goes to the program run,
+ * in the order selected: the clicked icon when it is a tool, else the first tool selected, else the clicked
+ * project's default tool. 0 when it isn't such a launch (one icon, a disk clicked): the caller opens it as usual. */
 static int desk_open_selected(dicon *clicked)
 {
     dicon *sel[OB_SHIFT_MAX];
-    int kind[OB_SHIFT_MAX], argi[OB_SHIFT_MAX], n = 0, i, j, tool, nargs, at = -1, ok = 0;
-    const char *argv[OB_SHIFT_MAX];
-    struct DiskObject *o = NULL;
-    char toolpath[300];
-    const char *run;
+    const char *path[OB_SHIFT_MAX];
+    int kind[OB_SHIFT_MAX], n = 0, i, j, at = -1;
     for (i = 0; i < nicons && n < OB_SHIFT_MAX; i++)
         if (icons[i].selected || &icons[i] == clicked) sel[n++] = &icons[i];
     if (n < 2) return 0;
@@ -3300,24 +3325,31 @@ static int desk_open_selected(dicon *clicked)
         }
     for (i = 0; i < n; i++) {
         struct DiskObject *d = sel[i]->lo >= 0 ? GetDiskObject((CONST_STRPTR)sel[i]->path) : NULL;
-        kind[i] = sel[i]->lo < 0 ? OL_K_DRAWER : !d ? OL_K_OTHER : d->do_Type == WBTOOL ? OL_K_TOOL :
-                  d->do_Type == WBPROJECT ? OL_K_PROJECT : OL_K_DRAWER;
+        kind[i] = sel[i]->lo < 0 ? OL_K_DRAWER : ol_kind(d ? d->do_Type : 0, 0);
         if (d) FreeDiskObject(d);
+        path[i] = sel[i]->path;
         if (sel[i] == clicked) at = i;
     }
-    if ((nargs = ol_shift_args(kind, n, at, &tool, argi)) < 0) return 0;
-    if (!(o = GetDiskObject((CONST_STRPTR)(tool >= 0 ? sel[tool] : clicked)->path))) return 0;
-    if (tool >= 0) run = sel[tool]->path;
-    else if (find_tool(clicked->path, (const char *)o->do_DefaultTool, toolpath, sizeof toolpath)) run = toolpath;
-    else run = NULL;
-    if (run && tata_lets(run, 0)) {
-        for (i = 0; i < nargs; i++) argv[i] = sel[argi[i]]->path;
-        for (i = 0, ok = 1; i < nargs && ok; i++) if (kind[argi[i]] == OL_K_PROJECT && !tata_lets(argv[i], 1)) ok = 0;
-        if (ok) ok = start_tool_args(run, argv, nargs, o->do_StackSize, (const char *const *)o->do_ToolTypes);
-    }
-    FreeDiskObject(o);
-    return 1;                                               /* handled, started or not */
+    return shift_launch(path, kind, n, at);
 }
+
+#ifdef WB_LOOK_OPEN_WITH
+static int is_drawer(const char *path);
+/* 0.1.65: Shift-double-click in a drawer window (wb_look's open_with): the drawer's selection, in the order
+ * selected, started as on the desktop. */
+static int ob_open_with(const char *const *paths, int n, int clicked, wb_drawer *from)
+{
+    int kind[OB_SHIFT_MAX], i;
+    (void)from;
+    if (n < 2 || n > OB_SHIFT_MAX || clicked < 0 || clicked >= n) return 0;
+    for (i = 0; i < n; i++) {
+        struct DiskObject *d = GetDiskObject((CONST_STRPTR)paths[i]);
+        kind[i] = ol_kind(d ? d->do_Type : 0, d ? 0 : is_drawer(paths[i]));
+        if (d) FreeDiskObject(d);
+    }
+    return shift_launch(paths, kind, n, clicked);
+}
+#endif
 
 /* 0.1.58: Window > Select contents (M12; Clear selection beside it is M30): every icon on the desktop that shows */
 static void select_all(void)
@@ -5573,6 +5605,9 @@ static int run(void)
     look.leave_out = drawer_leave_out;             /* 0.1.41: Icons > Leave Out in the drawers (.backdrop) */
     look.new_drawer = ob_new_drawer;               /* Window > New drawer... (WBGapTest M8) */
     look.copy = ob_copy;                           /* Icons > Copy (WBGapTest M18) */
+#ifdef WB_LOOK_OPEN_WITH
+    look.open_with = ob_open_with;                 /* 0.1.65: Shift-double-click in a drawer window (I11) */
+#endif
     look.empty_trash = ob_empty_trash;             /* Icons > Empty trash (WBGapTest M25) */
     look.rename_icon = drawer_rename;              /* 0.1.51: Icons > Rename... and Delete... in the drawers */
     look.delete_icons = drawer_delete;
