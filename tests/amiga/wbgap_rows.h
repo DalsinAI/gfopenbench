@@ -115,11 +115,6 @@ int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap);
 int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
 /* A5 (WBCONTROL) and other rows made of several readings: names[k]'s reading got[k] must be want[k] for every k.
  * WBGAP_PASS, WBGAP_FAIL (the first wrong one in why: "<name>: <got>, not <want>"), WBGAP_SKIP for none */
-/* A5: a WorkbenchControlA value is set (and put back) only if its Get worked, else it would be left changed;
- * the reading after the Set is then WBGAP_CTL_NOT_READ, which no wanted value is */
-#define WBGAP_CTL_NOT_READ (-0x7ffffffeL)
-int wbgap_ctl_may_set(int get_ok);
-long wbgap_ctl_reading(int get_ok, long read_back);
 int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap);
 /* D2 (MOUNTICON): a drive not mounted at the start is mounted; its volume must get a disk icon. was_there: it was
  * mounted already (SKIP: nothing to watch); before, after: the desktop's icons read (-1 not read; after: 1 if the
