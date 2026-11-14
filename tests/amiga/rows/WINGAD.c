@@ -158,6 +158,13 @@ int wbt_wingad(int argc, char **argv)
         printf("INFO W1 depth at %ld,%ld: in front of the cover %d, %d, %d\n", xy[0], xy[1], m.front0, m.front1,
                m.front2);
     }
+    if (!m.has_size || !m.has_zoom || !m.has_depth) {   /* what the window has instead, for whoever closes the gap */
+        struct Gadget *g;
+        int n = 0;
+        for (g = w->FirstGadget; g && n < 24; g = g->NextGadget, n++)
+            printf("INFO W1 gadget %d: type $%04x flags $%04x at %d,%d %dx%d id %u\n", n, (unsigned)g->GadgetType,
+                   (unsigned)g->Flags, g->LeftEdge, g->TopEdge, g->Width, g->Height, (unsigned)g->GadgetID);
+    }
     wbt_say("W1", wbgap_wingad_judge(&m, why, sizeof why), why);
 out:
     if (cover) CloseWindow(cover);
