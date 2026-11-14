@@ -44,3 +44,12 @@ int wbgap_appwin_both(int a, const char *why_a, int b, const char *why_b, char *
     if (why && cap) snprintf(why, cap, "%s", w ? w : "");
     return v;
 }
+
+int wbgap_appwin_row(int dragged, int a, const char *why_a, int b, const char *why_b, char *why, unsigned cap)
+{
+    if (!dragged) {
+        if (why && cap) snprintf(why, cap, "RAM:WBGapD's window went before a drag");
+        return WBGAP_FAIL;
+    }
+    return wbgap_appwin_both(a, why_a, b, why_b, why, cap);
+}

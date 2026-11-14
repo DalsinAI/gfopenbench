@@ -5339,15 +5339,19 @@ static int wbreq_which(struct Window *w, LONG x, LONG y, char *out, int n)
     int i, at;
     if (n > 0) out[0] = 0;
     if (!root || !w) return OB_WBP_AT_NONE;
-    sx = (WORD)(w->LeftEdge + x);
-    sy = (WORD)(w->TopEdge + y);
+    /* w is read only once it is known to be ours (the desktop or a drawer window): a program may ask about a window
+     * that has gone (G'Kar's #164 note) */
     if (w == root) {
         if (x < 0 || y < 0 || x >= w->Width || y >= w->Height) return OB_WBP_AT_NONE;
+        sx = (WORD)(w->LeftEdge + x);
+        sy = (WORD)(w->TopEdge + y);
         if (desk_icon_at(sx, sy, out, n) != OB_DESK_NONE) return OB_WBP_AT_ICON;
         if (n > 0) out[0] = 0;
         return OB_WBP_AT_SPACE;
     }
     if ((i = drawer_of_window(w)) < 0) return OB_WBP_AT_NONE;
+    sx = (WORD)(w->LeftEdge + x);
+    sy = (WORD)(w->TopEdge + y);
     at = ob_dt_at(drawers[i], sx, sy, out, n);
     if (at == WB_AT_DRAWER || at == WB_AT_FILE) return OB_WBP_AT_ICON;
     if (at == WB_AT_SPACE) return OB_WBP_AT_SPACE;
