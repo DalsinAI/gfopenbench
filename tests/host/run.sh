@@ -77,6 +77,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_stack.c" \
   "$HERE/tests/host/test_ob_stack.c" -o "$OUT/test_ob_stack"
 "$OUT/test_ob_stack"
+# ob_wbprefs: ENV:Sys/Workbench.prefs, the default stack set in workbench.library and the hidden devices (gap P7)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_wbprefs.c" \
+  "$HERE/tests/host/test_ob_wbprefs.c" -o "$OUT/test_ob_wbprefs"
+"$OUT/test_ob_wbprefs"
 # ob_prot: Hold and Pure in the Information window's Advanced section (gap N7)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_prot.c" \
