@@ -138,7 +138,7 @@ static const struct wbgap_row rows[] = {
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
-    {"W3", NULL, A, NULL, "window and screen titles"},
+    {"W3", NULL, A, "TITLES", "window and screen titles"},
     /* 10. Notifications */
     {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
     {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
@@ -553,6 +553,20 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     else if (inhibited && !after) { r = "its icon stayed while inhibited and then went"; v = WBGAP_FAIL; }
     else if (inhibited) { r = "its icon stayed while inhibited"; v = WBGAP_FAIL; }
     else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
+int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap)
+{
+    char r[200] = "";
+    size_t n = name ? strlen(name) : 0;
+    int v = WBGAP_FAIL;
+    if (!win_title || !n) { snprintf(r, sizeof r, "the drawer's window not read"); v = WBGAP_SKIP; }
+    else if (strncmp(win_title, name, n) || (win_title[n] && win_title[n] != ' '))
+        snprintf(r, sizeof r, "the drawer's window is titled \"%.80s\", not with its name \"%.40s\"", win_title, name);
+    else if (!screen_title || !*screen_title) snprintf(r, sizeof r, "the Workbench screen has no title");
+    else v = WBGAP_PASS;
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
 }

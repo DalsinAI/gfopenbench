@@ -25,6 +25,7 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -1301,6 +1302,40 @@ static int do_closewb(void)
     return fails ? 5 : 0;
 }
 
+/* ---- W3: window and screen titles ----
+ * RAM:WBGapW3, a drawer with an icon, opened on the desktop; its window's title must be the drawer's name, and the
+ * window's screen must have a title. The titles are copied under LockIBase; the drawer is cleared afterwards. */
+static void say_row(const char *row, int state, const char *why);
+static int do_titles(void)
+{
+    struct Window *w;
+    char wt[128], st[128], sw[128], why[200];
+    int how, v, got = 0;
+    ULONG lock;
+    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW3");
+    if (l) UnLock(l);
+    put_icon("RAM:WBGapW3", WBDRAWER, NULL);
+    wt[0] = st[0] = sw[0] = 0;
+    if ((w = open_drawer("RAM:WBGapW3", "WBGapW3", 10, &how))) {
+        lock = LockIBase(0);
+        if ((w = find_window("WBGapW3"))) {          /* looked for again: it may have gone since */
+            snprintf(wt, sizeof wt, "%s", w->Title ? (const char *)w->Title : "");
+            snprintf(st, sizeof st, "%s", w->WScreen && w->WScreen->Title ? (const char *)w->WScreen->Title : "");
+            snprintf(sw, sizeof sw, "%s", w->ScreenTitle ? (const char *)w->ScreenTitle : "");
+            got = 1;
+        }
+        UnlockIBase(lock);
+    }
+    if (got) printf("INFO W3 the window \"%s\"; the screen \"%s\"; the window's screen title \"%s\"\n", wt, st, sw);
+    v = wbgap_title_judge(got ? wt : NULL, "WBGapW3", st, why, sizeof why);
+    if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapW3's window didn't open");
+    say_row("W3", v, why);
+    clear_drawer("RAM:WBGapW3", "WBGapW3", "W3");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3");
+    return fails ? 5 : 0;
+}
+
 /* ---- the system bar: B1 and B2, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
  * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
  * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
@@ -2209,6 +2244,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
