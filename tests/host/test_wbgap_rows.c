@@ -144,6 +144,11 @@ static void diskio_plan(void)
           "went, not back: FAIL, \"%s\"", why);
     CHECK(wbgap_diskio_judge(1, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "stayed") && strstr(why, "then went"),
           "stayed then went: FAIL, \"%s\"", why);
+    CHECK(wbgap_diskio_judge(1, -1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
+          "not read while inhibited: SKIP, never a PASS (Budgie), \"%s\"", why);
+    CHECK(wbgap_diskio_judge(1, 0, -1, why, sizeof why) == WBGAP_SKIP, "not read after: SKIP, never a FAIL");
+    CHECK(wbgap_diskio_judge(1, 1, -1, why, sizeof why) == WBGAP_SKIP && wbgap_diskio_judge(-1, 0, 1, why, sizeof why) == WBGAP_SKIP,
+          "any read failed: SKIP");
     CHECK(wbgap_diskio_judge(1, 0, 1, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
     CHECK(wbgap_find("D1") >= 0 && wbgap_row(wbgap_find("D1"))->mode && !strcmp(wbgap_row(wbgap_find("D1"))->mode, "DISKIO"),
           "D1's line comes from DISKIO");

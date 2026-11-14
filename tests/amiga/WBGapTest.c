@@ -1186,7 +1186,7 @@ static int do_diskio(const char *drive)
     diskio_inhibit(drive, 0);                       /* always given back, whatever was read */
     Delay(150);
     after = diskio_has(vol, "after");
-    v = wbgap_diskio_judge(before, off > 0, after > 0, why, sizeof why);
+    v = wbgap_diskio_judge(before, off, after, why, sizeof why);
     if (v == WBGAP_PASS) pass("D1");
     else if (v == WBGAP_SKIP) skip("D1", why);
     else fail("D1", why);
