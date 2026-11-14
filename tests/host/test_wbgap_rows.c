@@ -643,8 +643,10 @@ static void wildcard(void)
     CHECK(r.state[m2] == WBGAP_PASS, "M* leaves a row that has a line");
     CHECK(r.state[m19] == WBGAP_FAIL && !strcmp(r.why[m19], "no Workbench screen"), "M* fails M19, which had none");
     CHECK(r.state[a3] == WBGAP_NONE, "M* leaves the A rows");
-    CHECK(wbgap_report_line(&r, "FAIL A* setup") == 1 && r.state[a3] == WBGAP_FAIL, "A* fails A3 (API)");
-    CHECK(r.state[wbgap_find("A8b")] == WBGAP_FAIL, "and A8b, API's too");
+    /* A1 (APPWIN, rows/APPWIN.c) is the first A row with a mode: A* is APPWIN's, so API names its rows itself */
+    CHECK(wbgap_report_line(&r, "FAIL A* setup") == 1 && r.state[wbgap_find("A1")] == WBGAP_FAIL &&
+          r.state[wbgap_find("A2")] == WBGAP_FAIL, "A* fails A1 and A2 (APPWIN)");
+    CHECK(r.state[a3] == WBGAP_NONE && r.state[wbgap_find("A8b")] == WBGAP_NONE, "and leaves A3 and A8b, API's");
     CHECK(r.state[wbgap_find("A10a")] == WBGAP_NONE, "A* leaves A10a, STARTUP CHECK's");
     CHECK(r.state[wbgap_find("M16t")] == WBGAP_NONE, "M* leaves M16t, which MENUS doesn't check");
     CHECK(wbgap_report_line(&r, "FAIL Q* nothing") == -1, "a wildcard that matches no row");
