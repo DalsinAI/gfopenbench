@@ -2150,7 +2150,7 @@ out:
 
 /* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
  * RAM:WBGapD (a snapshotted at 20,10) at the top-left and RAM:WBGapE (b at 20,10) in a corner clear of it, each
- * 440x360 (both SKIP on a screen narrower than 880). d is made in
+ * 440x360, or half the screen wide if that is less (both SKIP when half is under 320). d is made in
  * RAM:WBGapD at 120,10 and the drawer sub at 20,100 (under a), each found where the window changed (wbgap_diff_box). I4: d dragged into
  * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
  * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
@@ -2294,22 +2294,26 @@ static struct Window *drag_place(const char *title, const long *avoid, long w, l
 
 #define DRAG_WW 440   /* each drawer's window: room for three icons in a row and no scroller */
 #define DRAG_WH 360
+#define DRAG_MINW 320 /* half the screen narrower than this: no room for both windows */
 
 static int do_dragfile(int keep)
 {
     static unsigned long before[DROP_GW * DROP_GH];
     struct Window *dw, *ew;
-    long from[2], to[2], dbox[4], ebox[4];
+    long from[2], to[2], dbox[4], ebox[4], ww;
     int how, gw, gh;
     drag_clean();
     {   /* two windows side by side: on a narrower screen no corner is clear of the first, through no fault of the
          * desktop's */
         struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench");
-        int narrow = !wb || wb->Width < 2 * DRAG_WW;
+        ww = wb ? wb->Width / 2 : 0;          /* each window at most half the screen (3.2.3's 800x600: 400) */
+        if (ww > DRAG_WW) ww = DRAG_WW;
         if (wb) UnlockPubScreen(NULL, wb);
-        if (narrow) {
-            skip("I4", "the Workbench screen is narrower than two 440-wide drawer windows side by side");
-            skip("I7", "the Workbench screen is narrower than two 440-wide drawer windows side by side");
+        if (ww < DRAG_MINW) {
+            skip("I4", wb ? "the Workbench screen is narrower than two 320-wide drawer windows side by side"
+                          : "no Workbench screen");
+            skip("I7", wb ? "the Workbench screen is narrower than two 320-wide drawer windows side by side"
+                          : "no Workbench screen");
             return fails ? 5 : 0;
         }
     }
@@ -2320,8 +2324,8 @@ static int do_dragfile(int keep)
         fail("I7", "RAM:WBGapD's window didn't open");
         goto out;
     }
-    if (!(dw = drag_place("WBGapD", NULL, DRAG_WW, DRAG_WH))) {
-        fail("I4", "RAM:WBGapD's window couldn't be made 440x360");
+    if (!(dw = drag_place("WBGapD", NULL, ww, DRAG_WH))) {
+        fail("I4", "RAM:WBGapD's window couldn't be sized and put at the top-left");
         fail("I7", "RAM:WBGapD's window couldn't be sized");
         goto out;
     }
@@ -2336,7 +2340,7 @@ static int do_dragfile(int keep)
            d_box[2], d_box[3], sub_box[0], sub_box[1], sub_box[2], sub_box[3]);
     if (!(dw = find_window("WBGapD"))) { fail("I4", "RAM:WBGapD's window went"); fail("I7", "RAM:WBGapD's window went"); goto out; }
     dbox[0] = dw->LeftEdge; dbox[1] = dw->TopEdge; dbox[2] = dw->Width; dbox[3] = dw->Height;
-    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox, DRAG_WW, DRAG_WH))) {
+    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox, ww, DRAG_WH))) {
         fail("I4", "RAM:WBGapE's window didn't open, or couldn't be put clear of RAM:WBGapD's");
         fail("I7", "no second window");
         goto out;
