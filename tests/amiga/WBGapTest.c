@@ -1484,6 +1484,9 @@ static int do_diskio(const char *drive)
     if (v == WBGAP_PASS) pass("D1");
     else if (v == WBGAP_SKIP) skip("D1", why);
     else fail("D1", why);
+    return fails ? 5 : 0;
+}
+
 static long read_all(const char *path, char *buf, long n);
 
 /* ---- I8, I9: an icon dragged onto an AppIcon and onto an AppWindow ----
