@@ -25,6 +25,8 @@ int wbt_put_icon(const char *path, long type, char **tooltypes);
 struct Window *wbt_find_window(const char *part);             /* a window whose title holds part */
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how);
 int wbt_clear_drawer(const char *path, const char *title, const char *row);
+int wbt_write_file(const char *path, const char *text);      /* 1 if written */
+unsigned long wbt_inside_sum(struct Window *w);              /* the inside, sampled, as one number */
 /* DRAGFILE's: the drawer dir with first snapshotted at 20,10 in it; the window titled title made w x h and put in a
  * corner clear of avoid (NULL: the top-left), or NULL; an object made in the drawer dir (its window w open) at x,y,
  * told to the desktop, and its box in the window's inside found where the inside changed: 1, or 0 in 5 s */
