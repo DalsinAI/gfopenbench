@@ -7,11 +7,28 @@
 #include <string.h>
 
 #include "wbgap_rows.h"
+#include "wbgap_check.h"
 
-static int failures, checks;
+int failures, checks;
 
-#define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); \
-    printf(__VA_ARGS__); printf("\n"); } } while (0)
+/* the per-row plans (tests/host/rows, listed by tests/amiga/gen-rows.sh) */
+#define WBGAP_GEN_PLAN(fn) void fn(void);
+#include "wbgap_gen_plans.inc"
+#undef WBGAP_GEN_PLAN
+
+/* every row a file of its own names (WBGAP_ROWMODE) is in the table, its mode the file's */
+static void gen_rowmodes_plan(void)
+{
+    const char *id, *mode;
+    int k, i;
+    for (k = 0; (id = wbgap_gen_rowmode(k, &mode)); k++) {
+        i = wbgap_find(id);
+        CHECK(i >= 0, "%s (WBGAP_ROWMODE, mode %s) is in the table", id, mode);
+        CHECK(i < 0 || (wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, mode)),
+              "%s's mode is %s, its file's, not the table's %s", id, mode, i >= 0 && wbgap_row(i)->mode ? wbgap_row(i)->mode : "(none)");
+    }
+    CHECK(k >= 1, "the row files are listed (gen-rows.sh): %d", k);
+}
 
 /* the ids in the gaps document's tables, 12 Nov 2026 */
 static const char *const doc_ids[] = {
@@ -330,28 +347,6 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
-/* W3: window and screen titles */
-static void titles_plan(void)
-{
-    char why[200];
-    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "Workbench Screen", why, sizeof why) == WBGAP_PASS && !why[0],
-          "the drawer's name, a screen title: PASS");
-    CHECK(wbgap_title_judge("WBGapW3  2 files", "WBGapW3", "x", why, sizeof why) == WBGAP_PASS, "the name, then a blank and more: PASS");
-    CHECK(wbgap_title_judge("RAM:WBGapW3", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, "RAM:WBGapW3"),
-          "the path, not the name: FAIL, \"%s\"", why);
-    CHECK(wbgap_title_judge("WBGapTx", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "a longer name: FAIL");
-    CHECK(wbgap_title_judge("wbgapt", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "the name's case changed: FAIL");
-    CHECK(wbgap_title_judge("", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "an empty title: FAIL");
-    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "", why, sizeof why) == WBGAP_FAIL && strstr(why, "screen has no title"),
-          "no screen title: FAIL, \"%s\"", why);
-    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", NULL, why, sizeof why) == WBGAP_FAIL, "a NULL screen title: FAIL");
-    CHECK(wbgap_title_judge(NULL, "WBGapW3", "x", why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
-          "the window not read: SKIP, \"%s\"", why);
-    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "x", NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
-    CHECK(wbgap_find("W3") >= 0 && wbgap_row(wbgap_find("W3"))->mode && !strcmp(wbgap_row(wbgap_find("W3"))->mode, "TITLES"),
-          "W3's line comes from TITLES");
-}
-
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -569,8 +564,11 @@ int main(int argc, char **argv)
     bar_point_plan();
     closewb_plan();
     diskio_plan();
-    titles_plan();
     showall_plan();
+#define WBGAP_GEN_PLAN(fn) fn();
+#include "wbgap_gen_plans.inc"
+#undef WBGAP_GEN_PLAN
+    gen_rowmodes_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);

@@ -25,7 +25,9 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
- *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
+ *   WBGapTest TITLES            row W3 (rows/TITLES.c): RAM:WBGapW3's window titled with the drawer's name, its screen with a title
+ *   WBGapTest NEWROWS           every mode in tests/amiga/rows marked NEWROWS, one after another (a new row's file is its only
+ *                               line: the script runs them all here); each of those modes also runs alone by its name
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -90,6 +92,7 @@
 #include "wbgap_menu.h"
 #include "../../desktop/ob_info_ids.h"   /* the Information window's gadget ids (INFOSAVE) */
 #include "wbgap_rows.h"
+#include "wbgap_test.h"
 #if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
 typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_WBO_DRAWER && WBO_ICON == WBGAP_WBO_ICON) ? 1 : -1];
 #endif
@@ -1474,40 +1477,6 @@ static int do_closewb(void)
     return fails ? 5 : 0;
 }
 
-/* ---- W3: window and screen titles ----
- * RAM:WBGapW3, a drawer with an icon, opened on the desktop; its window's title must be the drawer's name, and the
- * window's screen must have a title. The titles are copied under LockIBase; the drawer is cleared afterwards. */
-static void say_row(const char *row, int state, const char *why);
-static int do_titles(void)
-{
-    struct Window *w;
-    char wt[128], st[128], sw[128], why[200];
-    int how, v, got = 0;
-    ULONG lock;
-    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW3");
-    if (l) UnLock(l);
-    put_icon("RAM:WBGapW3", WBDRAWER, NULL);
-    wt[0] = st[0] = sw[0] = 0;
-    if ((w = open_drawer("RAM:WBGapW3", "WBGapW3", 10, &how))) {
-        lock = LockIBase(0);
-        if ((w = find_window("WBGapW3"))) {          /* looked for again: it may have gone since */
-            snprintf(wt, sizeof wt, "%s", w->Title ? (const char *)w->Title : "");
-            snprintf(st, sizeof st, "%s", w->WScreen && w->WScreen->Title ? (const char *)w->WScreen->Title : "");
-            snprintf(sw, sizeof sw, "%s", w->ScreenTitle ? (const char *)w->ScreenTitle : "");
-            got = 1;
-        }
-        UnlockIBase(lock);
-    }
-    if (got) printf("INFO W3 the window \"%s\"; the screen \"%s\"; the window's screen title \"%s\"\n", wt, st, sw);
-    v = wbgap_title_judge(got ? wt : NULL, "WBGapW3", st, why, sizeof why);
-    if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapW3's window didn't open");
-    say_row("W3", v, why);
-    clear_drawer("RAM:WBGapW3", "WBGapW3", "W3");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapW3.info");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapW3");
-    return fails ? 5 : 0;
-}
-
 /* ---- the system bar: B1 and B2, GFOpenTitle's Power list (gfopenprefs TitleBar) ----
  * The row window GFOpenTitle keeps at the title bar's right end: its task's widest-reaching borderless window at the
  * top, no taller than the bar. Power's cell is its last (wbgap_power_point). The list is clicked open, looked at and
@@ -2395,8 +2364,59 @@ static int do_report(const char *path)
     return wbgap_report_print(&r, out_line, NULL) ? 5 : 0;
 }
 
+/* ---- the rows in files of their own (tests/amiga/rows, wbgap_test.h) ----
+ * Their modes come from gen-rows.sh's listing; the helpers they take are these. */
+#define WBGAP_GEN_MODE(name, fn, newrows) int fn(int argc, char **argv);
+#include "wbgap_gen_modes.inc"
+#undef WBGAP_GEN_MODE
+static const struct gen_mode { const char *name; int (*fn)(int, char **); int newrows; } gen_modes[] = {
+#define WBGAP_GEN_MODE(name, fn, newrows) { name, fn, newrows },
+#include "wbgap_gen_modes.inc"
+#undef WBGAP_GEN_MODE
+    { NULL, NULL, 0 }
+};
+
+static int gen_mode(int argc, char **argv, int *known)
+{
+    const struct gen_mode *g;
+    *known = 0;
+    for (g = gen_modes; g->name; g++)
+        if (!stricmp(argv[1], g->name)) { *known = 1; return g->fn(argc, argv); }
+    return 0;
+}
+
+/* every NEWROWS mode in name order, each as if run alone; the worst return code */
+static int do_newrows(char *prog)
+{
+    const struct gen_mode *g;
+    int rc = 0, r;
+    for (g = gen_modes; g->name; g++) {
+        char *av[3];
+        if (!g->newrows) continue;
+        av[0] = prog; av[1] = (char *)g->name; av[2] = NULL;
+        printf("INFO NEWROWS %s\n", g->name);
+        fflush(stdout);
+        if ((r = g->fn(2, av)) > rc) rc = r;
+    }
+    return rc;
+}
+
+void wbt_pass(const char *row) { pass(row); }
+void wbt_fail(const char *row, const char *why) { fail(row, why); }
+void wbt_skip(const char *row, const char *why) { skip(row, why); }
+void wbt_say(const char *row, int state, const char *why) { say_row(row, state, why); }
+int wbt_fails(void) { return fails; }
+int wbt_run(const char *cmd) { return run(cmd); }
+long wbt_read_all(const char *path, char *buf, long n) { return read_all(path, buf, n); }
+const char *wbt_dragtest(void) { return dragtest; }
+int wbt_put_icon(const char *path, long type, char **tooltypes) { return put_icon(path, (LONG)type, (STRPTR *)tooltypes); }
+struct Window *wbt_find_window(const char *part) { return find_window(part); }
+struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how) { return open_drawer(path, title, secs, how); }
+int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
+
 int main(int argc, char **argv)
 {
+    int known;
     int rc = 20;
     WorkbenchBase = OpenLibrary("workbench.library", 44);
     IconBase = OpenLibrary("icon.library", 44);
@@ -2416,7 +2436,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
-    else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
@@ -2425,7 +2444,8 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
     else if (!stricmp(argv[1], "INFOSAVE")) rc = do_infosave();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
-    else printf("unknown: %s\n", argv[1]);
+    else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
+    else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);
 out:
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     if (IconBase) CloseLibrary(IconBase);

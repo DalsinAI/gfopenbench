@@ -71,8 +71,9 @@ und=$("$STOVE/prefix/bin/m68k-amigaos-nm" -u "$OUT/gfopenbench.library" || true)
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/tests/amiga/DragTest.c"
 # WBGapTest: the Workbench gap rows (amicradle-teams designs/OPENBENCH-GAPS-20261112.md), with DragTest
+sh "$HERE/tests/amiga/gen-rows.sh" "$OUT/wbgap-gen"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c" "$HERE/tests/amiga/wbgap_menu.c"
+"$CC" $COMMON -I"$HERE/tests/amiga" -I"$HERE/tests/amiga/rows" -I"$OUT/wbgap-gen" -o "$OUT/WBGapTest" "$HERE/tests/amiga/WBGapTest.c" "$HERE/tests/amiga/wbgap_rows.c" "$HERE/tests/amiga/wbgap_menu.c" "$HERE"/tests/amiga/rows/*.c
 cp "$HERE/tests/amiga/WBGapTest.script" "$HERE/tests/amiga/WBGapCheck.script" "$HERE/tests/amiga/WBGapRexx.rexx" "$HERE/tests/amiga/WBGapLayout.rexx" "$HERE/tests/amiga/WBGapX4.rexx" "$HERE/tests/amiga/WBGapX3.rexx" "$HERE/tests/amiga/WBGapF3.rexx" "$HERE/tests/amiga/WBGapDesk.rexx" "$HERE/tests/amiga/WBGapRoot.rexx" "$OUT/"
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/wbspy" "$HERE/tools/wbspy.c" "$HERE/tools/spyfmt.c"

@@ -12,8 +12,9 @@ COMMON="-noixemul -m68040 -specs=$HERE/../../toolchain/m68k-soft-m68040.specs -s
 if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/null; then COMMON="$COMMON -fno-late-combine-instructions"; fi
 # shellcheck disable=SC2086
 "$CC" $COMMON -o "$OUT/DragTest" "$HERE/DragTest.c"
+sh "$HERE/gen-rows.sh" "$OUT/gen"
 # shellcheck disable=SC2086
-"$CC" $COMMON -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c"
+"$CC" $COMMON -I"$HERE" -I"$HERE/rows" -I"$OUT/gen" -o "$OUT/WBGapTest" "$HERE/WBGapTest.c" "$HERE/wbgap_rows.c" "$HERE/wbgap_menu.c" "$HERE"/rows/*.c
 # WBGapIndex: the ACFS index's rows, with amicradle-guest's tools/openindex (AMICRADLE_GUEST: its checkout)
 if [ -n "${AMICRADLE_GUEST:-}" ]; then
   OIX="$AMICRADLE_GUEST/tools/openindex"

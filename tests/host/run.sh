@@ -11,7 +11,11 @@ OUT=${TMPDIR:-/tmp}/openbench-host-tests
 mkdir -p "$OUT"
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tools" "$HERE/tools/spyfmt.c" "$HERE/tests/host/test_spyfmt.c" -o "$OUT/test_spyfmt"
 # wbgap_rows: WBGapTest's gap ids and its one line per id (tests/amiga/wbgap_rows.c; Workbench build row 7)
-cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_rows.c" \
+# with the rows in files of their own: their judges (tests/amiga/rows/*_judge.c) and plans (tests/host/rows), listed
+# by tests/amiga/gen-rows.sh
+sh "$HERE/tests/amiga/gen-rows.sh" "$OUT/gen"
+cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" -I"$HERE/tests/amiga/rows" -I"$HERE/tests/host" -I"$OUT/gen" \
+  "$HERE/tests/amiga/wbgap_rows.c" "$HERE"/tests/amiga/rows/*_judge.c "$HERE"/tests/host/rows/*.c \
   "$HERE/tests/host/test_wbgap_rows.c" -o "$OUT/test_wbgap_rows"
 # wbgap_menu: the mouse's path to a menu item for WBGapTest MENUDRIVE (Workbench build row 7)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/amiga/wbgap_menu.c" \
