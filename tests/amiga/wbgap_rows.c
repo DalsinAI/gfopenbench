@@ -67,7 +67,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I2", NULL, A, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
     {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
-    {"I5", NULL, L, NULL, "drag to the backdrop"},
+    {"I5", NULL, A, NULL, "drag to the backdrop"},
     {"I6", NULL, A, NULL, "drag to the Trashcan"},
     {"I6t", "I6", A, NULL, "onto its volume's own Trashcan: filed there with a note of where it came from (GFOS, 14 Nov)"},
     {"I6p", "I6", A, NULL, "put back from the Trashcan to where it came from (GFOS, gfopenfiles.library, 14 Nov)"},
