@@ -30,7 +30,7 @@
  *   WBGapTest APPDROP           rows I9, I8: RAM:WBGapD's icon d dragged (DragTest) onto a window of ours made an
  *                               AppWindow, then onto an AppIcon (its place from WBGapAppPos.rexx); the AppMessage read
  *   WBGapTest DRAGFILE          rows I4, I7: RAM:WBGapD's d dragged into RAM:WBGapE's window (moved, icon and all),
- *                               then onto the drawer sub's icon in RAM:WBGapD (moved into it)
+ *                               then onto the drawer sub's icon in RAM:WBGapD (moved into it); KEEP: left open
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -1861,7 +1861,7 @@ static struct Window *drag_place(const char *title, const long *avoid)
     return NULL;
 }
 
-static int do_dragfile(void)
+static int do_dragfile(int keep)
 {
     static unsigned long before[DROP_GW * DROP_GH];
     struct Window *dw, *ew;
@@ -1916,7 +1916,7 @@ static int do_dragfile(void)
     drop_drag(from, to, "I7");
     drag_judge("I7", "RAM:WBGapE", "RAM:WBGapD/sub", "d");
 out:
-    drag_clean();
+    if (!keep) drag_clean();   /* KEEP: the windows left open, to look at */
     return fails ? 5 : 0;
 }
 
@@ -2534,7 +2534,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | APPDROP | DRAGFILE | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | APPDROP | DRAGFILE [KEEP] | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -2549,7 +2549,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
-    else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile();
+    else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
