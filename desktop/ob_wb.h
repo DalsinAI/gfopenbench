@@ -88,6 +88,10 @@ typedef struct ob_wb_env {
     /* OpenWorkbenchObjectA with arguments (WBOPENA_ArgLock/WBOPENA_ArgName, row I11 through LAUNCH): path started
      * with args[0..n) as its WBArgs after it (ob_wbp_open_how). 1 when started. NULL: the arguments are left out. */
     int (*open_args)(const char *path, const char *const *args, int n);
+    /* WhichWorkbenchObjectA (gap row A8c): what window w (a drawer window of ours, or the desktop's) has at (x, y),
+     * relative to the window, as OB_WBP_AT_* (ob_wbplan.h), with its path in out (at most n - 1 characters).
+     * OB_WBP_AT_NONE for a window that isn't ours. NULL: always WBO_NONE. */
+    int (*which)(struct Window *w, LONG x, LONG y, char *out, int n);
 } ob_wb_env;
 
 /* A program's AppIcon, as the desktop shows it */
