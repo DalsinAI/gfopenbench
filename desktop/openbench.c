@@ -304,6 +304,10 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
+#include "ob_about.h"
+#ifdef OB_HAVE_ABOUT
+#include "gfopenlayout_about.h"
+#endif
 #define OPENBENCH_VERSION "0.1.67"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
@@ -4490,10 +4494,15 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 if (auto_arrange) place_icons(1);   /* 0.1.52 */
                 redraw_all();
                 break;
-            case M_ABOUT:
-                ask("About GFOpenBench", "GFOpenBench " OPENBENCH_VERSION "\n\nOur own Workbench for AmigaOS 3.2.\n"
-                    "MIT, Copyright (c) 2026 AmiCradle Team.", "OK");
+            case M_ABOUT: {
+                /* GFOpenLayout's About window, with the GFOS mark (ob_about.h); the EasyRequest without it */
+#ifdef OB_HAVE_ABOUT
+                static const olabout about = { OB_ABOUT_NAME, OPENBENCH_VERSION, OB_ABOUT_TEXT };
+                if (olabout_show(root ? root->WScreen : NULL, &about)) break;
+#endif
+                ask("About GFOpenBench", OB_ABOUT_REQ(OPENBENCH_VERSION), "OK");
                 break;
+            }
             case M_LOADWB:
             case M_QUIT:
                 {
