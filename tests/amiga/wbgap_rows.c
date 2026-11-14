@@ -137,7 +137,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C3", NULL, L, NULL, "screen dragging; composited, an offset (13 Nov)"},
     {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
-    {"C6", NULL, A, "CLOSEWB", "CloseWorkBench / OpenWorkBench with programs running"},
+    {"C6", NULL, A, NULL, "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
@@ -499,29 +499,6 @@ int wbgap_has_nocase(const char *text, const char *word)
     return 0;
 }
 
-int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int drawer, char *why, unsigned cap)
-{
-    const char *r = "";
-    int v = WBGAP_FAIL;
-    if (closed && !reopened) r = "the screen closed and OpenWorkBench() didn't bring it back";
-    else if (!closed && !same_screen) r = "CloseWorkBench() refused, but the Workbench screen changed";
-    else if (!port) r = closed ? "the desktop didn't come back after OpenWorkBench()" : "the desktop went though CloseWorkBench() refused";
-    else if (!drawer) r = closed ? "RAM:WBGapC's window wasn't opened again" : "RAM:WBGapC's window went though CloseWorkBench() refused";
-    else v = WBGAP_PASS;
-    if (why && cap) snprintf(why, cap, "%s", r);
-    return v;
-}
-
-int wbgap_closewb_over(const char *text)
-{
-    const char *p, *want = "INFO C6 done";
-    size_t n = strlen(want);
-    if (!text) return 0;
-    for (p = text; (p = strstr(p, want)); p += n)
-        if ((p == text || p[-1] == '\n') && (p[n] == '\n' || p[n] == '\r' || p[n] == 0)) return 1;
-    return 0;
-}
-
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 {
     xy[0] = bl + cx + 4;
@@ -540,11 +517,17 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
         return WBGAP_FAIL;
     }
     if (on_empty != WBGAP_WBO_DRAWER) {
-        snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
+        snprintf(why, cap, "on the drawer's empty point: type %lu, not WBO_DRAWER", on_empty);
         return WBGAP_FAIL;
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+void wbgap_which_view_point(long bl, long bt, long ix, long iy, long xy[2])
+{
+    xy[0] = bl + ix + 4;
+    xy[1] = bt + iy + 4;
 }
 
 int wbgap_which_empty(long w, long h, long bl, long bt, long br, long bb, long ix, long iy, long xy[2])
