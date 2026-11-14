@@ -11,6 +11,12 @@ PARSE ARG drag
 drag = STRIP(drag)
 IF drag = '' THEN drag = 'SYS:T/WBGap/DragTest'
 want = 'p1 p2 LaunchT'
+/* LAUNCHDESK SETUP found a window it couldn't move off the desktop (BIG's RAM:WBGapBig): a click would land on its
+   icons and stop the run on a "has no default tool" requester, so nothing is clicked */
+IF EXISTS('RAM:wbgap-desk-covered') THEN DO
+  SAY 'SKIP I3 RAM:WBGapBig''s window stays over the desktop: no clicks'
+  EXIT 5
+END
 IF ~SHOW('P', 'WORKBENCH') THEN DO
   SAY 'SKIP I11 no WORKBENCH port to find the icons by'
   EXIT 5

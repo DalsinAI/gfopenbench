@@ -105,6 +105,26 @@ static void backdrop_plan(void)
     CHECK(wbgap_backdrop_done(0, 0) == WBGAP_BD_LEAVE, "too long, or the lines there already: left alone");
 }
 
+/* BIG's RAM:WBGapBig off the desktop before the rows that click it */
+static void clear_plan(void)
+{
+    long b[4];
+    wbgap_park_box(640, 512, 120, 60, b);
+    CHECK(b[0] == 520 && b[1] == 452 && b[2] == 120 && b[3] == 60, "parked in the bottom-right corner at its smallest");
+    CHECK(b[0] + b[2] == 640 && b[1] + b[3] == 512, "its edges on the screen's");
+    wbgap_park_box(320, 200, 400, 300, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 320 && b[3] == 200, "no bigger than the screen, never off it");
+    wbgap_park_box(640, 480, 0, 0, b);
+    CHECK(b[2] == 1 && b[3] == 1 && b[0] == 639 && b[1] == 479, "no minimum given: one pixel, still on the screen");
+    wbgap_park_box(0, 0, 10, 10, b);
+    CHECK(b[0] == 0 && b[1] == 0 && b[2] == 1 && b[3] == 1, "a screen of no size: nothing negative");
+    CHECK(wbgap_clear_result(1, 0) == WBGAP_CL_GONE && wbgap_clear_result(1, 1) == WBGAP_CL_GONE, "closed: gone");
+    CHECK(wbgap_clear_result(0, 1) == WBGAP_CL_PARKED, "still open but in the corner: parked");
+    CHECK(wbgap_clear_result(0, 0) == WBGAP_CL_STUCK, "still open where it was: stuck");
+    CHECK(wbgap_desk_clickable(WBGAP_CL_GONE) && wbgap_desk_clickable(WBGAP_CL_PARKED), "gone or parked: the desktop is clicked");
+    CHECK(!wbgap_desk_clickable(WBGAP_CL_STUCK), "stuck: no clicks (they'd land on its icons)");
+}
+
 /* D5: the RAM Disk's icon among the desktop's, as WBGapRoot.rexx writes them */
 static void ramdisk_plan(void)
 {
@@ -310,6 +330,7 @@ int main(int argc, char **argv)
     wildcard();
     launch_args();
     backdrop_plan();
+    clear_plan();
     i11_lines();
     ramdisk_plan();
     which_plan();
