@@ -24,7 +24,7 @@
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
- *   WBGapTest TITLES            row W3: RAM:WBGapT's window titled with the drawer's name, and its screen with a title
+ *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -1285,7 +1285,7 @@ static int do_closewb(void)
 }
 
 /* ---- W3: window and screen titles ----
- * RAM:WBGapT, a drawer with an icon, opened on the desktop; its window's title must be the drawer's name, and the
+ * RAM:WBGapW3, a drawer with an icon, opened on the desktop; its window's title must be the drawer's name, and the
  * window's screen must have a title. The titles are copied under LockIBase; the drawer is cleared afterwards. */
 static void say_row(const char *row, int state, const char *why);
 static int do_titles(void)
@@ -1294,13 +1294,13 @@ static int do_titles(void)
     char wt[128], st[128], sw[128], why[200];
     int how, v, got = 0;
     ULONG lock;
-    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapT");
+    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW3");
     if (l) UnLock(l);
-    put_icon("RAM:WBGapT", WBDRAWER, NULL);
+    put_icon("RAM:WBGapW3", WBDRAWER, NULL);
     wt[0] = st[0] = sw[0] = 0;
-    if ((w = open_drawer("RAM:WBGapT", "WBGapT", 10, &how))) {
+    if ((w = open_drawer("RAM:WBGapW3", "WBGapW3", 10, &how))) {
         lock = LockIBase(0);
-        if ((w = find_window("WBGapT"))) {          /* looked for again: it may have gone since */
+        if ((w = find_window("WBGapW3"))) {          /* looked for again: it may have gone since */
             snprintf(wt, sizeof wt, "%s", w->Title ? (const char *)w->Title : "");
             snprintf(st, sizeof st, "%s", w->WScreen && w->WScreen->Title ? (const char *)w->WScreen->Title : "");
             snprintf(sw, sizeof sw, "%s", w->ScreenTitle ? (const char *)w->ScreenTitle : "");
@@ -1309,12 +1309,12 @@ static int do_titles(void)
         UnlockIBase(lock);
     }
     if (got) printf("INFO W3 the window \"%s\"; the screen \"%s\"; the window's screen title \"%s\"\n", wt, st, sw);
-    v = wbgap_title_judge(got ? wt : NULL, "WBGapT", st, why, sizeof why);
-    if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapT's window didn't open");
+    v = wbgap_title_judge(got ? wt : NULL, "WBGapW3", st, why, sizeof why);
+    if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapW3's window didn't open");
     say_row("W3", v, why);
-    clear_drawer("RAM:WBGapT", "WBGapT", "W3");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapT.info");
-    DeleteFile((CONST_STRPTR)"RAM:WBGapT");
+    clear_drawer("RAM:WBGapW3", "WBGapW3", "W3");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3");
     return fails ? 5 : 0;
 }
 
