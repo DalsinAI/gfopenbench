@@ -102,7 +102,7 @@ static const struct wbgap_row rows[] = {
     {"A8", NULL, A, NULL, "the object calls"},
     {"A8a", "A8", A, API, "MakeWorkbenchObjectVisibleA"},
     {"A8b", "A8", A, API, "ChangeWorkbenchSelectionA"},
-    {"A8c", "A8", A, NULL, "WhichWorkbenchObjectA"},
+    {"A8c", "A8", A, API, "WhichWorkbenchObjectA"},
     {"A9", NULL, A, API, "WBInfo"},
     {"A10", NULL, A, NULL, "LoadWB switches as 3.2.3 (13 Nov)"},
     {"A10a", "A10", A, "STARTUP CHECK", "the switches GFOpenBench took (ENV:GFOpenBench/LoadWB) are the Startup-Sequence's"},
@@ -345,4 +345,29 @@ int wbgap_clear_result(int gone, int at_park_box)
 int wbgap_desk_clickable(int clear_result)
 {
     return clear_result == WBGAP_CL_GONE || clear_result == WBGAP_CL_PARKED;
+}
+
+void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
+{
+    xy[0] = bl + cx + 4;
+    xy[1] = bt + cy + 4;
+}
+
+int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
+                      unsigned cap)
+{
+    if (on_icon != 2) {
+        snprintf(why, cap, "on the icon: type %lu, not WBO_ICON", on_icon);
+        return WBGAP_FAIL;
+    }
+    if (!name || !want || strcmp(name, want)) {
+        snprintf(why, cap, "on the icon: named \"%s\", not \"%s\"", name ? name : "", want ? want : "");
+        return WBGAP_FAIL;
+    }
+    if (on_empty != 1) {
+        snprintf(why, cap, "on the window's empty corner: type %lu, not WBO_DRAWER", on_empty);
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
 }

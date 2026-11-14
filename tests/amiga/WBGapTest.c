@@ -6,7 +6,7 @@
  *   WBGapTest MENUS [DUMP]      the Workbench windows' menus (WFLG_WBENCHWINDOW, on "Workbench"), the items
  *                               of rows M1-M26 by name; DUMP lists every menu, item and sub-item with its key
  *   WBGapTest SETUP             makes RAM:WBGap (a drawer, its icon, a tool "a" with an icon)
- *   WBGapTest API               rows A3, A4, M27, A6-A9, N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
+ *   WBGapTest API               rows A3, A4, M27, A6-A9 (A8c: WhichWorkbenchObjectA on RAM:WBGapW), N8 on RAM:WBGap (AddAppIconA, AddAppMenuItemA,
  *                               OpenWorkbenchObjectA, UpdateWorkbench, MakeWorkbenchObjectVisibleA,
  *                               WBInfo, ChangeWorkbenchSelectionA, CloseWorkbenchObjectA)
  *   WBGapTest NOTIFY            rows F1, F2: RAM:WBGap's window opened (OpenWorkbenchObjectA, else DragTest OPEN),
@@ -618,6 +618,48 @@ static int do_api(void)
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) pass("A8b"); else printf("FAIL A8b ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)\n", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), fails++;
+    {   /* A8c, WhichWorkbenchObjectA: RAM:WBGapW's icon w, snapshotted at 20,10, asked about on its image and on the
+         * window's empty bottom-right corner (WBO_ICON named "w", then WBO_DRAWER) */
+#ifdef WBOBJA_Name
+        BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW");
+        struct DiskObject *d;
+        struct Window *ww;
+        int how;
+        if (l) UnLock(l);
+        put_icon("RAM:WBGapW", WBDRAWER, NULL);
+        write_file("RAM:WBGapW/w", "w\n");
+        if ((d = GetDefDiskObject(WBPROJECT))) {
+            d->do_CurrentX = 20;
+            d->do_CurrentY = 10;
+            PutDiskObject((CONST_STRPTR)"RAM:WBGapW/w", d);
+            FreeDiskObject(d);
+        }
+        if (!(ww = open_drawer("RAM:WBGapW", "WBGapW", 10, &how))) fail("A8c", "RAM:WBGapW's window didn't open");
+        else {
+            char name[64] = "", why[96];
+            ULONG on_icon = WBO_NONE, on_empty = WBO_NONE, t1 = WBO_NONE, t2 = WBO_NONE;
+            long xy[2];
+            struct TagItem tg1[] = {{WBOBJA_Type, (ULONG)&t1}, {WBOBJA_Name, (ULONG)name}, {WBOBJA_NameSize, sizeof name},
+                                    {TAG_DONE, 0}};
+            struct TagItem tg2[] = {{WBOBJA_Type, (ULONG)&t2}, {TAG_DONE, 0}};
+            Delay(25);
+            wbgap_which_point(ww->BorderLeft, ww->BorderTop, 20, 10, xy);
+            on_icon = WhichWorkbenchObjectA(ww, xy[0], xy[1], tg1);
+            on_empty = WhichWorkbenchObjectA(ww, ww->Width - ww->BorderRight - 6, ww->Height - ww->BorderBottom - 6, tg2);
+            printf("INFO A8c on the icon at %ld,%ld: %lu (type %lu, \"%s\"); on the empty corner: %lu (type %lu)\n", xy[0], xy[1],
+                   (unsigned long)on_icon, (unsigned long)t1, name, (unsigned long)on_empty, (unsigned long)t2);
+            if (wbgap_which_judge(on_icon, name, "w", on_empty, why, sizeof why) == WBGAP_PASS) pass("A8c");
+            else fail("A8c", why);
+            CloseWorkbenchObjectA((STRPTR)"RAM:WBGapW", NULL);
+        }
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW/w.info");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW/w");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW.info");
+        DeleteFile((CONST_STRPTR)"RAM:WBGapW");
+#else
+        skip("A8c", "built without workbench.h's WBOBJA_ tags");
+#endif
+    }
     ok = CloseWorkbenchObjectA((STRPTR)"RAM:WBGap", NULL);
     if (ok) pass("A6b"); else printf("FAIL A6b CloseWorkbenchObjectA FALSE (IoErr %ld)\n", (long)IoErr()), fails++;
     FreeDiskObject(dob);

@@ -27,7 +27,7 @@
 
 enum { MK_CALL = 1, MK_EVENT, MK_QUERY };
 enum { CB_OPEN = 1, CB_INFO, CB_DROP, CB_SNAP, CB_LEAVE_OUT, CB_NEW_DRAWER, CB_COPY, CB_EMPTY_TRASH, CB_RENAME,
-       CB_DELETE, CB_PACK };
+       CB_DELETE, CB_PACK, CB_OPEN_WITH };
 
 typedef struct dt_msg {
     struct Message m;
@@ -263,6 +263,16 @@ static int st_rename(const char *path, wb_drawer *from)
     return st_names(CB_RENAME, path, NULL, 0, from);
 }
 
+#ifdef WB_LOOK_OPEN_WITH
+static int st_open_with(const char *const *paths, int n, int clicked, wb_drawer *from)
+{
+    dt_call c;
+    call_init(&c, CB_OPEN_WITH);
+    c.v = paths; c.n = n; c.flag = clicked; c.from = from;
+    return call(&c);
+}
+#endif
+
 /* the desktop's look, with this task's port and the calls that go to the desktop */
 static void look_for_task(wb_look *lk, struct MsgPort *port)
 {
@@ -281,6 +291,9 @@ static void look_for_task(wb_look *lk, struct MsgPort *port)
     lk->empty_trash = L->empty_trash ? st_empty_trash : NULL;
     lk->rename_icon = L->rename_icon ? st_rename : NULL;
     lk->delete_icons = L->delete_icons ? st_delete : NULL;
+#ifdef WB_LOOK_OPEN_WITH
+    lk->open_with = L->open_with ? st_open_with : NULL;
+#endif
 }
 
 static ULONG take_notes(ob_dt *t)
@@ -528,6 +541,9 @@ static int run_call(dt_call *c)
     case CB_PACK:
         if (env.pack) env.pack(c->s, c->pack);
         return 1;
+#ifdef WB_LOOK_OPEN_WITH
+    case CB_OPEN_WITH: return L->open_with(c->v, c->n, c->flag, c->from);
+#endif
     }
     return 0;
 }

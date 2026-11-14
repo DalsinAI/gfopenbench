@@ -70,6 +70,10 @@ enum { OL_K_OTHER = 0, OL_K_TOOL, OL_K_PROJECT, OL_K_DRAWER };
  * clicked project too, in its place): args[] gets their indexes (n at the most), and the count is returned. -1 when there is nothing to run: a drawer or disk clicked
  * opens as itself. */
 int ol_shift_args(const int *sel, int n, int clicked, int *tool, int *args);
+/* An icon's kind for ol_shift_args from its icon's do_Type (WBDISK 1 ... WBAPPICON 8; 0: no icon) and, for one with
+ * no icon, whether it is a directory: a tool, a project, a directory with no icon or no tool or project at all
+ * (a disk, a drawer, the trash, a kick disk: each opens as itself), or another file with no icon. */
+int ol_kind(int do_type, int is_dir);
 
 /* ---- the reaper's port (gfopenlaunch.library) ---- */
 
