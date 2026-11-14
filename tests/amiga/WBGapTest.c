@@ -17,6 +17,8 @@
  *   WBGapTest SCREENS           rows C1, C2, C4, P4a, P4b (the pointer: moved, and on RTG a sprite layer); a screen of our own in front; its depth gadget clicked;
  *                               Left-Amiga-M and Left-Amiga-N
  *   WBGapTest BIG               row X1: RAM:WBGapBig with 1000 files with icons, opened and timed
+ *   WBGapTest INFOSAVE          rows N2, N3: RAM:WBGapN/f's Information window (WBInfo), its Writable check box
+ *                               clicked and "wbgap" typed in its Comment (DragTest), Save; the file's bits and comment
  *   WBGapTest DISKS             row D5: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
@@ -1228,6 +1230,129 @@ static int do_diskio(const char *drive)
     return fails ? 5 : 0;
 }
 
+/* ---- N2, N3: the Information window's Save, driven with DragTest ---- */
+/* a gadget of w whose text is label, its centre in screen coordinates; 0 if none */
+static int info_gadget(struct Window *w, const char *label, long xy[2])
+{
+    struct Gadget *g;
+    int found = 0;
+    ULONG lock = LockIBase(0);
+    for (g = w->FirstGadget; g && !found; g = g->NextGadget)
+        if (g->GadgetText && g->GadgetText->IText && wbgap_label_is((const char *)g->GadgetText->IText, label)) {
+            xy[0] = w->LeftEdge + g->LeftEdge + g->Width / 2;
+            xy[1] = w->TopEdge + g->TopEdge + g->Height / 2;
+            found = 1;
+        }
+    UnlockIBase(lock);
+    return found;
+}
+
+static void drag(const char *args)
+{
+    char cmd[320];
+    snprintf(cmd, sizeof cmd, "\"%s\" %s", dragtest, args);
+    run(cmd);
+}
+
+static void click_at(const long xy[2])
+{
+    char a[48];
+    snprintf(a, sizeof a, "CLICK %ld %ld", xy[0], xy[1]);
+    drag(a);
+}
+
+static void type_word(const char *word)
+{
+    char a[40];
+    for (; *word; word++) {
+        int k = wbgap_raw_key(*word);
+        if (k < 0) continue;
+        snprintf(a, sizeof a, "KEY 0x%02x", k);
+        drag(a);
+    }
+}
+
+static int do_infosave(void)
+{
+    static const char word[] = "wbgap";
+    struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+    struct Screen *wb;
+    struct Window *iw = NULL;
+    BPTR dir, l;
+    long cxy[2], wxy[2], sxy[2];
+    unsigned long before = 0, after = 0;
+    char why[96], comment[80] = "";
+    int t, have_c, have_w, have_s, gone = 0;
+    if (!fib) { skip("N2", "no memory"); skip("N3", "no memory"); return 0; }
+    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapN"))) UnLock(l);
+    write_file("RAM:WBGapN/f", "WBGapTest N2 N3\n");
+    put_icon("RAM:WBGapN/f", WBPROJECT, NULL);
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/f", 0);
+    SetComment((CONST_STRPTR)"RAM:WBGapN/f", (CONST_STRPTR)"");
+    if ((l = Lock((CONST_STRPTR)"RAM:WBGapN/f", ACCESS_READ))) {
+        if (Examine(l, fib)) before = (unsigned long)fib->fib_Protection;
+        UnLock(l);
+    }
+    dir = Lock((CONST_STRPTR)"RAM:WBGapN", ACCESS_READ);
+    wb = LockPubScreen((CONST_STRPTR)"Workbench");
+    if (dir && wb && WBInfo(dir, (CONST_STRPTR)"f", wb))
+        for (t = 0; t < 30 && !(iw = find_window("Information: f")); t++) Delay(10);
+    if (wb) UnlockPubScreen(NULL, wb);
+    if (dir) UnLock(dir);
+    if (!iw) {
+        skip("N2", "WBInfo opened no Information window for RAM:WBGapN/f (N8)");
+        skip("N3", "WBInfo opened no Information window for RAM:WBGapN/f (N8)");
+        FreeDosObject(DOS_FIB, fib);
+        return 0;
+    }
+    Delay(50);
+    have_w = info_gadget(iw, "Writable", wxy);
+    have_c = info_gadget(iw, "Comment", cxy);
+    have_s = info_gadget(iw, "Save", sxy);
+    printf("INFO N2 Writable %s, Comment %s, Save %s\n", have_w ? "found" : "missing", have_c ? "found" : "missing",
+           have_s ? "found" : "missing");
+    if (have_w) { click_at(wxy); Delay(10); }
+    if (have_c) {
+        click_at(cxy);
+        Delay(10);
+        drag("KEY 0x32 QUAL RAMIGA");               /* Right-Amiga-X: the field emptied */
+        type_word(word);
+        drag("KEY 0x44");                           /* Return */
+        Delay(10);
+    }
+    if (have_s) {
+        click_at(sxy);
+        for (t = 0; t < 50 && find_window("Information: f"); t++) Delay(10);
+    }
+    gone = !find_window("Information: f");
+    if (!gone && (iw = find_window("Information: f")) && iw->UserPort && iw->UserPort->mp_SigTask)
+        Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+    if ((l = Lock((CONST_STRPTR)"RAM:WBGapN/f", ACCESS_READ))) {
+        if (Examine(l, fib)) {
+            after = (unsigned long)fib->fib_Protection;
+            snprintf(comment, sizeof comment, "%s", (const char *)fib->fib_Comment);
+        }
+        UnLock(l);
+    }
+    printf("INFO N2 the bits $%02lx before, $%02lx after; the comment \"%s\"; the window %s after Save\n", before & 0xffUL,
+           after & 0xffUL, comment, gone ? "closed" : "still open");
+    if (!have_w || !have_s) fail("N2", !have_w ? "no Writable check box in the Information window" : "no Save button");
+    else if (wbgap_prot_judge(before, after, FIBF_WRITE, why, sizeof why) == WBGAP_PASS) pass("N2");
+    else fail("N2", why);
+    if (!have_c || !have_s) fail("N3", !have_c ? "no Comment field in the Information window" : "no Save button");
+    else if (!strcmp(comment, word)) pass("N3");
+    else {
+        snprintf(why, sizeof why, "the comment is \"%.40s\" after Save, not \"%s\"", comment, word);
+        fail("N3", why);
+    }
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/f", 0);
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/f.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/f");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN");
+    FreeDosObject(DOS_FIB, fib);
+    return fails ? 5 : 0;
+}
+
 /* ---- WBStartup ---- */
 static void stamp(const char *what, const char *name)
 {
@@ -1853,6 +1978,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
+    else if (!stricmp(argv[1], "INFOSAVE")) rc = do_infosave();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;

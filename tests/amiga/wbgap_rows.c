@@ -83,8 +83,8 @@ static const struct wbgap_row rows[] = {
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
-    {"N3", NULL, A, NULL, "comment saved"},
+    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
+    {"N3", NULL, A, "INFOSAVE", "comment saved"},
     {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
     {"N5", NULL, A, NULL, "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
@@ -409,6 +409,44 @@ int wbgap_has_nocase(const char *text, const char *word)
     for (p = text; *p; p++)
         if (strlen(p) >= wn && same_nocase(p, word, wn)) return 1;
     return 0;
+}
+
+int wbgap_raw_key(char c)
+{
+    static const char rows[3][11] = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+    static const int base[3] = { 0x10, 0x20, 0x31 };
+    int r, k;
+    if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    for (r = 0; r < 3; r++)
+        for (k = 0; rows[r][k]; k++)
+            if (rows[r][k] == c) return base[r] + k;
+    return -1;
+}
+
+int wbgap_label_is(const char *text, const char *want)
+{
+    size_t n = 0;
+    if (!text || !want || !*want) return 0;
+    while (*text && want[n]) {
+        int a = (unsigned char)*text, b = (unsigned char)want[n];
+        if (a == '_') { text++; continue; }       /* a GadTools underscore before the key letter */
+        if (a >= 'a' && a <= 'z') a -= 32;
+        if (b >= 'a' && b <= 'z') b -= 32;
+        if (a != b) return 0;
+        text++, n++;
+    }
+    if (want[n]) return 0;
+    while (*text == ':' || *text == ' ') text++;
+    return *text == 0;
+}
+
+int wbgap_prot_judge(unsigned long before, unsigned long after, unsigned long flipped, char *why, unsigned cap)
+{
+    unsigned long want = before ^ flipped;
+    if ((after & 0xffUL) == (want & 0xffUL)) { if (why && cap) why[0] = 0; return WBGAP_PASS; }
+    if (why && cap) snprintf(why, cap, "the bits are $%02lx after Save, not $%02lx ($%02lx with Writable cleared)",
+                             after & 0xffUL, want & 0xffUL, before & 0xffUL);
+    return WBGAP_FAIL;
 }
 
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])

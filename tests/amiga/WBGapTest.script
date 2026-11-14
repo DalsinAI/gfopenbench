@@ -40,6 +40,7 @@ Else
   WBGapTest DISKS >>RAM:wbgap-results
   WBGapTest DISKIO RAD: >>RAM:wbgap-results
 EndIf
+WBGapTest INFOSAVE >>RAM:wbgap-results
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
 WBGapTest LAUNCH >>RAM:wbgap-results

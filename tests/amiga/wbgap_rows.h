@@ -84,6 +84,14 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
+/* N2, N3 (INFOSAVE): the Information window driven with DragTest. The raw key of a letter (a-z, either case) on a
+ * US keyboard, -1 for any other; 1 if a gadget's text is the label want (case not minded, GadTools' "_" and a
+ * trailing ":" or blanks don't count); N2's judge: the protection bits after Save must be the ones before with
+ * flipped's bits flipped (the low 8: HSPA RWED) */
+int wbgap_raw_key(char c);
+int wbgap_label_is(const char *text, const char *want);
+int wbgap_prot_judge(unsigned long before, unsigned long after, unsigned long flipped, char *why, unsigned cap);
+
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
 void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2]);

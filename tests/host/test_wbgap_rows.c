@@ -182,6 +182,28 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
+/* N2, N3: the Information window's Save */
+static void infosave_plan(void)
+{
+    char why[96];
+    CHECK(wbgap_raw_key('q') == 0x10 && wbgap_raw_key('p') == 0x19 && wbgap_raw_key('a') == 0x20 && wbgap_raw_key('l') == 0x28 &&
+          wbgap_raw_key('z') == 0x31 && wbgap_raw_key('m') == 0x37, "the three letter rows' raw keys");
+    CHECK(wbgap_raw_key('W') == 0x11 && wbgap_raw_key('b') == 0x35 && wbgap_raw_key('g') == 0x24, "w, b, g; either case");
+    CHECK(wbgap_raw_key('1') == -1 && wbgap_raw_key(' ') == -1 && wbgap_raw_key(0) == -1, "not a letter: -1");
+    CHECK(wbgap_label_is("Comment", "Comment") && wbgap_label_is("_Comment:", "comment") && wbgap_label_is("_Save", "Save") &&
+          wbgap_label_is("Writable ", "Writable"), "labels: case, underscore, colon and blanks not minded");
+    CHECK(!wbgap_label_is("Comments", "Comment") && !wbgap_label_is("Comm", "Comment") && !wbgap_label_is(NULL, "x") &&
+          !wbgap_label_is("x", ""), "a longer or shorter label, or nothing: no");
+    CHECK(wbgap_prot_judge(0x00, 0x04, 0x04, why, sizeof why) == WBGAP_PASS && !why[0], "RWED, Writable cleared: ----RW-D, PASS");
+    CHECK(wbgap_prot_judge(0x40, 0x44, 0x04, why, sizeof why) == WBGAP_PASS, "S kept, W set: PASS");
+    CHECK(wbgap_prot_judge(0x00, 0x00, 0x04, why, sizeof why) == WBGAP_FAIL && strstr(why, "$00 after Save, not $04"),
+          "nothing saved: FAIL, \"%s\"", why);
+    CHECK(wbgap_prot_judge(0x40, 0x04, 0x04, why, sizeof why) == WBGAP_FAIL, "S lost on the way: FAIL");
+    CHECK(wbgap_prot_judge(0x00, 0x104, 0x04, why, sizeof why) == WBGAP_PASS, "bits above the low 8 not judged");
+    CHECK(!strcmp(wbgap_row(wbgap_find("N2"))->mode, "INFOSAVE") && !strcmp(wbgap_row(wbgap_find("N3"))->mode, "INFOSAVE"),
+          "N2's and N3's lines come from INFOSAVE");
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -336,7 +358,7 @@ static void print_all(void)
     CHECK(!strncmp(line_of("I1"), "SKIP I1 look", 12), "a look row with no line: \"%s\"", line_of("I1"));
     CHECK(!strncmp(line_of("X3"), "SKIP X3 hand", 12), "a hand row: \"%s\"", line_of("X3"));
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
-    CHECK(!strncmp(line_of("N2"), "SKIP N2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N2"));
+    CHECK(!strncmp(line_of("W2"), "SKIP W2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("W2"));
     CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
     CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
 }
@@ -366,6 +388,7 @@ int main(int argc, char **argv)
     i11_lines();
     ramdisk_plan();
     which_plan();
+    infosave_plan();
     diskio_plan();
     print_all();
     print_empty();
