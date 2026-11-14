@@ -123,3 +123,14 @@ int ob_rexx_help(char *out, int n, const char *command, int own)
     }
     return 1;
 }
+
+int ob_rexx_take_until_gone(int (*gone)(void *u), void (*take)(void *u), void (*pause)(void *u), void *u, int tries)
+{
+    int i;
+    for (i = 0; i < tries; i++) {
+        if (gone(u)) return 1;
+        if (i) pause(u);
+        take(u);
+    }
+    return gone(u);
+}
