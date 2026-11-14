@@ -39,5 +39,6 @@ struct Window *wbt_drop_ready(int *stage);
 void wbt_drop_from(struct Window *w, long xy[2]);
 void wbt_drop_drag(const long from[2], const long to[2], const char *row);
 void wbt_drop_clean(void);
+void wbt_key(int code);                                      /* DragTest KEY code, then 15 ticks */
 
 #endif
