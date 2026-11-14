@@ -135,7 +135,7 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
         ly = WhichLayer(&s->LayerInfo, x, y);
         bw = ly ? (struct Window *)ly->Window : NULL;
         UnlockLayerInfo(&s->LayerInfo);
-        if (!bw || !(bw->Flags & WFLG_DESKDROP)) continue;   /* a window there, or the screen's bar */
+        if (!bw || !(bw->Flags & WFLG_BACKDROP)) continue;   /* a window there, or the screen's bar */
         if (!wbgap_deskdrop_clear(desk, x - bw->LeftEdge - bw->BorderLeft, y - bw->TopEdge - bw->BorderTop, BD_MARGIN))
             continue;
         xy[0] = x;
