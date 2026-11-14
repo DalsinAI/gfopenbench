@@ -141,6 +141,42 @@ static int open_with_args(struct OWBRequest *rq)
     return n > 0 ? ok : -1;                         /* -1: no arguments, opened as usual */
 }
 
+/* WhichWorkbenchObjectA's tags, the caller's (it waits): WBOBJA_Type gets the type, WBOBJA_Name the name, at
+ * most WBOBJA_NameSize - 1 characters (64 when the size isn't given). Only the tags workbench.h names. */
+static void which_tags(struct TagItem *t, ULONG type, const char *name)
+{
+#ifdef WBOBJA_Type
+    ULONG size = 64;
+    struct TagItem *s;
+#ifdef WBOBJA_NameSize
+    for (s = t; s; ) {
+        if (s->ti_Tag == TAG_DONE) break;
+        if (s->ti_Tag == TAG_MORE) { s = (struct TagItem *)s->ti_Data; continue; }
+        if (s->ti_Tag == TAG_SKIP) { s += 1 + s->ti_Data; continue; }
+        if (s->ti_Tag == WBOBJA_NameSize) size = s->ti_Data;
+        s++;
+    }
+#endif
+    for (s = t; s; ) {
+        if (s->ti_Tag == TAG_DONE) break;
+        if (s->ti_Tag == TAG_MORE) { s = (struct TagItem *)s->ti_Data; continue; }
+        if (s->ti_Tag == TAG_SKIP) { s += 1 + s->ti_Data; continue; }
+        if (s->ti_Tag == WBOBJA_Type && s->ti_Data) *(ULONG *)s->ti_Data = type;
+#ifdef WBOBJA_Name
+        if (s->ti_Tag == WBOBJA_Name && s->ti_Data && size > 0) {
+            ULONG k = strlen(name);
+            if (k >= size) k = size - 1;
+            memcpy((void *)s->ti_Data, name, k);
+            ((char *)s->ti_Data)[k] = 0;
+        }
+#endif
+        s++;
+    }
+#else
+    (void)t; (void)type; (void)name;
+#endif
+}
+
 static void answer(struct OWBRequest *rq)
 {
     char dir[512];
@@ -205,10 +241,17 @@ static void answer(struct OWBRequest *rq)
         if (env.info && env.info(path)) rq->or_Result = TRUE;
         break;
     }
-    case OWBREQ_WHICH:
-        /* nothing of ours is named there yet: WBO_NONE, as OS 3.2.3 answers for a place with no icon */
+    case OWBREQ_WHICH: {
+        /* gap row A8c: the icon under the place (WBO_ICON), the drawer's own space (WBO_DRAWER), else WBO_NONE, as
+         * OS 3.2.3 answers for a place with no icon; the type and the name also go where the caller's tags say */
+        char path[512], nm[108];
+        int at = rq->or_Window && env.which ? env.which(rq->or_Window, rq->or_X, rq->or_Y, path, sizeof path)
+                                            : OB_WBP_AT_NONE;
+        rq->or_Result = ob_wbp_which(at, path, nm, sizeof nm);
+        which_tags(rq->or_Tags, (ULONG)rq->or_Result, nm);
         rq->or_IoErr = 0;
         break;
+    }
     }
 }
 
