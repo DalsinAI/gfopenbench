@@ -60,6 +60,11 @@ int wbgap_backdrop_setup(long n, long cap, int has_lines);
 enum { WBGAP_BD_RESTORE, WBGAP_BD_DELETE, WBGAP_BD_LEAVE };
 int wbgap_backdrop_done(int have_was, int have_made);
 
+/* I10 (LAUNCHDESK): WBGapDesk.rexx double-clicked OpenT (a tool) and Sub (a drawer) on the desktop. From what it
+ * left: skip (a reason, or NULL), whether a click failed (bad) or all were given (clicked), OpenT's launch record
+ * (NULL: none), and whether a window of Sub opened. 1 PASS, 0 FAIL, -1 SKIP; why (cap bytes) says what failed */
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap);
+
 /* The system bar (gfopenprefs TitleBar, GFOpenTitle 0.9): its row window on the title bar holds, left to right, the
  * memory and time, the systray, then Prefs and Power, one cell each (Common/traygrid.h's TRAY_CELL). Power's is the
  * row's last cell: the point (x, y) to click it, from the row's box */
@@ -69,6 +74,8 @@ void wbgap_power_point(long left, long top, long width, long height, long xy[2])
  * pushed to x 0 by a narrow screen can't be told: UNSURE) */
 enum { WBGAP_BAR_POWER, WBGAP_BAR_PREFS, WBGAP_BAR_OTHER, WBGAP_BAR_UNSURE };
 int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
+/* B1: 1 if (x, y) is inside the box l, t, w x h: the Power click's point under the list it opened */
+int wbgap_point_in_box(long x, long y, long l, long t, long w, long h);
 /* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
  * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
  * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
@@ -93,6 +100,8 @@ void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded; the port's
  * trailing colon ("DISK RAM Disk:") doesn't count */
 int wbgap_root_has_disk(const char *list, const char *vol);
+/* D5r: RAM Disk first in the desktop's volume column, from RAM:wbgap-root-pos (wbgap_rows.c) */
+int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap);
 /* I14: 1 if a line of list (as WBGapRoot.rexx writes it) has the name, of any type, case not minded */
 int wbgap_root_has_name(const char *list, const char *name);
 /* I14: RAM:WBGap/noicon (no .info) among the drawer's icons with Only Icons (must not be) and with All Files (must);
@@ -102,6 +111,10 @@ int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap);
  * of wbgap_root_has_disk: before, while inhibited, after; -1 where the icons weren't read. WBGAP_SKIP if it had no
  * icon before (nothing to watch) or a read failed (nothing seen), else WBGAP_PASS or WBGAP_FAIL, the reason in why */
 int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
+/* W3 (TITLES): a drawer's window must be titled with the drawer's name (alone, or followed by a blank and more, as a
+ * disk's usage), and the Workbench screen must have a title. win_title NULL: the window wasn't read (SKIP).
+ * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why */
+int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap);
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
@@ -109,6 +122,20 @@ int wbgap_has_nocase(const char *text, const char *word);
  * the desktop's port and RAM:WBGapC's drawer window must all stay; if it did close, OpenWorkBench() must bring the
  * screen back (reopened) and the desktop must open the drawer again. WBGAP_PASS or WBGAP_FAIL, the reason in why */
 int wbgap_closewb_judge(int closed, int reopened, int same_screen, int port, int drawer, char *why, unsigned cap);
+/* W2, keyboard window cycling: GFOpenWindows' switcher (gfopenprefs Windows), Amiga+Tab brings the window at the back
+ * of the screen to the front and activates it, Amiga+Shift+Tab sends the front one to the back and activates the one
+ * behind it. ENV:GFOpenPrefs/Windows (text, may be NULL): 0 when it says "switcher off", else 1; its "switcher.key"
+ * into key (cap bytes), "lcommand tab" when it has none */
+/* W2: a window Amiga+Tab cycles, by its Intuition Flags and size (GFOpenWindows 0.12.4, gfopenprefs
+ * Windows/src/switch_rule.h): not a backdrop, at least 8x8, not Workbench's root (a Workbench window without a close
+ * gadget), and with a system gadget (drag bar, depth, close or size), so tray buttons and panels don't take part */
+int wbgap_switch_offers(unsigned long flags, int width, int height);
+int wbgap_switcher_on(const char *env, char *key, unsigned cap);
+/* the step judged from the screen's switchable windows front to back before (nb of them) and after (na), and the
+ * active window after (ids, any unique numbers): back 0 for Amiga+Tab, 1 for Amiga+Shift+Tab. WBGAP_PASS,
+ * WBGAP_FAIL (the reason in why) or WBGAP_SKIP (fewer than two windows) */
+int wbgap_switch_judge(int back, const unsigned long *before, int nb, const unsigned long *after, int na,
+                       unsigned long active, char *why, unsigned cap);
 
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
@@ -142,5 +169,8 @@ void wbgap_grab_point(const long box[4], long xy[2]);
 /* "x y w h" (WBGapAppPos.rexx, the AppIcon's box on the screen) into box: 1, or 0 if it isn't four numbers or
  * the width or height isn't above 0 */
 int wbgap_parse_box(const char *text, long box[4]);
+/* INFOSAVE types into the Information window with DragTest KEY: c's raw key on a US keyboard, or -1 if it has
+ * none here (a-z A-Z 0-9 - = . / and space); *shift is set to 1 for an upper-case letter, else 0 */
+int wbgap_rawkey(int c, int *shift);
 
 #endif

@@ -72,7 +72,7 @@ static const struct wbgap_row rows[] = {
     {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
     {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
     {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
-    {"I10", NULL, A, NULL, "double-click opens or runs"},
+    {"I10", NULL, A, "LAUNCHDESK", "double-click opens or runs; WBGapDesk.rexx double-clicks the tool OpenT and the drawer Sub on the desktop"},
     {"I11", NULL, A, "LAUNCHDESK", "several icons passed as arguments (Shift-double-click on the desktop, as 3.2.3)"},
     {"I12", NULL, A, NULL, "STACK, TOOLPRI, DONOTWAIT and WAIT honoured at launch (WAIT, DONOTWAIT: S3)"},
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
@@ -84,10 +84,10 @@ static const struct wbgap_row rows[] = {
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
-    {"N3", NULL, A, NULL, "comment saved"},
-    {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
-    {"N5", NULL, A, NULL, "default tool saved"},
+    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
+    {"N3", NULL, A, "INFOSAVE", "comment saved"},
+    {"N4", NULL, A, "INFOSAVE", "tool types added, edited, deleted, saved"},
+    {"N5", NULL, A, "INFOSAVE", "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
     {"N8", NULL, A, API, "WBInfo from a program opens it"},
@@ -125,6 +125,7 @@ static const struct wbgap_row rows[] = {
     {"D3", NULL, A, MENUS, "Format: in GFOS a separate application, removable media (13 Nov)"},
     {"D4", NULL, A, MENUS, "DiskCopy: a separate application, removable media (13 Nov)"},
     {"D5", NULL, A, "DISKS", "RAM Disk icon"},
+    {"D5r", NULL, A, "DISKS", "RAM Disk first in the desktop's volume column (14 Nov)"},
     {"D6", NULL, L, NULL, "ACFS, IDE SSD and USB volumes, USB eject"},
     /* 8. Screens */
     {"C1", NULL, A, "SCREENS", "depth gadget with a second screen"},
@@ -137,8 +138,8 @@ static const struct wbgap_row rows[] = {
     {"C6", NULL, A, "CLOSEWB", "CloseWorkBench / OpenWorkBench with programs running"},
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
-    {"W2", NULL, A, NULL, "keyboard window cycling"},
-    {"W3", NULL, A, NULL, "window and screen titles"},
+    {"W2", NULL, A, "SWITCH", "keyboard window cycling"},
+    {"W3", NULL, A, "TITLES", "window and screen titles"},
     /* 10. Notifications */
     {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
     {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
@@ -167,7 +168,7 @@ static const struct wbgap_row rows[] = {
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
     {"B1", NULL, A, "BAR", "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
-    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB stick mounted (14 Nov)"},
+    {"B2", NULL, A, "BAR", "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
     {"B3", NULL, A, "BAR", "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };
 
@@ -315,6 +316,24 @@ int wbgap_launch_args(const char *rec, const char *want)
     return !*p && args == words;
 }
 
+int wbgap_i10(const char *skip, int bad, int clicked, const char *run_rec, int sub_opened, char *why, unsigned cap)
+{
+    int ran = run_rec && wbgap_launch_args(run_rec, "OpenT");
+    const char *w;
+    if (skip && *skip) w = skip;
+    else if (bad) w = "a double-click failed (WBGapDesk.rexx)";
+    else if (!clicked) w = "not clicked: WBGapDesk.rexx didn't get to OpenT and Sub";
+    else if (!ran && !sub_opened) w = run_rec ? "OpenT started with other arguments, and Sub's window didn't open"
+                                              : "double-clicking OpenT started nothing, and Sub's window didn't open";
+    else if (!ran) w = run_rec ? "OpenT started, but not with itself as its one argument"
+                               : "double-clicking OpenT started nothing";
+    else if (!sub_opened) w = "double-clicking the drawer Sub opened no window";
+    else w = "";
+    if (why && cap) snprintf(why, cap, "%s", w);
+    if ((skip && *skip) || bad || !clicked) return -1;
+    return ran && sub_opened;
+}
+
 int wbgap_backdrop_setup(long n, long cap, int has_lines)
 {
     if (n >= cap - 1) return WBGAP_BD_TOOLONG;   /* more than the buffer holds: written back cut, it would lose lines */
@@ -342,6 +361,11 @@ int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width)
     if (right == row_right - WBGAP_TRAY_CELL) return WBGAP_BAR_PREFS;
     if (menu_left == 0 && right < row_right) return WBGAP_BAR_UNSURE;   /* x clamped to 0: Power or Prefs */
     return WBGAP_BAR_OTHER;
+}
+
+int wbgap_point_in_box(long x, long y, long l, long t, long w, long h)
+{
+    return x >= l && x < l + w && y >= t && y < t + h;
 }
 
 long wbgap_power_height(int sticks, long row_height)
@@ -429,6 +453,66 @@ int wbgap_root_has_disk(const char *list, const char *vol)
     return 0;
 }
 
+/* One line of D5r's pos, [p, e), read on its own: a copy of it (up to 127 characters) is what sscanf sees, so a
+ * blank in the format can't run on into the next line. The name is what follows the width, less trailing CR,
+ * blanks and tabs and one trailing colon (a port that names disks "RAM Disk:", as #145 for D5). 1 with x, y, w,
+ * name and its length; 0 for a line it can't read or a line with no name after the width (Mr Flibble, 7456fde7). */
+static int pos_line(const char *p, const char *e, long *x, long *y, long *w, char *ln, const char **nm, size_t *nl)
+{
+    size_t n = (size_t)(e - p);
+    int used = 0;
+    if (n > 127) n = 127;
+    memcpy(ln, p, n);
+    ln[n] = 0;
+    if (sscanf(ln, "%ld %ld %ld %n", x, y, w, &used) != 3 || !used || (size_t)used > n) return 0;
+    n -= (size_t)used;
+    while (n && (ln[used + n - 1] == '\r' || ln[used + n - 1] == ' ' || ln[used + n - 1] == '\t')) n--;
+    if (n && ln[used + n - 1] == ':') n--;
+    if (!n) return 0;
+    *nm = ln + used;
+    *nl = n;
+    return 1;
+}
+
+/* D5r: pos holds the desktop's disk icons, "<left> <top> <width> <name>" a line (WBGapRoot.rexx's
+ * RAM:wbgap-root-pos). The column is the disks whose left edge is less than one icon's width (16 at least) right of
+ * the leftmost; its topmost (the first read wins a tie) must be vol, case not minded. top gets that icon's name.
+ * A line with no name is passed over. 1: RAM Disk first; 0: another first; -1: no disk read (or cap 0). */
+int wbgap_ram_first(const char *pos, const char *vol, char *top, unsigned cap)
+{
+    long minx = 0, cw = 16, besty = 0;
+    int pass, have = 0;
+    const char *p, *nm, *e;
+    char ln[128];
+    size_t vn = vol ? strlen(vol) : 0, n;
+    if (!cap) return -1;
+    top[0] = 0;
+    if (!pos) return -1;
+    for (p = pos; *p; p = *e ? e + 1 : e) {                 /* the leftmost disk and its width */
+        long x, y, w;
+        for (e = p; *e && *e != '\n'; e++) ;
+        if (pos_line(p, e, &x, &y, &w, ln, &nm, &n)) {
+            if (!have || x < minx) { minx = x; cw = w < 16 ? 16 : w; }
+            have = 1;
+        }
+    }
+    if (!have) return -1;
+    have = 0;
+    for (p = pos; *p; p = *e ? e + 1 : e) {                 /* the column's topmost */
+        long x, y, w;
+        for (e = p; *e && *e != '\n'; e++) ;
+        if (pos_line(p, e, &x, &y, &w, ln, &nm, &n) && x - minx < cw && (!have || y < besty)) {
+            if (n >= cap) n = cap - 1;
+            memcpy(top, nm, n);
+            top[n] = 0;
+            besty = y;
+            have = 1;
+        }
+    }
+    pass = vn && strlen(top) == vn && same_nocase(top, vol, vn);
+    return pass;
+}
+
 int wbgap_root_has_name(const char *list, const char *name)
 {
     size_t nn = name ? strlen(name) : 0;
@@ -474,6 +558,20 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     return v;
 }
 
+int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap)
+{
+    char r[200] = "";
+    size_t n = name ? strlen(name) : 0;
+    int v = WBGAP_FAIL;
+    if (!win_title || !n) { snprintf(r, sizeof r, "the drawer's window not read"); v = WBGAP_SKIP; }
+    else if (strncmp(win_title, name, n) || (win_title[n] && win_title[n] != ' '))
+        snprintf(r, sizeof r, "the drawer's window is titled \"%.80s\", not with its name \"%.40s\"", win_title, name);
+    else if (!screen_title || !*screen_title) snprintf(r, sizeof r, "the Workbench screen has no title");
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
 int wbgap_has_nocase(const char *text, const char *word)
 {
     size_t wn = word ? strlen(word) : 0;
@@ -501,6 +599,73 @@ void wbgap_which_point(long bl, long bt, long cx, long cy, long xy[2])
 {
     xy[0] = bl + cx + 4;
     xy[1] = bt + cy + 4;
+}
+
+int wbgap_switcher_on(const char *env, char *key, unsigned cap)
+{
+    const char *p = env;
+    int on = 1;
+    if (cap) snprintf(key, cap, "lcommand tab");
+    while (p && *p) {
+        const char *e = p, *v;
+        size_t n;
+        while (*e && *e != '\n') e++;
+        n = (size_t)(e - p);
+        while (n && (p[n - 1] == '\r' || p[n - 1] == ' ' || p[n - 1] == '\t')) n--;
+        while (n && (*p == ' ' || *p == '\t')) { p++; n--; }
+        if (n > 13 && !strncmp(p, "switcher.key", 12) && (p[12] == ' ' || p[12] == '\t')) {
+            for (v = p + 13; v < p + n && (*v == ' ' || *v == '\t'); v++) {}
+            if (cap) snprintf(key, cap, "%.*s", (int)(p + n - v), v);
+        } else if (n > 9 && !strncmp(p, "switcher", 8) && (p[8] == ' ' || p[8] == '\t')) {
+            for (v = p + 9; v < p + n && (*v == ' ' || *v == '\t'); v++) {}
+            if ((size_t)(p + n - v) == 3 && !strncmp(v, "off", 3)) on = 0;
+            else if ((size_t)(p + n - v) == 2 && !strncmp(v, "on", 2)) on = 1;
+        }
+        p = *e ? e + 1 : e;
+    }
+    return on;
+}
+
+int wbgap_switch_offers(unsigned long flags, int width, int height)
+{
+    if ((flags & 0x100UL) || width < 8 || height < 8) return 0;            /* WFLG_BACKDROP, tiny */
+    if ((flags & 0x2000000UL) && !(flags & 0x8UL)) return 0;               /* WFLG_WBENCHWINDOW without CLOSEGADGET */
+    return (flags & 0xFUL) != 0;                                            /* SIZE, DRAGBAR, DEPTH or CLOSE gadget */
+}
+
+int wbgap_switch_judge(int back, const unsigned long *before, int nb, const unsigned long *after, int na,
+                       unsigned long active, char *why, unsigned cap)
+{
+    unsigned long want_top, want_active;
+    if (!before || !after || nb < 2) {
+        snprintf(why, cap, "fewer than two windows to cycle");
+        return WBGAP_SKIP;
+    }
+    if (na != nb) {
+        snprintf(why, cap, "%d windows before, %d after: a window came or went", nb, na);
+        return WBGAP_FAIL;
+    }
+    if (!back) {
+        want_top = before[nb - 1];
+        want_active = before[nb - 1];
+        if (after[0] != want_top) {
+            snprintf(why, cap, "Amiga+Tab: the window at the back didn't come to the front");
+            return WBGAP_FAIL;
+        }
+    } else {
+        want_active = before[1];
+        if (after[na - 1] != before[0]) {
+            snprintf(why, cap, "Amiga+Shift+Tab: the front window didn't go to the back");
+            return WBGAP_FAIL;
+        }
+    }
+    if (active != want_active) {
+        snprintf(why, cap, "%s: the window now %s isn't the active one", back ? "Amiga+Shift+Tab" : "Amiga+Tab",
+                 back ? "in front" : "brought to the front");
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
 }
 
 int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want, unsigned long on_empty, char *why,
@@ -621,4 +786,21 @@ void wbgap_grab_point(const long box[4], long xy[2])
 {
     xy[0] = box[0] + box[2] / 2;
     xy[1] = box[1] + box[3] * 2 / 5;
+}
+
+int wbgap_rawkey(int c, int *shift)
+{
+    static const char *const rows[] = { "1234567890-=", "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+    static const int base[] = { 0x01, 0x10, 0x20, 0x31 };
+    int r, i;
+    *shift = c >= 'A' && c <= 'Z';
+    if (*shift) c += 32;
+    if (c == ' ') return 0x40;
+    if (c == '.') return 0x39;
+    if (c == '/') return 0x3A;
+    for (r = 0; r < 4; r++)
+        for (i = 0; rows[r][i]; i++)
+            if (rows[r][i] == c) return base[r] + i;
+    *shift = 0;
+    return -1;
 }
