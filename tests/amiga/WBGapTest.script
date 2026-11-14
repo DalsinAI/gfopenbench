@@ -44,6 +44,7 @@ Else
   WBGapTest MOUNTICON RAD: >>RAM:wbgap-results
   WBGapTest DISKIO RAD: >>RAM:wbgap-results
 EndIf
+WBGapTest WBCONTROL >>RAM:wbgap-results
 WBGapTest TITLES >>RAM:wbgap-results
 WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BAR >>RAM:wbgap-results

@@ -96,7 +96,7 @@ static const struct wbgap_row rows[] = {
     {"A2", NULL, A, NULL, "AddAppWindowDropZoneA"},
     {"A3", NULL, A, API, "AddAppIconA"},
     {"A4", NULL, A, API, "AddAppMenuItemA"},
-    {"A5", NULL, A, NULL, "WorkbenchControlA tags"},
+    {"A5", NULL, A, "WBCONTROL", "WorkbenchControlA tags"},
     {"A6", NULL, A, API, "OpenWorkbenchObjectA"},
     {"A6b", "A6", A, API, "CloseWorkbenchObjectA"},
     {"A7", NULL, A, API, "UpdateWorkbench, the refresh proven (13 Nov)"},
@@ -556,6 +556,23 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     else if (!after) { r = "its icon went but did not come back"; v = WBGAP_FAIL; }
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
+}
+
+int wbgap_ctl_may_set(int get_ok) { return get_ok != 0; }
+
+long wbgap_ctl_reading(int get_ok, long read_back) { return get_ok ? read_back : WBGAP_CTL_NOT_READ; }
+
+int wbgap_pairs_judge(int n, const char *const names[], const long want[], const long got[], char *why, unsigned cap)
+{
+    int k, bad = 0, first = -1;
+    for (k = 0; k < n; k++)
+        if (want[k] != got[k]) { bad++; if (first < 0) first = k; }
+    if (why && cap) {
+        if (first < 0) why[0] = 0;
+        else snprintf(why, cap, "%s: %ld, not %ld%s", names[first], got[first], want[first],
+                      bad > 1 ? " (and more wrong)" : "");
+    }
+    return n <= 0 ? WBGAP_SKIP : bad ? WBGAP_FAIL : WBGAP_PASS;
 }
 
 int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int after, char *why, unsigned cap)
