@@ -40,5 +40,13 @@ void trash_plan(void)
               "there, but late: 0, \"%s\"", why);
         CHECK(wbgap_trash_open_why(1, "WBGapT", want, off, lim, NULL, 0), "no room for a reason: still judged");
     }
+    {   /* the window I6 takes: the first whose title is RAM:WBGapT's, not the first holding "WBGapT" */
+        const char *const t1[] = {"WBGapTest", "Workbench", "WBGapT"}, *const t2[] = {"WBGapTest", "WBGapTx"},
+                          *const t3[] = {"WBGapT", "WBGapTest"}, *const t4[] = {NULL, "WBGapT (2 free)"};
+        CHECK(wbgap_trash_pick(t1, 3) == 2, "WBGapTest's window first: RAM:WBGapT's is taken");
+        CHECK(wbgap_trash_pick(t2, 2) < 0, "only longer names: none");
+        CHECK(wbgap_trash_pick(t3, 2) == 0, "RAM:WBGapT's first: that one");
+        CHECK(wbgap_trash_pick(t4, 2) == 1 && wbgap_trash_pick(NULL, 0) < 0, "an untitled window passed over; no list: none");
+    }
     CHECK(i >= 0 && wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, "TRASH"), "I6's line comes from TRASH");
 }
