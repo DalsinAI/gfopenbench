@@ -702,3 +702,14 @@ int wbgap_rawkey(int c, int *shift)
     *shift = 0;
     return -1;
 }
+
+int wbgap_rx_line(char *buf, unsigned cap, const char *path, const char *args)
+{
+    int n;
+    if (!cap) return 0;
+    buf[0] = 0;
+    if (!path || !*path || strpbrk(path, " \t\"'")) return 0;
+    n = snprintf(buf, cap, "SYS:Rexxc/rx %s%s%s", path, args && *args ? " " : "", args ? args : "");
+    if (n < 0 || (unsigned)n >= cap) { buf[0] = 0; return 0; }
+    return 1;
+}

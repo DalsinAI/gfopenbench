@@ -149,5 +149,9 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
 /* INFOSAVE types into the Information window with DragTest KEY: c's raw key on a US keyboard, or -1 if it has
  * none here (a-z A-Z 0-9 - = . / and space); *shift is set to 1 for an upper-case letter, else 0 */
 int wbgap_rawkey(int c, int *shift);
+/* the command line that runs the ARexx script at path with args through SYS:Rexxc/rx, into buf: 1, or 0 (buf "")
+ * if path is empty, has a space or a quote, or the line doesn't fit. rx runs a quoted first argument as the
+ * program's own text, not as a file (so "path" gives Error 47 in line 1), and an unquoted path can't hold a space */
+int wbgap_rx_line(char *buf, unsigned cap, const char *path, const char *args);
 
 #endif

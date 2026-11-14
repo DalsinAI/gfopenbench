@@ -583,6 +583,23 @@ static void print_empty(void)
     CHECK(skips == wbgap_row_count(), "nothing run: every row a SKIP (%d of %d)", skips, wbgap_row_count());
 }
 
+/* rx runs a quoted first argument as ARexx text (Error 47 in line 1), so the script's path goes in bare */
+static void rx_line_plan(void)
+{
+    char b[64];
+    CHECK(wbgap_rx_line(b, sizeof b, "SYS:T/WBGap/WBGapRoot.rexx", "I14 RAM:o RAM:WBGap") &&
+          !strcmp(b, "SYS:Rexxc/rx SYS:T/WBGap/WBGapRoot.rexx I14 RAM:o RAM:WBGap"), "the path bare, then the args (%s)", b);
+    CHECK(!strchr(b, '"'), "no quote on the line");
+    CHECK(wbgap_rx_line(b, sizeof b, "SYS:T/WBGap/WBGapRoot.rexx", NULL) && !strcmp(b, "SYS:Rexxc/rx SYS:T/WBGap/WBGapRoot.rexx"),
+          "no args: no trailing space (%s)", b);
+    CHECK(wbgap_rx_line(b, sizeof b, "S:x.rexx", "") && !strcmp(b, "SYS:Rexxc/rx S:x.rexx"), "empty args (%s)", b);
+    CHECK(!wbgap_rx_line(b, sizeof b, "RAM Disk:T/WBGapRoot.rexx", "D1") && !b[0], "a space in the path: refused, buf empty");
+    CHECK(!wbgap_rx_line(b, sizeof b, "SYS:T/\"x\".rexx", "D1") && !b[0], "a quote in the path: refused");
+    CHECK(!wbgap_rx_line(b, sizeof b, "", "D1") && !wbgap_rx_line(b, sizeof b, NULL, "D1"), "no path: refused");
+    CHECK(!wbgap_rx_line(b, 20, "SYS:T/WBGap/WBGapRoot.rexx", "D1") && !b[0], "too long for buf: refused, buf empty");
+    CHECK(!wbgap_rx_line(b, 0, "S:x.rexx", "D1"), "no room at all: refused, nothing written");
+}
+
 int main(int argc, char **argv)
 {
     list_shape();
@@ -605,6 +622,7 @@ int main(int argc, char **argv)
     diskio_plan();
     titles_plan();
     showall_plan();
+    rx_line_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);
