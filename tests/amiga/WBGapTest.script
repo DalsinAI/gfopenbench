@@ -47,6 +47,7 @@ WBGapTest SCREENS >>RAM:wbgap-results
 WBGapTest BAR >>RAM:wbgap-results
 WBGapTest BIG >>RAM:wbgap-results
 WBGapTest LAUNCH >>RAM:wbgap-results
+WBGapTest SWITCH >>RAM:wbgap-results
 If EXISTS SYS:Rexxc/rx
   WBGapTest LAUNCHDESK SETUP >>RAM:wbgap-results
   SYS:Rexxc/rx SYS:T/WBGap/WBGapDesk.rexx SYS:T/WBGap/DragTest >>RAM:wbgap-results
