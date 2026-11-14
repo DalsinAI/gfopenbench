@@ -366,28 +366,6 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
-/* D2: a volume mounted later gets an icon */
-static void mount_plan(void)
-{
-    char why[96];
-    CHECK(wbgap_mount_judge(0, 0, 0, 1, 1, why, sizeof why) == WBGAP_PASS && !why[0], "mounted, up, an icon: PASS");
-    CHECK(wbgap_mount_judge(0, 0, 0, 1, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "no icon"),
-          "up but no icon: FAIL, \"%s\"", why);
-    CHECK(wbgap_mount_judge(1, 0, 0, 1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "mounted before"),
-          "mounted before the test: SKIP, never a PASS, \"%s\"", why);
-    CHECK(wbgap_mount_judge(0, -1, 0, 1, 1, why, sizeof why) == WBGAP_SKIP && strstr(why, "before the mount"),
-          "icons not read before: SKIP, \"%s\"", why);
-    CHECK(wbgap_mount_judge(0, 0, 10, 0, -1, why, sizeof why) == WBGAP_SKIP && strstr(why, "Mount gave 10"),
-          "Mount failed: SKIP with its code, \"%s\"", why);
-    CHECK(wbgap_mount_judge(0, 0, 0, 0, 0, why, sizeof why) == WBGAP_SKIP && strstr(why, "no volume"),
-          "no volume came up: SKIP, not a FAIL of the desktop, \"%s\"", why);
-    CHECK(wbgap_mount_judge(0, 0, 0, 1, -1, why, sizeof why) == WBGAP_SKIP && strstr(why, "after the mount"),
-          "icons not read after: SKIP, \"%s\"", why);
-    CHECK(wbgap_mount_judge(0, 0, 0, 1, 0, NULL, 0) == WBGAP_FAIL, "no room for a reason: still judged");
-    CHECK(wbgap_find("D2") >= 0 && wbgap_row(wbgap_find("D2"))->mode && !strcmp(wbgap_row(wbgap_find("D2"))->mode, "MOUNTICON"),
-          "D2's line comes from MOUNTICON");
-}
-
 /* W2: GFOpenWindows' Amiga+Tab and Amiga+Shift+Tab */
 static void switch_plan(void)
 {
@@ -761,7 +739,6 @@ int main(int argc, char **argv)
     bar_point_plan();
     closewb_plan();
     diskio_plan();
-    mount_plan();
     showall_plan();
     rx_line_plan();
     drop_plan();

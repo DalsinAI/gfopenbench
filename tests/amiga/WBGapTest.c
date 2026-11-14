@@ -1928,61 +1928,6 @@ static int do_diskio(const char *drive)
     return fails ? 5 : 0;
 }
 
-/* ---- D2: a volume mounted later gets an icon ----
- * The drive (RAD: if none given) must not be mounted yet: looked for in the DOS list, so no "insert volume"
- * requester. The desktop's icons are read once (can they be read at all?), "Mount <drive>" is run, the volume's
- * name is taken from a lock on the drive, and the icons are read again once a second for up to 10 s. The drive
- * stays mounted afterwards, for DISKIO. */
-static int drive_mounted(const char *drive)
-{
-    char name[32];
-    struct DosList *dl;
-    size_t n = strlen(drive);
-    int found;
-    if (n && drive[n - 1] == ':') n--;
-    if (!n || n >= sizeof name) return 0;
-    memcpy(name, drive, n);
-    name[n] = 0;
-    dl = LockDosList(LDF_DEVICES | LDF_READ);
-    found = FindDosEntry(dl, (CONST_STRPTR)name, LDF_DEVICES) != NULL;
-    UnLockDosList(LDF_DEVICES | LDF_READ);
-    return found;
-}
-
-static int do_mounticon(const char *drive)
-{
-    char cmd[80], path[108], vol[40], why[96];
-    int was, before, rc = 0, up = 0, after = -1, k, v;
-    BPTR l;
-    vol[0] = 0;
-    was = drive_mounted(drive);
-    before = was ? 0 : diskio_has_row("D2", "", "before");
-    if (!was && before >= 0) {
-        snprintf(cmd, sizeof cmd, "C:Mount %s", drive);
-        rc = run(cmd);
-        if (!rc) {
-            struct Process *me = (struct Process *)FindTask(NULL);
-            APTR wp = me->pr_WindowPtr;
-            me->pr_WindowPtr = (APTR)-1;            /* no volume on it: the Lock fails quietly, never a requester */
-            if ((l = Lock((CONST_STRPTR)drive, ACCESS_READ))) {
-                if (NameFromLock(l, (STRPTR)path, sizeof path)) { wbgap_volume_name(path, vol, sizeof vol); up = vol[0] != 0; }
-                UnLock(l);
-            }
-            me->pr_WindowPtr = wp;
-        }
-        if (up) {
-            printf("INFO D2 %s mounted, its volume \"%s\"\n", drive, vol);
-            for (k = 0; k < 10; k++) {
-                Delay(50);
-                if ((after = diskio_has_row("D2", vol, "after")) > 0) break;
-            }
-        }
-    }
-    v = wbgap_mount_judge(was, before, rc, up, after, why, sizeof why);
-    say_row("D2", v, why);
-    return fails ? 5 : 0;
-}
-
 static long read_all(const char *path, char *buf, long n);
 
 /* ---- I8, I9: an icon dragged onto an AppIcon and onto an AppWindow ----
@@ -3157,6 +3102,7 @@ int wbt_put_icon(const char *path, long type, char **tooltypes) { return put_ico
 struct Window *wbt_find_window(const char *part) { return find_window(part); }
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how) { return open_drawer(path, title, secs, how); }
 int wbt_clear_drawer(const char *path, const char *title, const char *row) { return clear_drawer(path, title, row); }
+int wbt_desktop_has_disk(const char *row, const char *vol, const char *when) { return diskio_has_row(row, vol, when); }
 
 int main(int argc, char **argv)
 {
@@ -3182,7 +3128,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "CLOSEWBWAIT") && argc > 3) rc = do_closewb_wait(argv[2], atoi(argv[3]));
-    else if (!stricmp(argv[1], "MOUNTICON")) rc = do_mounticon(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
     else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile(argc > 2 && !stricmp(argv[2], "KEEP"));

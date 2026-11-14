@@ -24,5 +24,6 @@ int wbt_put_icon(const char *path, long type, char **tooltypes);
 struct Window *wbt_find_window(const char *part);             /* a window whose title holds part */
 struct Window *wbt_open_drawer(const char *path, const char *title, int secs, int *how);
 int wbt_clear_drawer(const char *path, const char *title, const char *row);
+int wbt_desktop_has_disk(const char *row, const char *vol, const char *when); /* vol a disk icon: 1, 0, -1 unread */
 
 #endif
