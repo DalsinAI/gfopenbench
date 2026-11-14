@@ -767,8 +767,9 @@ static int do_api(void)
 /* ---- screens ---- */
 static int run(const char *cmd) { return SystemTags((CONST_STRPTR)cmd, TAG_DONE); }
 
-/* a square of a screen's own pixels, as one number: what the screen holds, never the pointer if that is a sprite */
-static ULONG screen_box_sum(struct Screen *s, int cx, int cy, int half)
+/* a square of a screen's own pixels, as one number: what the screen holds, never the pointer if that is a sprite
+ * (SCREENS' P4b, rows/SCREENS.c) */
+unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half)
 {
     struct RastPort *rp = &s->RastPort;
     int deep = CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
@@ -780,75 +781,7 @@ static ULONG screen_box_sum(struct Screen *s, int cx, int cy, int half)
     return sum;
 }
 
-/* P4: Intuition's pointer, as 3.2.3 (P4a: it goes where it is moved); on RTG a sprite layer (P4b): with the pointer
- * over a square of the Workbench screen, the screen's own pixels there are what they are with it away */
-static void do_pointer(struct Screen *wb)
-{
-    char cmd[320];
-    int cx = wb->Width / 2, cy = wb->Height / 2, half = 12;
-    ULONG id = GetVPModeID(&wb->ViewPort), away1, over, away2;
-    ScreenToFront(wb);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
-    run(cmd);
-    Delay(25);
-    away1 = screen_box_sum(wb, cx, cy, half);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, cx - 4, cy - 4);
-    run(cmd);
-    Delay(25);
-    if (wb->MouseX >= cx - 5 && wb->MouseX <= cx - 3 && wb->MouseY >= cy - 5 && wb->MouseY <= cy - 3) pass("P4a");
-    else { char why[64]; snprintf(why, sizeof why, "moved to %d,%d, the screen says %d,%d", cx - 4, cy - 4, wb->MouseX, wb->MouseY); fail("P4a", why); }
-    over = screen_box_sum(wb, cx, cy, half);
-    snprintf(cmd, sizeof cmd, "%s MOVE %d %d", dragtest, wb->Width - 30, wb->Height - 30);
-    run(cmd);
-    Delay(25);
-    away2 = screen_box_sum(wb, cx, cy, half);
-    printf("INFO P4 mode $%08lx, box %08lx / %08lx / %08lx\n", (unsigned long)id, (unsigned long)away1, (unsigned long)over, (unsigned long)away2);
-    if (id == INVALID_ID || (id & 0xFFFF1000UL) < 0x00100000UL) skip("P4b", "Workbench is not on an RTG mode (the chipset's sprites)");
-    else if (away1 != away2) skip("P4b", "the screen changed under the square by itself; run again");
-    else if (over != away1) fail("P4b", "the pointer is drawn into the screen's pixels, not a sprite layer");
-    else pass("P4b");
-}
-
-static int do_screens(void)
-{
-    struct Screen *wb = LockPubScreen((CONST_STRPTR)"Workbench"), *s;
-    struct Gadget *g;
-    char cmd[320];
-    int x = -1, y = -1;
-    if (wb) pass("C4"); else { fail("C4", "LockPubScreen(Workbench) NULL"); return 20; }
-    do_pointer(wb);
-    s = OpenScreenTags(NULL, SA_LikeWorkbench, TRUE, SA_Title, (ULONG)"WBGapScreen", SA_ShowTitle, TRUE, TAG_DONE);
-    if (!s) { fail("C1", "no test screen"); skip("C2", "no test screen"); UnlockPubScreen(NULL, wb); return 10; }
-    ScreenToFront(s);
-    Delay(50);
-    for (g = s->FirstGadget; g; g = g->NextGadget)
-        if ((g->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SDEPTH) {
-            x = ((g->Flags & GFLG_RELRIGHT) ? s->Width - 1 + g->LeftEdge : g->LeftEdge) + g->Width / 2;
-            y = g->TopEdge + g->Height / 2;
-        }
-    if (x < 0) fail("C1", "the screen has no depth gadget");
-    else {
-        snprintf(cmd, sizeof cmd, "%s CLICK %d %d", dragtest, x, y);
-        run(cmd);
-        Delay(50);
-        if (IntuitionBase->FirstScreen != s) pass("C1"); else fail("C1", "the depth gadget left the screen in front");
-    }
-    ScreenToFront(s);
-    Delay(50);
-    snprintf(cmd, sizeof cmd, "%s KEY 0x37 QUAL LAMIGA", dragtest);
-    run(cmd);   /* M: the front screen to the back */
-    Delay(50);
-    if (IntuitionBase->FirstScreen != s) pass("C2a"); else fail("C2a", "Left-Amiga-M left the front screen in front");
-    ScreenToFront(s);
-    Delay(50);
-    snprintf(cmd, sizeof cmd, "%s KEY 0x36 QUAL LAMIGA", dragtest);
-    run(cmd);   /* N: Workbench to the front */
-    Delay(50);
-    if (IntuitionBase->FirstScreen == wb) pass("C2b"); else fail("C2b", "Left-Amiga-N didn't bring Workbench to the front");
-    CloseScreen(s);
-    UnlockPubScreen(NULL, wb);
-    return fails ? 5 : 0;
-}
+unsigned long wbt_mode_id(struct Screen *s) { return GetVPModeID(&s->ViewPort); }
 
 /* ---- the M rows driven: each item picked with the mouse, as a hand picks it, and what it did looked at ----
  * In RAM:WBGap's drawer window (the script opens it). The pointer goes title, item (and sub-item) with the right
@@ -2957,7 +2890,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "API")) rc = do_api();
     else if (!stricmp(argv[1], "MENUDRIVE")) rc = do_menudrive();
     else if (!stricmp(argv[1], "NOTIFY")) rc = do_notify();
-    else if (!stricmp(argv[1], "SCREENS")) rc = do_screens();
     else if (!stricmp(argv[1], "BIG")) rc = do_big();
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();

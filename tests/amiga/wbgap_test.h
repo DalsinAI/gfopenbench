@@ -5,6 +5,7 @@
 #define WBGAP_TEST_H
 
 struct Window;
+struct Screen;
 
 /* markers, each alone on a line at the file's left edge; they expand to nothing.
  * WBGAP_MODE(NAME, fn, NEWROWS): run by "WBGapTest NEWROWS" (the script's one line for every such mode), or SCRIPT:
@@ -39,5 +40,7 @@ struct Window *wbt_drop_ready(int *stage);
 void wbt_drop_from(struct Window *w, long xy[2]);
 void wbt_drop_drag(const long from[2], const long to[2], const char *row);
 void wbt_drop_clean(void);
+unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half); /* a square of the screen's pixels, one number */
+unsigned long wbt_mode_id(struct Screen *s);                  /* GetVPModeID of its ViewPort */
 
 #endif
