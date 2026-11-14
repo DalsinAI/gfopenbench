@@ -66,10 +66,10 @@ static const struct wbgap_row rows[] = {
     {"I1", NULL, L, NULL, "click selects, click elsewhere deselects"},
     {"I2", NULL, L, NULL, "Shift-click adds to the selection"},
     {"I3", NULL, A, "LAUNCHDESK", "lasso, icons only (13 Nov); WBGapDesk.rexx lassos p1 and p2 on the desktop"},
-    {"I4", NULL, L, NULL, "drag between drawer windows"},
+    {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
     {"I5", NULL, L, NULL, "drag to the backdrop"},
     {"I6", NULL, L, NULL, "drag to the Trashcan"},
-    {"I7", NULL, L, NULL, "drag onto a drawer or disk icon"},
+    {"I7", NULL, A, "DRAGFILE", "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
     {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
     {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
     {"I10", NULL, A, NULL, "double-click opens or runs"},
@@ -548,6 +548,31 @@ void wbgap_drop_point(const long box[4], long xy[2])
 {
     xy[0] = box[0] + box[2] / 2;
     xy[1] = box[1] + box[3] / 2;
+}
+
+int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *name, const char *where, char *why,
+                     unsigned cap)
+{
+    if (!name) name = "";
+    if (!where) where = "";
+    if (!dst) {
+        snprintf(why, cap, "%s isn't in %s after the drag%s", name, where, src ? " (still where it was)" : " (and gone from where it was)");
+        return WBGAP_FAIL;
+    }
+    if (src) {
+        snprintf(why, cap, "%s is in %s and still where it was: copied, not moved", name, where);
+        return WBGAP_FAIL;
+    }
+    if (!dst_info) {
+        snprintf(why, cap, "%s moved to %s without its icon (%s.info)%s", name, where, name, src_info ? ", which stayed behind" : "");
+        return WBGAP_FAIL;
+    }
+    if (src_info) {
+        snprintf(why, cap, "%s.info is in %s and still where it was", name, where);
+        return WBGAP_FAIL;
+    }
+    if (cap) why[0] = 0;
+    return WBGAP_PASS;
 }
 
 int wbgap_drop_judge(int got, long type, long want_type, unsigned long id, unsigned long want_id, long nargs,

@@ -29,6 +29,8 @@
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
  *   WBGapTest APPDROP           rows I9, I8: RAM:WBGapD's icon d dragged (DragTest) onto a window of ours made an
  *                               AppWindow, then onto an AppIcon (its place from WBGapAppPos.rexx); the AppMessage read
+ *   WBGapTest DRAGFILE          rows I4, I7: RAM:WBGapD's d dragged into RAM:WBGapE's window (moved, icon and all),
+ *                               then onto the drawer sub's icon in RAM:WBGapD (moved into it)
  *   WBGapTest STARTUP SETUP     row S1-S3: icons for SYS:WBStartup/WBGapA, B and C (copies of this program,
  *                               made by the script); after a reboot each writes to RAM:wbgap-order
  *   WBGapTest STARTUP CHECK     reads RAM:wbgap-order (S1-S3, S2d), RAM:wbgap-launchwb (I12a, I12b: WBGapF, started
@@ -1731,6 +1733,193 @@ out:
     return fails ? 5 : 0;
 }
 
+/* ---- I4, I7: a file dragged between drawer windows, and onto a drawer's icon ----
+ * RAM:WBGapD (a snapshotted at 20,10) and RAM:WBGapE (b at 20,10) open side by side. d is made in RAM:WBGapD at
+ * 120,10 and the drawer sub at 120,70, each found where the window changed (wbgap_diff_box). I4: d dragged into
+ * RAM:WBGapE's window, which must move it there, d.info with it (one volume: a move, as 3.2.3). I7: d, found again
+ * where RAM:WBGapE's window changed, dragged onto sub's icon, which must move it into RAM:WBGapD/sub. */
+static long sub_box[4];
+
+/* box: what changed in w since before (gw x gh samples) once it has stayed the same 0.4 s; 1, or 0 in 5 s */
+static int drag_settle(struct Window *w, const unsigned long *before, int gw, int gh, long box[4])
+{
+    static unsigned long after[DROP_GW * DROP_GH];
+    long last[4] = {0, 0, 0, 0};
+    int t, same = 0, aw, ah;
+    for (t = 0; t < 25; t++) {
+        Delay(10);
+        drop_grab(w, after, &aw, &ah);
+        if (aw != gw || ah != gh) return 0;
+        if (!wbgap_diff_box(before, after, gw, gh, DROP_STEP, box)) continue;
+        if (!memcmp(last, box, sizeof last) && ++same >= 2) return 1;
+        if (memcmp(last, box, sizeof last)) same = 0;
+        memcpy(last, box, sizeof last);
+    }
+    return wbgap_diff_box(before, after, gw, gh, DROP_STEP, box);
+}
+
+/* an object made in the drawer dir (its window w open) at x,y and told to the desktop; its box found as d's is */
+static int drag_make(struct Window *w, const char *dir, const char *name, LONG type, int x, int y, long box[4])
+{
+    static unsigned long before[DROP_GW * DROP_GH];
+    char path[96];
+    struct DiskObject *o;
+    BPTR l;
+    int gw, gh;
+    drop_grab(w, before, &gw, &gh);
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    if (type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
+    else write_file(path, "x\n");
+    if ((o = GetDefDiskObject(type))) {
+        o->do_CurrentX = x;
+        o->do_CurrentY = y;
+        PutDiskObject((CONST_STRPTR)path, o);
+        FreeDiskObject(o);
+    }
+    if ((l = Lock((CONST_STRPTR)dir, ACCESS_READ))) {
+        UpdateWorkbench((CONST_STRPTR)name, l, UPDATEWB_ObjectAdded);
+        UnLock(l);
+    }
+    return drag_settle(w, before, gw, gh, box);
+}
+
+/* RAM:WBGapX with x snapshotted at 20,10 in it (a drawer that isn't empty: an empty one's window draws otherwise) */
+static void drag_drawer(const char *dir, const char *first)
+{
+    char path[96];
+    struct DiskObject *o;
+    BPTR l;
+    if ((l = CreateDir((CONST_STRPTR)dir))) UnLock(l);
+    put_icon(dir, WBDRAWER, NULL);
+    snprintf(path, sizeof path, "%s/%s", dir, first);
+    write_file(path, "x\n");
+    if ((o = GetDefDiskObject(WBPROJECT))) {
+        o->do_CurrentX = 20;
+        o->do_CurrentY = 10;
+        PutDiskObject((CONST_STRPTR)path, o);
+        FreeDiskObject(o);
+    }
+}
+
+/* the file and its .info, each there or not, in dir */
+static void drag_where(const char *dir, const char *name, int *file, int *info)
+{
+    char path[96];
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    *file = exists(path);
+    snprintf(path, sizeof path, "%s/%s.info", dir, name);
+    *info = exists(path);
+}
+
+/* after a drag of name from src to dst: wait up to 3 s for it at dst, then judge */
+static int drag_judge(const char *row, const char *src, const char *dst, const char *name)
+{
+    char why[160];
+    int sf, si, df = 0, di = 0, t;
+    for (t = 0; t < 30; t++) {
+        drag_where(dst, name, &df, &di);
+        if (df && di) break;
+        Delay(5);
+    }
+    Delay(10);                                    /* the move's other half (the source side) done */
+    drag_where(src, name, &sf, &si);
+    drag_where(dst, name, &df, &di);
+    printf("INFO %s %s: in %s %d/%d (file/icon), in %s %d/%d\n", row, name, src, sf, si, dst, df, di);
+    if (wbgap_move_judge(sf, si, df, di, name, dst, why, sizeof why) == WBGAP_PASS) { pass(row); return 1; }
+    fail(row, why);
+    return 0;
+}
+
+static void drag_clean(void)
+{
+    static const char *const files[] = {
+        "RAM:WBGapD/sub/d.info", "RAM:WBGapD/sub/d", "RAM:WBGapD/sub.info", "RAM:WBGapD/sub", "RAM:WBGapD/d.info",
+        "RAM:WBGapD/d", "RAM:WBGapD/a.info", "RAM:WBGapD/a", "RAM:WBGapD.info", "RAM:WBGapD", "RAM:WBGapE/d.info",
+        "RAM:WBGapE/d", "RAM:WBGapE/b.info", "RAM:WBGapE/b", "RAM:WBGapE.info", "RAM:WBGapE"};
+    unsigned i;
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD/sub", NULL);
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapE", NULL);
+    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapD", NULL);
+    for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
+}
+
+/* the window titled title moved to a corner clear of avoid; it, or NULL if it isn't there within 2 s */
+static struct Window *drag_place(const char *title, const long *avoid)
+{
+    struct Window *x = find_window(title);
+    long box[4];
+    int t;
+    if (!x) return NULL;
+    if (!wbgap_drop_place(x->WScreen->Width, x->WScreen->Height, x->WScreen->BarHeight + 1, x->Width, x->Height, avoid, box))
+        return NULL;
+    ChangeWindowBox(x, box[0], box[1], box[2], box[3]);
+    for (t = 0; t < 40; t++) {
+        Delay(5);
+        if (!(x = find_window(title))) return NULL;
+        if (x->LeftEdge == box[0] && x->TopEdge == box[1]) return x;
+    }
+    return NULL;
+}
+
+static int do_dragfile(void)
+{
+    static unsigned long before[DROP_GW * DROP_GH];
+    struct Window *dw, *ew;
+    long from[2], to[2], dbox[4], ebox[4];
+    int how, gw, gh;
+    drag_clean();
+    drag_drawer("RAM:WBGapD", "a");
+    drag_drawer("RAM:WBGapE", "b");
+    if (!(dw = open_drawer("RAM:WBGapD", "WBGapD", 10, &how))) {
+        fail("I4", "RAM:WBGapD's window didn't open");
+        fail("I7", "RAM:WBGapD's window didn't open");
+        goto out;
+    }
+    Delay(50);
+    if (!drag_make(dw, "RAM:WBGapD", "d", WBPROJECT, 120, 10, d_box) ||
+        !(dw = find_window("WBGapD")) || !drag_make(dw, "RAM:WBGapD", "sub", WBDRAWER, 120, 70, sub_box)) {
+        fail("I4", "d or sub never showed in RAM:WBGapD's window (5 s after UpdateWorkbench)");
+        fail("I7", "no icons to drag");
+        goto out;
+    }
+    printf("INFO I4 in RAM:WBGapD's window: d at %ld,%ld %ldx%ld, sub at %ld,%ld %ldx%ld\n", d_box[0], d_box[1],
+           d_box[2], d_box[3], sub_box[0], sub_box[1], sub_box[2], sub_box[3]);
+    if (!(dw = find_window("WBGapD"))) { fail("I4", "RAM:WBGapD's window went"); fail("I7", "RAM:WBGapD's window went"); goto out; }
+    dbox[0] = dw->LeftEdge; dbox[1] = dw->TopEdge; dbox[2] = dw->Width; dbox[3] = dw->Height;
+    if (!open_drawer("RAM:WBGapE", "WBGapE", 10, &how) || !(ew = drag_place("WBGapE", dbox))) {
+        fail("I4", "RAM:WBGapE's window didn't open, or couldn't be put clear of RAM:WBGapD's");
+        fail("I7", "no second window");
+        goto out;
+    }
+    Delay(50);
+    /* I4: d from RAM:WBGapD's window into RAM:WBGapE's, dropped right of b, below its top */
+    drop_grab(ew, before, &gw, &gh);
+    drop_from(dw, from);
+    to[0] = ew->LeftEdge + ew->BorderLeft + 140;
+    to[1] = ew->TopEdge + ew->BorderTop + 30;
+    if (to[0] >= ew->LeftEdge + ew->Width - ew->BorderRight) to[0] = ew->LeftEdge + ew->Width / 2;
+    drop_drag(from, to, "I4");
+    if (!drag_judge("I4", "RAM:WBGapD", "RAM:WBGapE", "d")) { fail("I7", "I4 failed: no d in RAM:WBGapE to drag"); goto out; }
+    /* I7: d, where RAM:WBGapE's window changed, onto sub's icon in RAM:WBGapD's window */
+    if (!(ew = find_window("WBGapE")) || !drag_settle(ew, before, gw, gh, ebox)) {
+        fail("I7", "d's icon not seen in RAM:WBGapE's window after I4");
+        goto out;
+    }
+    printf("INFO I7 d at %ld,%ld %ldx%ld in RAM:WBGapE's window\n", ebox[0], ebox[1], ebox[2], ebox[3]);
+    wbgap_grab_point(ebox, from);
+    from[0] += ew->LeftEdge + ew->BorderLeft;
+    from[1] += ew->TopEdge + ew->BorderTop;
+    if (!(dw = find_window("WBGapD"))) { fail("I7", "RAM:WBGapD's window went"); goto out; }
+    wbgap_grab_point(sub_box, to);
+    to[0] += dw->LeftEdge + dw->BorderLeft;
+    to[1] += dw->TopEdge + dw->BorderTop;
+    drop_drag(from, to, "I7");
+    drag_judge("I7", "RAM:WBGapE", "RAM:WBGapD/sub", "d");
+out:
+    drag_clean();
+    return fails ? 5 : 0;
+}
+
 /* ---- WBStartup ---- */
 static void stamp(const char *what, const char *name)
 {
@@ -2345,7 +2534,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | APPDROP | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | APPDROP | DRAGFILE | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -2360,6 +2549,7 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "APPDROP")) rc = do_appdrop();
+    else if (!stricmp(argv[1], "DRAGFILE")) rc = do_dragfile();
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);

@@ -354,6 +354,26 @@ static void drop_plan(void)
         wbgap_grab_point(ib, xy);
         CHECK(xy[0] == 65 && xy[1] == 54, "pressed on the image: across the middle, two-fifths down (%ld,%ld)", xy[0], xy[1]);
     }
+    {   /* I4, I7: moved, icon and all */
+        char why[160];
+        CHECK(wbgap_move_judge(0, 0, 1, 1, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_PASS && !why[0], "moved with its icon: PASS");
+        CHECK(wbgap_move_judge(1, 1, 0, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "still where it was"),
+              "nothing moved: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 0, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "gone from"),
+              "gone from both: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(1, 1, 1, 1, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "copied"),
+              "in both: copied, FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 1, 1, 0, "d", "RAM:WBGapE", why, sizeof why) == WBGAP_FAIL && strstr(why, "stayed behind"),
+              "the file without its icon: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 1, 0, "d", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, "without its icon"),
+              "the icon lost: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 1, 1, 1, "d", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, ".info"),
+              "the icon in both: FAIL (%s)", why);
+        CHECK(wbgap_move_judge(0, 0, 1, 1, NULL, NULL, why, 0) == WBGAP_PASS, "no names, no room for a reason: no write");
+        CHECK(wbgap_find("I4") >= 0 && !strcmp(wbgap_row(wbgap_find("I4"))->mode, "DRAGFILE") &&
+              wbgap_row(wbgap_find("I4"))->how == WBGAP_AUTO && !strcmp(wbgap_row(wbgap_find("I7"))->mode, "DRAGFILE") &&
+              wbgap_row(wbgap_find("I7"))->how == WBGAP_AUTO, "I4 and I7 come from DRAGFILE, automatic");
+    }
     CHECK(wbgap_find("I8") >= 0 && !strcmp(wbgap_row(wbgap_find("I8"))->mode, "APPDROP") &&
           !strcmp(wbgap_row(wbgap_find("I9"))->mode, "APPDROP"), "I8 and I9 come from APPDROP");
 }

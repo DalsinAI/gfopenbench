@@ -142,5 +142,10 @@ void wbgap_grab_point(const long box[4], long xy[2]);
 /* "x y w h" (WBGapAppPos.rexx, the AppIcon's box on the screen) into box: 1, or 0 if it isn't four numbers or
  * the width or height isn't above 0 */
 int wbgap_parse_box(const char *text, long box[4]);
+/* I4, I7: a file dragged within one volume is moved, its icon with it (3.2.3). What is where after the drag: the file
+ * and its .info at the place it came from (src, src_info) and where it was dropped (dst, dst_info), each 1 if there.
+ * name and where for the reason. WBGAP_PASS when both are at dst and neither at src; else WBGAP_FAIL, why says which */
+int wbgap_move_judge(int src, int src_info, int dst, int dst_info, const char *name, const char *where, char *why,
+                     unsigned cap);
 
 #endif
