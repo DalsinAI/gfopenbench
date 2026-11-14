@@ -83,10 +83,10 @@ static const struct wbgap_row rows[] = {
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
-    {"N2", NULL, A, NULL, "protection bits SARWED saved"},
-    {"N3", NULL, A, NULL, "comment saved"},
-    {"N4", NULL, A, NULL, "tool types added, edited, deleted, saved"},
-    {"N5", NULL, A, NULL, "default tool saved"},
+    {"N2", NULL, A, "INFOSAVE", "protection bits SARWED saved"},
+    {"N3", NULL, A, "INFOSAVE", "comment saved"},
+    {"N4", NULL, A, "INFOSAVE", "tool types added, edited, deleted, saved"},
+    {"N5", NULL, A, "INFOSAVE", "default tool saved"},
     {"N6", NULL, A, NULL, "Stack field (13 Nov: as 3.2.3)"},
     {"N7", NULL, A, NULL, "H and P bits, in an Advanced section (13 Nov)"},
     {"N8", NULL, A, API, "WBInfo from a program opens it"},
@@ -138,7 +138,7 @@ static const struct wbgap_row rows[] = {
     /* 9. Windows */
     {"W1", NULL, L, NULL, "sizing, zoom, depth on drawer windows"},
     {"W2", NULL, A, NULL, "keyboard window cycling"},
-    {"W3", NULL, A, NULL, "window and screen titles"},
+    {"W3", NULL, A, "TITLES", "window and screen titles"},
     /* 10. Notifications */
     {"F1", NULL, A, "NOTIFY", "a new file shows without Update"},
     {"F2", NULL, A, "NOTIFY", "a changed .info updates its icon"},
@@ -557,6 +557,20 @@ int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned
     return v;
 }
 
+int wbgap_title_judge(const char *win_title, const char *name, const char *screen_title, char *why, unsigned cap)
+{
+    char r[200] = "";
+    size_t n = name ? strlen(name) : 0;
+    int v = WBGAP_FAIL;
+    if (!win_title || !n) { snprintf(r, sizeof r, "the drawer's window not read"); v = WBGAP_SKIP; }
+    else if (strncmp(win_title, name, n) || (win_title[n] && win_title[n] != ' '))
+        snprintf(r, sizeof r, "the drawer's window is titled \"%.80s\", not with its name \"%.40s\"", win_title, name);
+    else if (!screen_title || !*screen_title) snprintf(r, sizeof r, "the Workbench screen has no title");
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}
+
 int wbgap_has_nocase(const char *text, const char *word)
 {
     size_t wn = word ? strlen(word) : 0;
@@ -603,4 +617,21 @@ int wbgap_which_judge(unsigned long on_icon, const char *name, const char *want,
     }
     if (cap) why[0] = 0;
     return WBGAP_PASS;
+}
+
+int wbgap_rawkey(int c, int *shift)
+{
+    static const char *const rows[] = { "1234567890-=", "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+    static const int base[] = { 0x01, 0x10, 0x20, 0x31 };
+    int r, i;
+    *shift = c >= 'A' && c <= 'Z';
+    if (*shift) c += 32;
+    if (c == ' ') return 0x40;
+    if (c == '.') return 0x39;
+    if (c == '/') return 0x3A;
+    for (r = 0; r < 4; r++)
+        for (i = 0; rows[r][i]; i++)
+            if (rows[r][i] == c) return base[r] + i;
+    *shift = 0;
+    return -1;
 }

@@ -25,6 +25,7 @@
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),
  *                               as WBGapRoot.rexx wrote them to RAM:wbgap-root
+ *   WBGapTest TITLES            row W3: RAM:WBGapW3's window titled with the drawer's name, and its screen with a title
  *   WBGapTest DISKIO [drive]    row D1: the drive's (RAD: if none given) disk icon goes while DragTest INHIBIT has
  *                               its file system stopped, and comes back after; the desktop's icons read each time
  *                               by WBGapRoot.rexx (beside this program) into RAM:wbgap-root-d1
@@ -43,6 +44,10 @@
  *                               reads what OpenT got (RAM:wbgap-launchopen) and whether Sub's window opened
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
+ *   WBGapTest INFOSAVE          rows N2-N5: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
+ *                               off, a comment, a default tool, tool types a=1 edited to a=3, d=4 deleted, b=2
+ *                               added, Save; then the file's protection and comment and its icon are read back.
+ *                               GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3
  *   WBGapTest REPORT <file>     the lines of the modes above, in <file>, as exactly one PASS, FAIL or SKIP line per
  *                               gap id (wbgap_rows.c, the gaps document plus the 13 Nov decisions), and a count
  *   WBGapTest LOWMEM secs path  row X3 (WBGapX3.rexx): takes nearly all memory, in pieces too small for a program,
@@ -83,6 +88,7 @@
 #include <proto/wb.h>
 
 #include "wbgap_menu.h"
+#include "../../desktop/ob_info_ids.h"   /* the Information window's gadget ids (INFOSAVE) */
 #include "wbgap_rows.h"
 #if defined(WBO_NONE) && defined(WBO_DRAWER) && defined(WBO_ICON)
 typedef char wbgap_wbo_same[(WBO_NONE == WBGAP_WBO_NONE && WBO_DRAWER == WBGAP_WBO_DRAWER && WBO_ICON == WBGAP_WBO_ICON) ? 1 : -1];
@@ -993,6 +999,173 @@ static void key(int code)
     Delay(15);
 }
 
+/* ---- INFOSAVE: rows N2-N5, the Information window's Save, driven as a hand does ---- */
+/* the box (window-relative) of every gadget of w with this id, joined: a GadTools listview is more than one */
+static int gad_box(struct Window *w, UWORD id, LONG *x, LONG *y, LONG *gw, LONG *gh)
+{
+    struct Gadget *g;
+    LONG x0 = 0x7fff, y0 = 0x7fff, x1 = -1, y1 = -1;
+    ULONG lock = LockIBase(0);
+    for (g = w->FirstGadget; g; g = g->NextGadget) {
+        LONG l, t;
+        if ((g->GadgetType & GTYP_SYSGADGET) || g->GadgetID != id || g->Width <= 0 || g->Height <= 0) continue;
+        l = (g->Flags & GFLG_RELRIGHT) ? w->Width - 1 + g->LeftEdge : g->LeftEdge;
+        t = (g->Flags & GFLG_RELBOTTOM) ? w->Height - 1 + g->TopEdge : g->TopEdge;
+        if (l < x0) x0 = l;
+        if (t < y0) y0 = t;
+        if (l + g->Width > x1) x1 = l + g->Width;
+        if (t + g->Height > y1) y1 = t + g->Height;
+    }
+    UnlockIBase(lock);
+    if (x1 < 0) return 0;
+    *x = x0, *y = y0, *gw = x1 - x0, *gh = y1 - y0;
+    return 1;
+}
+
+/* a click on gadget id of w: its middle, or (row >= 0, a listview) the middle of that row, near its left */
+static int click_gad(struct Window *w, UWORD id, int row)
+{
+    LONG x, y, gw, gh, fh = w->WScreen->Font ? w->WScreen->Font->ta_YSize : 8;
+    char cmd[300];
+    if (!gad_box(w, id, &x, &y, &gw, &gh)) return 0;
+    if (row >= 0) x += 24, y += 2 + row * fh + fh / 2;
+    else x += gw / 2, y += gh / 2;
+    snprintf(cmd, sizeof cmd, "%s CLICK %ld %ld", dragtest, (long)(w->LeftEdge + x), (long)(w->TopEdge + y));
+    run(cmd);
+    Delay(20);
+    return 1;
+}
+
+static void key_q(int code, const char *qual)
+{
+    char cmd[300];
+    snprintf(cmd, sizeof cmd, "%s KEY 0x%x QUAL %s", dragtest, code, qual);
+    run(cmd);
+    Delay(15);
+}
+
+/* text typed on a US keyboard (wbgap_rawkey: a-z, A-Z with Shift, 0-9 - = . / space); 0 at a character it has no key for */
+static int type_text(const char *t)
+{
+    for (; *t; t++) {
+        int shift, code = wbgap_rawkey((unsigned char)*t, &shift);
+        if (code < 0) return 0;
+        if (shift) key_q(code, "LSHIFT"); else key(code);
+    }
+    return 1;
+}
+
+/* the string gadget id of w emptied (Right-Amiga X) and t typed into it; Return after it when ret */
+static int set_string(struct Window *w, UWORD id, const char *t, int ret)
+{
+    if (!click_gad(w, id, -1)) return 0;
+    key_q(0x32, "RAMIGA");
+    if (!type_text(t)) return 0;
+    if (ret) key(0x44);
+    return 1;
+}
+
+static int infosave_row(void)
+{
+    static const char *const rows[] = { "N2", "N3", "N4", "N5" };
+    static STRPTR tt[] = { (STRPTR)"a=1", (STRPTR)"d=4", NULL };
+    struct FileInfoBlock *fib;
+    struct DiskObject *dob;
+    struct Screen *wb;
+    struct Window *iw = NULL;
+    BPTR dir, l;
+    int t, i, done;
+    if (!is_gfos()) {
+        for (i = 0; i < 4; i++) skip(rows[i], "drives GFOpenBench's Information window by its gadget ids; 3.2.3's is checked by hand");
+        return 0;
+    }
+    /* RAM:WBGapN/n: a project, every protection bit as a new file has it, no comment, no default tool,
+     * tool types a=1 and d=4 */
+    if ((l = CreateDir((CONST_STRPTR)"RAM:WBGapN"))) UnLock(l);
+    /* a rerun: the last run's Save left it not deletable, so clear that before it is written again */
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
+    write_file("RAM:WBGapN/n", "WBGapTest INFOSAVE\n");
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);
+    SetComment((CONST_STRPTR)"RAM:WBGapN/n", (CONST_STRPTR)"");
+    if (!put_icon("RAM:WBGapN/n", WBPROJECT, tt)) {
+        for (i = 0; i < 4; i++) fail(rows[i], "RAM:WBGapN/n.info could not be written");
+        return 10;
+    }
+    if ((dob = GetDiskObject((CONST_STRPTR)"RAM:WBGapN/n"))) {   /* a default project icon may name a tool: none here */
+        dob->do_DefaultTool = (STRPTR)"";
+        PutDiskObject((CONST_STRPTR)"RAM:WBGapN/n", dob);
+        FreeDiskObject(dob);
+    }
+    dir = Lock((CONST_STRPTR)"RAM:WBGapN", ACCESS_READ);
+    wb = LockPubScreen((CONST_STRPTR)"Workbench");
+    if (dir && wb && WBInfo(dir, (CONST_STRPTR)"n", wb))
+        for (t = 0; t < 30 && !(iw = find_window("Information: n")); t++) Delay(10);
+    if (wb) UnlockPubScreen(NULL, wb);
+    if (dir) UnLock(dir);
+    if (!iw) {
+        for (i = 0; i < 4; i++) fail(rows[i], "WBInfo opened no Information window for RAM:WBGapN/n");
+        return 10;
+    }
+    Delay(50);   /* drawn */
+    printf("INFO INFOSAVE Information window %ldx%ld at %ld,%ld\n", (long)iw->Width, (long)iw->Height, (long)iw->LeftEdge, (long)iw->TopEdge);
+    /* N2: Deletable off. N3: a comment. N5: a default tool. N4: a=1 made a=3, d=4 deleted, b=2 added. */
+    done = click_gad(iw, G_PD, -1)
+        && set_string(iw, G_COMMENT, "gapnote", 0)
+        && set_string(iw, G_TOOL, "dir", 0)
+        && click_gad(iw, G_TTLIST, 0) && (key_q(0x32, "RAMIGA"), type_text("a=3")) && (key(0x44), 1)
+        && click_gad(iw, G_TTLIST, 1) && click_gad(iw, G_TTDEL, -1)
+        && click_gad(iw, G_TTNEW, -1) && type_text("b=2") && (key(0x44), 1)
+        && click_gad(iw, G_SAVE, -1);
+    for (t = 0; t < 30 && find_window("Information: n"); t++) Delay(10);
+    if ((iw = find_window("Information: n"))) {   /* not saved (a requester?): closed unsaved */
+        printf("INFO INFOSAVE the window is still open after Save%s\n", done ? "" : " (a gadget wasn't found)");
+        if (iw->UserPort && iw->UserPort->mp_SigTask) Signal((struct Task *)iw->UserPort->mp_SigTask, SIGBREAKF_CTRL_C);
+        for (i = 0; i < 4; i++) fail(rows[i], "Save didn't close the Information window");
+        return 10;
+    }
+    l = 0;
+    if ((fib = AllocDosObject(DOS_FIB, NULL)) && (l = Lock((CONST_STRPTR)"RAM:WBGapN/n", ACCESS_READ)) && Examine(l, fib)) {
+        LONG p = fib->fib_Protection;
+        if ((p & FIBF_DELETE) && !(p & (FIBF_READ | FIBF_WRITE | FIBF_EXECUTE))) pass("N2");
+        else printf("FAIL N2 protection 0x%lx after Save, not Deletable off with R, W and E on\n", (unsigned long)p), fails++;
+        if (!strcmp((const char *)fib->fib_Comment, "gapnote")) pass("N3");
+        else printf("FAIL N3 the comment is \"%s\" after Save, not \"gapnote\"\n", (const char *)fib->fib_Comment), fails++;
+    } else {
+        fail("N2", "RAM:WBGapN/n can't be examined");
+        fail("N3", "RAM:WBGapN/n can't be examined");
+    }
+    if (l) UnLock(l);
+    if (fib) FreeDosObject(DOS_FIB, fib);
+    if ((dob = GetDiskObject((CONST_STRPTR)"RAM:WBGapN/n"))) {
+        STRPTR *x = dob->do_ToolTypes;
+        char got[160] = "";
+        for (i = 0; x && x[i]; i++) {
+            if (i) strncat(got, ",", sizeof got - strlen(got) - 1);
+            strncat(got, (const char *)x[i], sizeof got - strlen(got) - 1);
+        }
+        if (!strcmp(got, "a=3,b=2")) pass("N4");
+        else printf("FAIL N4 tool types \"%s\" after Save, not \"a=3,b=2\" (a=1 edited, d=4 deleted, b=2 added)\n", got), fails++;
+        if (dob->do_DefaultTool && !strcmp((const char *)dob->do_DefaultTool, "dir")) pass("N5");
+        else printf("FAIL N5 the default tool is \"%s\" after Save, not \"dir\"\n", dob->do_DefaultTool ? (const char *)dob->do_DefaultTool : "(none)"), fails++;
+        FreeDiskObject(dob);
+    } else {
+        fail("N4", "RAM:WBGapN/n.info can't be read");
+        fail("N5", "RAM:WBGapN/n.info can't be read");
+    }
+    return fails ? 10 : 0;
+}
+
+/* RAM:WBGapN is gone after every run, whichever way it ended (Lyta, #150) */
+static int do_infosave(void)
+{
+    int rc = infosave_row();
+    SetProtection((CONST_STRPTR)"RAM:WBGapN/n", 0);   /* the Save left it not deletable */
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/n.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN/n");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapN");
+    return rc;
+}
+
 /* waits up to secs for w's inside to read as sum again */
 static int back_to(struct Window *w, ULONG sum, int secs)
 {
@@ -1298,6 +1471,40 @@ static int do_closewb(void)
     clear_drawer("RAM:WBGapC", "WBGapC", "C6");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC.info");
     DeleteFile((CONST_STRPTR)"RAM:WBGapC");
+    return fails ? 5 : 0;
+}
+
+/* ---- W3: window and screen titles ----
+ * RAM:WBGapW3, a drawer with an icon, opened on the desktop; its window's title must be the drawer's name, and the
+ * window's screen must have a title. The titles are copied under LockIBase; the drawer is cleared afterwards. */
+static void say_row(const char *row, int state, const char *why);
+static int do_titles(void)
+{
+    struct Window *w;
+    char wt[128], st[128], sw[128], why[200];
+    int how, v, got = 0;
+    ULONG lock;
+    BPTR l = CreateDir((CONST_STRPTR)"RAM:WBGapW3");
+    if (l) UnLock(l);
+    put_icon("RAM:WBGapW3", WBDRAWER, NULL);
+    wt[0] = st[0] = sw[0] = 0;
+    if ((w = open_drawer("RAM:WBGapW3", "WBGapW3", 10, &how))) {
+        lock = LockIBase(0);
+        if ((w = find_window("WBGapW3"))) {          /* looked for again: it may have gone since */
+            snprintf(wt, sizeof wt, "%s", w->Title ? (const char *)w->Title : "");
+            snprintf(st, sizeof st, "%s", w->WScreen && w->WScreen->Title ? (const char *)w->WScreen->Title : "");
+            snprintf(sw, sizeof sw, "%s", w->ScreenTitle ? (const char *)w->ScreenTitle : "");
+            got = 1;
+        }
+        UnlockIBase(lock);
+    }
+    if (got) printf("INFO W3 the window \"%s\"; the screen \"%s\"; the window's screen title \"%s\"\n", wt, st, sw);
+    v = wbgap_title_judge(got ? wt : NULL, "WBGapW3", st, why, sizeof why);
+    if (v == WBGAP_SKIP && !got) snprintf(why, sizeof why, "RAM:WBGapW3's window didn't open");
+    say_row("W3", v, why);
+    clear_drawer("RAM:WBGapW3", "WBGapW3", "W3");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3.info");
+    DeleteFile((CONST_STRPTR)"RAM:WBGapW3");
     return fails ? 5 : 0;
 }
 
@@ -2196,7 +2403,7 @@ int main(int argc, char **argv)
     CyberGfxBase = OpenLibrary("cybergraphics.library", 40);
     if (!WorkbenchBase || !IconBase) { printf("FAIL setup no workbench.library or icon.library 44\n"); goto out; }
     if (argc == 0) { rc = _WBenchMsg ? from_workbench(_WBenchMsg) : 20; goto out; }
-    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | REPORT <file>\n"); goto out; }
+    if (argc < 2) { printf("usage: WBGapTest MENUS [DUMP] | MENUDRIVE | SETUP | API | NOTIFY | SCREENS | BIG | STARTUP SETUP|CHECK | LOWMEM secs path | LAUNCH | LAUNCHDESK SETUP|CHECK|DONE | LAYOUT | INFOSAVE | REPORT <file>\n"); goto out; }
     find_dragtest();
     printf("INFO workbench.library %d.%d\n", WorkbenchBase->lib_Version, WorkbenchBase->lib_Revision);
     if (!stricmp(argv[1], "MENUS")) rc = do_menus(argc > 2 && !stricmp(argv[2], "DUMP"));
@@ -2209,12 +2416,14 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "BAR")) rc = do_bar();
     else if (!stricmp(argv[1], "DISKS")) rc = do_disks();
     else if (!stricmp(argv[1], "CLOSEWB")) rc = do_closewb();
+    else if (!stricmp(argv[1], "TITLES")) rc = do_titles();
     else if (!stricmp(argv[1], "DISKIO")) rc = do_diskio(argc > 2 ? argv[2] : "RAD:");
     else if (!stricmp(argv[1], "STARTUP") && argc > 2) rc = do_startup(argv[2]);
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
     else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
+    else if (!stricmp(argv[1], "INFOSAVE")) rc = do_infosave();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else printf("unknown: %s\n", argv[1]);
 out:

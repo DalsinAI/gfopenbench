@@ -330,6 +330,28 @@ static void diskio_plan(void)
           "D1's line comes from DISKIO");
 }
 
+/* W3: window and screen titles */
+static void titles_plan(void)
+{
+    char why[200];
+    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "Workbench Screen", why, sizeof why) == WBGAP_PASS && !why[0],
+          "the drawer's name, a screen title: PASS");
+    CHECK(wbgap_title_judge("WBGapW3  2 files", "WBGapW3", "x", why, sizeof why) == WBGAP_PASS, "the name, then a blank and more: PASS");
+    CHECK(wbgap_title_judge("RAM:WBGapW3", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL && strstr(why, "RAM:WBGapW3"),
+          "the path, not the name: FAIL, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapTx", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "a longer name: FAIL");
+    CHECK(wbgap_title_judge("wbgapt", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "the name's case changed: FAIL");
+    CHECK(wbgap_title_judge("", "WBGapW3", "x", why, sizeof why) == WBGAP_FAIL, "an empty title: FAIL");
+    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "", why, sizeof why) == WBGAP_FAIL && strstr(why, "screen has no title"),
+          "no screen title: FAIL, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", NULL, why, sizeof why) == WBGAP_FAIL, "a NULL screen title: FAIL");
+    CHECK(wbgap_title_judge(NULL, "WBGapW3", "x", why, sizeof why) == WBGAP_SKIP && strstr(why, "not read"),
+          "the window not read: SKIP, \"%s\"", why);
+    CHECK(wbgap_title_judge("WBGapW3", "WBGapW3", "x", NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
+    CHECK(wbgap_find("W3") >= 0 && wbgap_row(wbgap_find("W3"))->mode && !strcmp(wbgap_row(wbgap_find("W3"))->mode, "TITLES"),
+          "W3's line comes from TITLES");
+}
+
 /* A8c: WhichWorkbenchObjectA on a snapshotted icon and on the window's empty corner */
 static void which_plan(void)
 {
@@ -349,6 +371,31 @@ static void which_plan(void)
           "the empty corner not the drawer: FAIL");
     CHECK(wbgap_find("A8c") >= 0 && wbgap_row(wbgap_find("A8c"))->mode && !strcmp(wbgap_row(wbgap_find("A8c"))->mode, "API"),
           "A8c's line comes from API");
+}
+
+/* N2-N5: INFOSAVE drives the Information window; its typing's raw keys (US keyboard) */
+static void infosave_rows(void)
+{
+    static const char *const n[] = { "N2", "N3", "N4", "N5" };
+    int i, sh;
+    for (i = 0; i < 4; i++)
+        CHECK(wbgap_find(n[i]) >= 0 && wbgap_row(wbgap_find(n[i]))->how == WBGAP_AUTO && wbgap_row(wbgap_find(n[i]))->mode
+              && !strcmp(wbgap_row(wbgap_find(n[i]))->mode, "INFOSAVE"), "%s's line comes from INFOSAVE", n[i]);
+    CHECK(wbgap_rawkey('a', &sh) == 0x20 && !sh, "a is 0x20");
+    CHECK(wbgap_rawkey('q', &sh) == 0x10 && wbgap_rawkey('p', &sh) == 0x19, "q 0x10, p 0x19");
+    CHECK(wbgap_rawkey('z', &sh) == 0x31 && wbgap_rawkey('m', &sh) == 0x37, "z 0x31, m 0x37");
+    CHECK(wbgap_rawkey('1', &sh) == 0x01 && wbgap_rawkey('0', &sh) == 0x0A, "1 0x01, 0 0x0A");
+    CHECK(wbgap_rawkey('=', &sh) == 0x0C && wbgap_rawkey('-', &sh) == 0x0B, "= 0x0C, - 0x0B");
+    CHECK(wbgap_rawkey(' ', &sh) == 0x40 && wbgap_rawkey('.', &sh) == 0x39 && wbgap_rawkey('/', &sh) == 0x3A, "space . /");
+    CHECK(wbgap_rawkey('G', &sh) == 0x24 && sh, "G is Shift and g (0x24)");
+    CHECK(wbgap_rawkey(':', &sh) == -1 && !sh && wbgap_rawkey('*', &sh) == -1, "no key for : or * here: -1");
+    {   /* every character INFOSAVE types has a key */
+        static const char *const typed[] = { "gapnote", "dir", "a=3", "b=2" };
+        int k;
+        const char *c;
+        for (k = 0; k < 4; k++)
+            for (c = typed[k]; *c; c++) CHECK(wbgap_rawkey(*c, &sh) > 0, "'%c' of \"%s\" has a key", *c, typed[k]);
+    }
 }
 
 /* I11's line comes from LAUNCHDESK; LAUNCH's INFO line about OpenWorkbenchObjectA is no result */
@@ -488,7 +535,7 @@ static void print_all(void)
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
     CHECK(wbgap_find("M27") >= 0 && wbgap_row(wbgap_find("M27"))->mode && !strcmp(wbgap_row(wbgap_find("M27"))->mode, "API"),
           "M27's line comes from API (its AddAppMenuItemA check), so a run without API says \"not run\", never \"not written\"");
-    CHECK(!strncmp(line_of("N2"), "SKIP N2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N2"));
+    CHECK(!strncmp(line_of("W2"), "SKIP W2 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("W2"));
     CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
     CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
 }
@@ -517,12 +564,14 @@ int main(int argc, char **argv)
     backdrop_plan();
     clear_plan();
     i11_lines();
+    infosave_rows();
     bar_plan();
     ramdisk_plan();
     which_plan();
     bar_point_plan();
     closewb_plan();
     diskio_plan();
+    titles_plan();
     showall_plan();
     print_all();
     print_empty();
