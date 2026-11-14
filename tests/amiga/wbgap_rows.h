@@ -66,6 +66,10 @@ int wbgap_backdrop_done(int have_was, int have_made);
 void wbgap_volume_name(const char *path, char *out, unsigned cap);
 /* 1 if a line of list (as WBGapRoot.rexx writes it) is a DISK icon whose name is vol, case not minded */
 int wbgap_root_has_disk(const char *list, const char *vol);
+/* D1: a disk's icon goes while its file system is inhibited (as for Format) and comes back after. The three answers
+ * of wbgap_root_has_disk: before, while inhibited, after. WBGAP_SKIP if it had no icon before (nothing to watch),
+ * else WBGAP_PASS or WBGAP_FAIL, the reason in why */
+int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
 
 /* A8c, WhichWorkbenchObjectA: an icon snapshotted at (cx, cy) in a drawer, its window's borders bl and bt. The point
  * on the icon to ask about, relative to the window (WhichWorkbenchObjectA's x, y): its image's top-left + 4 */
