@@ -34,6 +34,9 @@ ADDRESS OPENBENCH
 GETATTR 'application.version'
 IF RC ~= 0 THEN DO
   SAY 'FAIL X3 the desktop did not answer after low memory'
+  /* its window tried all the same (the desktop may still take a WINDOW), and the drawer goes */
+  WINDOW 'RAM:WBGapX3d' CLOSE
+  ADDRESS COMMAND 'Delete RAM:WBGapX3d QUIET >NIL:'
   EXIT 5
 END
 SAY 'INFO X3 the desktop answers:' RESULT
