@@ -158,6 +158,25 @@ static void ramdisk_plan(void)
           "nothing read, or no name: no");
 }
 
+/* I14: a file with no icon shown only with Show All Files */
+static void showall_plan(void)
+{
+    char why[64];
+    const char *drawer = "PROJECT noicon\nDRAWER Sub\r\nTOOL WBGapW\n";
+    CHECK(wbgap_root_has_name(drawer, "noicon") && wbgap_root_has_name(drawer, "NOICON") && wbgap_root_has_name(drawer, "Sub"),
+          "a name of any type, case not minded, CR dropped");
+    CHECK(!wbgap_root_has_name(drawer, "noico") && !wbgap_root_has_name("PROJECT noicon2\n", "noicon") &&
+          !wbgap_root_has_name("noicon\n", "noicon") && !wbgap_root_has_name("PROJECT \n", ""),
+          "a shorter or longer name, a line with no type, no name: no");
+    CHECK(!wbgap_root_has_name(NULL, "x") && !wbgap_root_has_name("", "x"), "nothing read: no");
+    CHECK(wbgap_showall_judge(0, 1, why, sizeof why) == WBGAP_PASS && !why[0], "hidden, then shown: PASS");
+    CHECK(wbgap_showall_judge(1, 1, why, sizeof why) == WBGAP_FAIL && strstr(why, "Only Icons"), "shown with Only Icons: FAIL");
+    CHECK(wbgap_showall_judge(0, 0, why, sizeof why) == WBGAP_FAIL && strstr(why, "not shown"), "never shown: FAIL");
+    CHECK(wbgap_showall_judge(-1, 1, why, sizeof why) == WBGAP_SKIP && wbgap_showall_judge(0, -1, why, sizeof why) == WBGAP_SKIP,
+          "a read failed: SKIP");
+    CHECK(wbgap_find("I14") >= 0 && !strcmp(wbgap_row(wbgap_find("I14"))->mode, "MENUS"), "I14's line comes from MENUS");
+}
+
 /* D1: a disk's icon goes while inhibited and comes back */
 static void diskio_plan(void)
 {
@@ -369,6 +388,7 @@ int main(int argc, char **argv)
     ramdisk_plan();
     which_plan();
     diskio_plan();
+    showall_plan();
     print_all();
     print_empty();
     printf("test_wbgap_rows: %d checks, %d failures\n", checks, failures);
