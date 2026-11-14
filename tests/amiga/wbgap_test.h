@@ -31,6 +31,7 @@ void wbt_drawer(const char *dir, const char *first);
 struct Window *wbt_place(const char *title, const long *avoid, long w, long h);
 int wbt_make_icon(struct Window *w, const char *dir, const char *name, long type, int x, int y, long box[4]);
 int wbt_is_gfos(void);                                        /* GFOpenBench is the desktop (its port, or its menus seen) */
+int wbt_desktop_has_disk(const char *row, const char *vol, const char *when); /* vol a disk icon: 1, 0, -1 unread */
 /* APPDROP's drawer: RAM:WBGapD made afresh, its window open and its project d in it, found (I8, I9's setup); NULL with
  * *stage 1 (the window didn't open) or 2 (d never showed). wbt_drop_from: the screen point to press on d in it;
  * wbt_drop_drag: DragTest DRAG from one screen point to another; wbt_drop_clean: RAM:WBGapD closed and gone */
