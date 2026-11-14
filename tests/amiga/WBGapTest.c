@@ -2173,30 +2173,6 @@ static int do_desk(const char *what)
     return 20;
 }
 
-/* ---- L1, the default layout: the drawer; WBGapLayout.rexx opens it and reads the icons' places ---- */
-static int do_layout(void)
-{
-    static const struct { const char *name; LONG type; } in[] = {
-        {"ztool", WBTOOL}, {"mproj", WBPROJECT}, {"ydrawer", WBDRAWER}, {"atool", WBTOOL}, {"cdrawer", WBDRAWER},
-        {"bproj", WBPROJECT},
-    };
-    char path[64];
-    BPTR l;
-    int i, ok = 1;
-    CloseWorkbenchObjectA((STRPTR)"RAM:WBGapL", NULL);
-    l = CreateDir((CONST_STRPTR)"RAM:WBGapL");
-    if (l) UnLock(l);
-    ok = put_icon("RAM:WBGapL", WBDRAWER, NULL);
-    for (i = 0; i < (int)(sizeof in / sizeof in[0]); i++) {
-        snprintf(path, sizeof path, "RAM:WBGapL/%s", in[i].name);
-        if (in[i].type == WBDRAWER) { if ((l = CreateDir((CONST_STRPTR)path))) UnLock(l); }
-        else write_file(path, "WBGapTest L1\n");
-        ok = put_icon(path, in[i].type, NULL) && ok;   /* NO_ICON_POSITION: the desktop lays them out */
-    }
-    printf("INFO RAM:WBGapL %s\n", ok ? "made" : "NOT made");
-    return ok ? 0 : 20;
-}
-
 /* ---- the report ---- */
 static void out_line(void *ctx, const char *line) { (void)ctx; printf("%s\n", line); }
 
@@ -2306,7 +2282,6 @@ int main(int argc, char **argv)
     else if (!stricmp(argv[1], "LOWMEM") && argc > 2) rc = argc > 3 ? do_lowmem(atoi(argv[2]), argv[3]) : 20;
     else if (!stricmp(argv[1], "LAUNCHDESK") && argc > 2) rc = do_desk(argv[2]);
     else if (!stricmp(argv[1], "LAUNCH")) rc = do_launch();
-    else if (!stricmp(argv[1], "LAYOUT")) rc = do_layout();
     else if (!stricmp(argv[1], "REPORT") && argc > 2) rc = do_report(argv[2]);
     else if (!stricmp(argv[1], "NEWROWS")) rc = do_newrows(argv[0]);
     else if (!(rc = gen_mode(argc, argv, &known), known)) printf("unknown: %s\n", argv[1]);
