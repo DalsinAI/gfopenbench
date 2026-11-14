@@ -357,7 +357,7 @@ static void drop_plan(void)
     }
 }
 
-/* N2-N5: INFOSAVE drives the Information window; its typing's raw keys (US keyboard) */
+/* N2-N7: INFOSAVE drives the Information window; its typing's raw keys (US keyboard) */
 static void infosave_rows(void)
 {
     static const char *const n[] = { "N2", "N3", "N4", "N5" };
@@ -521,7 +521,7 @@ static void print_all(void)
     CHECK(!strncmp(line_of("F1"), "SKIP F1 not run", 15) && strstr(line_of("F1"), "NOTIFY"), "an automatic row not run: \"%s\"", line_of("F1"));
     CHECK(wbgap_find("M27") >= 0 && wbgap_row(wbgap_find("M27"))->mode && !strcmp(wbgap_row(wbgap_find("M27"))->mode, "API"),
           "M27's line comes from API (its AddAppMenuItemA check), so a run without API says \"not run\", never \"not written\"");
-    CHECK(!strncmp(line_of("N6"), "SKIP N6 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("N6"));
+    CHECK(!strncmp(line_of("P7"), "SKIP P7 not written", 19), "an automatic row with no check yet: \"%s\"", line_of("P7"));
     CHECK(fails == 3, "three FAIL lines (M23, C2b, C2): %d", fails);
     CHECK(strstr(got[n], " 3 fail") != NULL, "the count says 3 fail: \"%s\"", got[n]);
 }

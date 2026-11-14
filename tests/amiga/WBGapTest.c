@@ -59,7 +59,7 @@
  *                               reads what OpenT got (RAM:wbgap-launchopen) and whether Sub's window opened
  *   WBGapTest LAYOUT            row L1's drawer: RAM:WBGapL, no icon snapshotted, holding tools ztool and atool,
  *                               projects mproj and bproj, drawers ydrawer and cdrawer; WBGapLayout.rexx checks it
- *   WBGapTest INFOSAVE          rows N2-N5: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
+ *   WBGapTest INFOSAVE          rows N2-N7: RAM:WBGapN/n's Information window (WBInfo) driven with DragTest: Deletable
  *                               off, a comment, a default tool, tool types a=1 edited to a=3, d=4 deleted, b=2
  *                               added, Save; then the file's protection and comment and its icon are read back.
  *                               GFOpenBench only (it finds the gadgets by desktop/ob_info_ids.h); SKIP on 3.2.3
