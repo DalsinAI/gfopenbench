@@ -868,6 +868,24 @@ static void switch_name_change(struct Screen *s, const unsigned long *before, in
     }
 }
 
+/* The windows of an order by title, front first, for a FAIL: copied out under LockIBase, printed after it */
+static void switch_name(struct Screen *s, const unsigned long *ids, int n, const char *row, const char *what)
+{
+    static char line[512];
+    unsigned len = 0;
+    int i;
+    ULONG lock = LockIBase(0);
+    line[0] = 0;
+    for (i = 0; i < n && len + 40 < sizeof line; i++) {
+        struct Window *w;
+        for (w = s->FirstWindow; w && (unsigned long)w != ids[i]; w = w->NextWindow) ;
+        len += snprintf(line + len, sizeof line - len, "%s\"%.24s\"", i ? ", " : "",
+                        w && w->Title ? (const char *)w->Title : (w ? "(untitled)" : "(gone)"));
+    }
+    UnlockIBase(lock);
+    printf("INFO %s %s: %s\n", row, what, line);
+}
+
 static int switch_step(struct Screen *s, int back)
 {
     unsigned long before[MAXWINS], after[MAXWINS], active;
@@ -886,6 +904,11 @@ static int switch_step(struct Screen *s, int back)
     r = wbgap_switch_judge(back, before, nb, after, na, active, why, sizeof why);
     printf("INFO %s %d windows; %s\n", row, nb, r == WBGAP_PASS ? "as wanted" : why);
     if (na != nb) switch_name_change(s, before, nb, after, na, row);
+    if (r == WBGAP_FAIL) {
+        switch_name(s, before, nb, row, "before");
+        switch_name(s, after, na, row, "after");
+        switch_name(s, &active, 1, row, "active");
+    }
     return r;
 }
 
