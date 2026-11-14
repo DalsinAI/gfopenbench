@@ -113,6 +113,11 @@ int wbgap_showall_judge(int only_icons, int all_files, char *why, unsigned cap);
  * of wbgap_root_has_disk: before, while inhibited, after; -1 where the icons weren't read. WBGAP_SKIP if it had no
  * icon before (nothing to watch) or a read failed (nothing seen), else WBGAP_PASS or WBGAP_FAIL, the reason in why */
 int wbgap_diskio_judge(int before, int inhibited, int after, char *why, unsigned cap);
+/* D2 (MOUNTICON): a drive not mounted at the start is mounted; its volume must get a disk icon. was_there: it was
+ * mounted already (SKIP: nothing to watch); before, after: the desktop's icons read (-1 not read; after: 1 if the
+ * volume is a disk among them); mount_rc: Mount's return code; vol_up: a volume came up on the drive.
+ * Only a volume up and no icon is a FAIL; a test that can't be set up is a SKIP. The reason in why */
+int wbgap_mount_judge(int was_there, int before, int mount_rc, int vol_up, int after, char *why, unsigned cap);
 /* 1 if word is anywhere in text, case not minded (D5's hint: the name there, but not as a DISK) */
 int wbgap_has_nocase(const char *text, const char *word);
 
