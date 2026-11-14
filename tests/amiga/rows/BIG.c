@@ -1,6 +1,6 @@
 /* ---- X1: 1000 files ----
- * RAM:WBGapBig, a drawer of 1000 files each with an icon, is opened and timed from the open until its inside stops
- * changing for a second (that second not counted, wbgap_big_ticks); under 10 s is a PASS (wbgap_big_judge). The
+ * RAM:WBGapBig, a drawer of 1000 files each with an icon, is opened and timed from the open to the last change of its
+ * inside before a second without one (wbgap_big_ticks); under 10 s is a PASS (wbgap_big_judge). The
  * drawer is closed again after, whatever the time.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
@@ -9,6 +9,7 @@
 #include <exec/types.h>
 #include <dos/dos.h>
 #include <workbench/workbench.h>
+#include <intuition/intuition.h>
 #include <proto/dos.h>
 
 #include "wbgap_rows.h"
@@ -41,17 +42,25 @@ int wbt_big(int argc, char **argv)
         wbt_clear_drawer("RAM:WBGapBig", "WBGapBig", "X1");   /* in case it opens late, over the desktop */
         return 10;
     }
-    {   /* drawn: the inside stops changing for a second */
-        unsigned long last = wbt_inside_sum(w), now;
+    DateStamp(&b);                              /* open; then each change of the inside moves it on */
+    {   /* drawn: the inside stops changing for a second. The time is to the last change seen, so the second of
+         * stillness and the probe's own looks aren't in it (Hudzen, 14 Nov 2026: X1 measured its polls) */
+        struct DateStamp p0, p1;
+        unsigned long last, now;
         int still = 0, t;
+        long probe;
+        DateStamp(&p0);
+        last = wbt_inside_sum(w);
+        DateStamp(&p1);
+        probe = (p1.ds_Minute - p0.ds_Minute) * 3000L + (p1.ds_Tick - p0.ds_Tick);
+        printf("INFO X1 window %ld x %ld, one look %ld ms\n", (long)w->Width, (long)w->Height, probe * 20);
         for (t = 0; t < 600 && still < 5; t++) {
             Delay(10);
             now = wbt_inside_sum(w);
-            still = now == last ? still + 1 : 0;
+            if (now != last) { DateStamp(&b); still = 0; } else still++;
             last = now;
         }
     }
-    DateStamp(&b);
     ticks = wbgap_big_ticks(a.ds_Days, a.ds_Minute, a.ds_Tick, b.ds_Days, b.ds_Minute, b.ds_Tick);
     printf("INFO X1 1000 icons shown in %ld.%02ld s\n", ticks / 50, (ticks % 50) * 2);
     wbt_say("X1", wbgap_big_judge(ticks, why, sizeof why), why);

@@ -41,6 +41,7 @@ int wbt_check_launchrec(const char *file, int args_too, unsigned long want_stack
 void wbt_norm(char *d, const char *s, int n);
 const char *wbt_item_text(struct MenuItem *it);
 int wbt_icons_have(const char *row, const char *win, const char *name);
+int wbt_tools_item_within(const char *item, int want, int ticks); /* M27: item (normalised) is (want 1) or is not (want 0) in a Workbench window's Tools menu within ticks: 1 */
 unsigned long wbt_icon_stack(const char *path);                 /* the STACK= in path's icon's tool types (0: none) */
 void wbt_check_stack_alone(const char *file, unsigned long want); /* STARTUP's I12c: the LAUNCHREC line in file judged */
 /* DRAGFILE's: the drawer dir with first snapshotted at 20,10 in it; the window titled title made w x h and put in a

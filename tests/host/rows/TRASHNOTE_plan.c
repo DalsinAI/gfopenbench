@@ -28,6 +28,26 @@ void trashnote_plan(void)
     CHECK(!wbgap_trashnote_line(NULL, "f", "WBGapR/f") && !wbgap_trashnote_line(both, "", "WBGapR/f") &&
           !wbgap_trashnote_line(both, "f", ""), "no note, no name or no path: no");
 
+    /* I6t: the Trashcan's icon by its name (the window re-lays its icons when one is added, 14 Nov gap count) */
+    {
+        long box[4], changed[4] = {10, 20, 300, 200}, small[4] = {146, 58, 64, 72};
+        CHECK(wbgap_trashnote_iconbox("130 78 64 61\n", small, box) == 1 && box[0] == 130 && box[1] == 78 &&
+              box[2] == 64 && box[3] == 61, "the 14 Nov lab's line: its image fits in what changed, found, as given");
+        CHECK(wbgap_trashnote_iconbox("400 300 64 61", small, box) == 1,
+              "its place is another frame's: not held against changed's");
+        CHECK(wbgap_trashnote_iconbox("0 0 66 74", small, box) == 1, "2 pixels' slack each way");
+        CHECK(wbgap_trashnote_iconbox("146 58 64 72", NULL, box) == 1, "no changed box: found");
+        CHECK(wbgap_trashnote_iconbox("130 78 67 61", small, box) == -1, "wider than what changed: -1");
+        CHECK(wbgap_trashnote_iconbox("130 78 64 80", small, box) == -1, "taller than what changed: -1");
+        CHECK(wbgap_trashnote_iconbox("146 58 64 72", changed, box) == 1, "a wide changed box holds it: 1");
+        CHECK(wbgap_trashnote_iconbox("146 58 64", changed, box) == 0 && wbgap_trashnote_iconbox("", changed, box) == 0 &&
+              wbgap_trashnote_iconbox(NULL, changed, box) == 0, "three numbers, nothing or no line: 0");
+        CHECK(wbgap_trashnote_iconbox("146 58 0 72", changed, box) == 0 &&
+              wbgap_trashnote_iconbox("RESULT RESULT RESULT RESULT", changed, box) == 0,
+              "no size, or ARexx's unset RESULTs: 0");
+        CHECK(wbgap_trashnote_iconbox("-4 58 64 72", NULL, box) == 0, "a place left of the drawer's own frame: 0");
+    }
+
     /* I6t */
     CHECK(wbgap_trashnote_judge(0, 0, 1, 1, both, "f", "WBGapR/f", why, sizeof why) == WBGAP_PASS && !why[0],
           "moved, both lines: PASS");

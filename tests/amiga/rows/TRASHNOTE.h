@@ -13,6 +13,13 @@
  * icon where they came from again; left: either still in the Trashcan; noted: the note still has a line for it.
  * WBGAP_PASS, WBGAP_FAIL or WBGAP_SKIP, the reason in why.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
+/* wbgap_trashnote_iconbox: RAM:Trashcan's icon by its name, from the line the Workbench's ARexx port gave
+ * (GETATTR window.icons.all.N.left/top/width/height: "left top width height"). Its place is the drawer's own layout
+ * place, in another frame from the window's inside (14 Nov lab: 130,78 by name where the window drew it at 146,58), so
+ * only its size is checked: the image, without its label. box gets it. changed is the box the window's inside changed
+ * in when the Trashcan was added, or NULL. 1: found, and its image fits in changed (2 pixels' slack); 0: no line, or
+ * not four numbers with a size; -1: read, but bigger than what changed (not the icon the window drew). */
+int wbgap_trashnote_iconbox(const char *line, const long *changed, long box[4]);
 #define WBGAP_PUTBACK_NOLIB (-1000)
 #define WBGAP_PUTBACK_NOTRIED (-1001)
 #define WBGAP_PUTBACK_NOCTX (-1002)
