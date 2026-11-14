@@ -69,6 +69,8 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I4", NULL, A, "DRAGFILE", "drag between drawer windows (a file moved, within a volume)"},
     {"I5", NULL, L, NULL, "drag to the backdrop"},
     {"I6", NULL, A, NULL, "drag to the Trashcan"},
+    {"I6t", "I6", A, NULL, "onto its volume's own Trashcan: filed there with a note of where it came from (GFOS, 14 Nov)"},
+    {"I6p", "I6", A, NULL, "put back from the Trashcan to where it came from (GFOS, gfopenfiles.library, 14 Nov)"},
     {"I7", NULL, A, "DRAGFILE", "drag onto a drawer or disk icon (DRAGFILE: onto a drawer's icon)"},
     {"I8", NULL, A, "APPDROP", "drag onto an AppIcon"},
     {"I9", NULL, A, "APPDROP", "drag onto an AppWindow"},
