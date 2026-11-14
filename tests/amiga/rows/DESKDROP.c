@@ -123,6 +123,8 @@ static int bd_on_desk(char *list, long cap)
     return bd_list("root", list, cap) ? wbgap_deskdrop_has(list, "f") : -1;
 }
 
+static struct Window *bd_rw;   /* the desktop's own window, as bd_spot found it */
+
 /* whether w is the desktop's own window: the backdrop, or (Workbench in a window, as 3.2.3's Workbench prefs can set
  * it) the Workbench's own window titled "Workbench" (a drawer's window is titled with its name) */
 static int bd_root(const struct Window *w)
@@ -156,9 +158,34 @@ static int bd_spot(struct Screen *s, const char *desk, long xy[2])
         }
         xy[0] = x;
         xy[1] = y;
+        bd_rw = bw;
         return 1;
     }
     return 0;
+}
+
+/* Put Away refused (GFOpenBench has no MENU INVOKE yet): f's icon dragged off the desktop back into RAM:WBGapB's
+ * window, where it came from, so no icon is left out at the drop point once the drawer is deleted */
+static void bd_drag_back(char *list, long cap)
+{
+    struct Window *w = wbt_find_window("WBGapB");
+    long box[4], from[2], to[2];
+    char cmd[320];
+    int t;
+    if (!w || !bd_rw || !bd_list("root", list, cap) || !wbgap_deskdrop_box(list, "f", box)) {
+        printf("INFO I5 f not dragged back: %s\n", !w ? "its drawer's window is shut" : "its place on the desktop not read");
+        return;
+    }
+    wbgap_grab_point(box, from);
+    from[0] += bd_rw->LeftEdge + bd_rw->BorderLeft;
+    from[1] += bd_rw->TopEdge + bd_rw->BorderTop;
+    to[0] = w->LeftEdge + w->BorderLeft + 300;
+    to[1] = w->TopEdge + w->BorderTop + 180;
+    printf("INFO I5 f dragged back from the desktop at %ld,%ld into %s's window at %ld,%ld\n", from[0], from[1], BD_DIR,
+           to[0], to[1]);
+    snprintf(cmd, sizeof cmd, "%s DRAG %ld %ld %ld %ld STEPS 16", wbt_dragtest(), from[0], from[1], to[0], to[1]);
+    wbt_run(cmd);
+    for (t = 0; t < 6 && bd_on_desk(list, cap) > 0; t++) Delay(25);
 }
 
 static void bd_clean(int rexx)
@@ -169,9 +196,11 @@ static void bd_clean(int rexx)
     char cmd[200];
     unsigned i, pass;
     int t;
-    if (rexx && bd_on_desk(list, sizeof list) > 0 && wbgap_rx_line(cmd, sizeof cmd, BD_REXX, "PUTAWAY f")) {
-        printf("INFO I5 f put away from the desktop: Icons > Put Away through ARexx gave %d\n", wbt_run(cmd));
+    if (rexx && bd_on_desk(list, sizeof list) > 0) {
+        int rc = wbgap_rx_line(cmd, sizeof cmd, BD_REXX, "PUTAWAY f") ? wbt_run(cmd) : -1;
+        printf("INFO I5 f put away from the desktop: Icons > Put Away through ARexx gave %d\n", rc);
         Delay(50);
+        if (rc != 0) bd_drag_back(list, sizeof list);
     }
     CloseWorkbenchObjectA((STRPTR)BD_DIR, NULL);
     for (t = 0; t < 40 && wbt_find_window("WBGapB"); t++) Delay(5);
@@ -186,7 +215,9 @@ static void bd_clean(int rexx)
     }
     if (rexx) {
         Delay(50);
-        if (bd_on_desk(list, sizeof list) > 0) printf("INFO I5 f's icon is still on the desktop after the clean\n");
+        if (bd_on_desk(list, sizeof list) > 0)
+            printf("INFO I5 f's icon is still on the desktop after the clean: a later DESKDROP SKIPs I5 until a reboot,"
+                   " and a later row's drag or click near it may land on it\n");
     }
     DeleteFile((CONST_STRPTR)BD_REXX);
 }
@@ -200,7 +231,12 @@ int wbt_deskdrop(int argc, char **argv)
     int how, t, sf, si, on = -1, in = -1, rexx;
     (void)argc, (void)argv;
     if (!(rexx = bd_rexx_up())) { wbt_skip("I5", "no SYS:Rexxc/rx, or " BD_REXX " not written"); return 0; }
-    if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) { wbt_skip("I5", "no layers.library"); return 0; }
+    if (!(LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 39))) {
+        DeleteFile((CONST_STRPTR)BD_REXX);
+        wbt_skip("I5", "no layers.library");
+        return 0;
+    }
+    bd_rw = NULL;
     bd_clean(rexx);
     rexx = bd_rexx_up();
     wbt_drawer(BD_DIR, "a");
@@ -248,7 +284,9 @@ int wbt_deskdrop(int argc, char **argv)
     si = bd_there(BD_DIR "/f.info");
     printf("INFO I5 f: in %s %d/%d (file/icon); on the desktop %d; in the drawer's window %d\n", BD_DIR, sf, si, on, in);
     if (bd_there("RAM:.backdrop")) printf("INFO I5 RAM:.backdrop is there (3.2.3 writes it only for Icons > Leave Out)\n");
-    wbt_say("I5", wbgap_deskdrop_judge(sf, si, on, in, "f", why, sizeof why), why);
+    t = wbgap_deskdrop_judge(sf, si, on, in, "f", why, sizeof why);
+    if (t == WBGAP_PASS && in < 0) printf("INFO I5 the drawer's window not read: that f left it isn't checked\n");
+    wbt_say("I5", t, why);
 out:
     bd_clean(rexx);
     CloseLibrary(LayersBase);

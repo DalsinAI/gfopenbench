@@ -42,5 +42,13 @@ void deskdrop_plan(void)
           wbgap_deskdrop_clear(NULL, 5, 5, 48), "away from every icon, or none: clear");
     CHECK(!wbgap_deskdrop_clear(desk, 320, 215, 0) && wbgap_deskdrop_clear(desk, 340, 230, 0),
           "the box's own edge: inside to the left/top, outside at left+width");
+    {
+        long box[4] = {0, 0, 0, 0};
+        CHECK(wbgap_deskdrop_box(desk, "F", box) && box[0] == 300 && box[1] == 200 && box[2] == 40 && box[3] == 30,
+              "f's box read back, any case: %ld,%ld %ldx%ld", box[0], box[1], box[2], box[3]);
+        CHECK(wbgap_deskdrop_box(desk, "RAM Disk", box) && box[0] == 10 && box[2] == 60, "a name with a space: its box");
+        CHECK(!wbgap_deskdrop_box(desk, "g", box) && !wbgap_deskdrop_box(NULL, "f", box) &&
+              !wbgap_deskdrop_box("1 2 0 5 f\n", "f", box), "not there, no list, an empty box: none");
+    }
     CHECK(i >= 0 && wbgap_row(i)->mode && !strcmp(wbgap_row(i)->mode, "DESKDROP"), "I5's line comes from DESKDROP");
 }

@@ -96,3 +96,20 @@ int wbgap_deskdrop_clear(const char *list, long x, long y, long margin)
     }
     return 1;
 }
+
+int wbgap_deskdrop_box(const char *list, const char *name, long box[4])
+{
+    char nm[64];
+    long b[4];
+    int n, i;
+    const char *p = list;
+    if (!list || !name || !*name) return 0;
+    while (*p) {
+        p = bd_line(p, nm, sizeof nm, b, &n);
+        if (n == 4 && bd_same(nm, name) && b[2] > 0 && b[3] > 0) {
+            for (i = 0; i < 4; i++) box[i] = b[i];
+            return 1;
+        }
+    }
+    return 0;
+}

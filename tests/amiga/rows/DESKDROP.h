@@ -9,3 +9,6 @@ int wbgap_deskdrop_judge(int src, int src_info, int on_desk, int in_win, const c
 int wbgap_deskdrop_has(const char *list, const char *name);
 /* whether the point x,y (the window's own coordinates) is at least margin from every icon in list: 1, else 0 */
 int wbgap_deskdrop_clear(const char *list, long x, long y, long margin);
+/* name's box in list (left, top, width, height, the window's own coordinates): 1, or 0 if it isn't there or its
+ * width or height isn't above 0 */
+int wbgap_deskdrop_box(const char *list, const char *name, long box[4]);
