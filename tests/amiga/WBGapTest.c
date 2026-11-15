@@ -622,6 +622,18 @@ unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half)
 
 unsigned long wbt_mode_id(struct Screen *s) { return GetVPModeID(&s->ViewPort); }
 
+/* one screen pixel as 0xRRGGBB: ReadRGBPixel on a deep RTG screen, else its pen's colour from the ColorMap (P1) */
+unsigned long wbt_screen_rgb(struct Screen *s, int x, int y)
+{
+    struct RastPort *rp = &s->RastPort;
+    ULONG c[3];
+    LONG pen;
+    if (CyberGfxBase && GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8) return rgb_pixel(rp, (UWORD)x, (UWORD)y) & 0xFFFFFFUL;
+    if ((pen = ReadPixel(rp, x, y)) < 0) return 0;
+    GetRGB32(s->ViewPort.ColorMap, (ULONG)pen, 1, c);
+    return (c[0] >> 24) << 16 | (c[1] >> 24) << 8 | c[2] >> 24;
+}
+
 /* ---- windows and keys: MENUDRIVE's (rows/MENUDRIVE.c) and other row files', through wbt_windows_now, wbt_still_there
  * and wbt_key ---- */
 #define MAXWINS 48
