@@ -347,6 +347,10 @@ static void x4_test(const char *path)
     __asm volatile("illegal");
 }
 
+/* LAB ONLY (C6a probe, not for main): where the drawer task is, in its process's pr_Arguments, which WBGapTest
+ * CLOSEWBWAIT prints */
+#define CRUMB(text) (me->pr_Arguments = (STRPTR)(text))
+
 static void dt_entry(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -386,16 +390,25 @@ static void dt_entry(void)
     x4_test(t->path);
 
     while (open) {
-        ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << t->qport->mp_SigBit) | DT_NOTE_SIG |
+        ULONG sigs;
+        CRUMB("waiting in its loop");
+        sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << t->qport->mp_SigBit) | DT_NOTE_SIG |
                           wb_notify_sigmask() | wb_find_sigmask());
         ULONG notes;
+        CRUMB("answering the desktop's questions");
         answer_queries(t);
+        CRUMB("taking its notes");
         if ((sigs & DT_NOTE_SIG) && (notes = take_notes(t))) {
             if (notes & DT_CLOSE) break;
+            CRUMB("note: reread");
             if (notes & OB_DT_REREAD) wb_drawer_reread(d);
+            CRUMB("note: redraw");
             if (notes & OB_DT_REDRAW) wb_drawer_redraw(d);
+            CRUMB("note: thumbs");
             if (notes & OB_DT_THUMBS) wb_drawer_thumbs(d);
+            CRUMB("note: find update");
             if (notes & OB_DT_FIND_UPDATE) wb_drawer_find_update(d);
+            CRUMB("note: find");
             if (notes & DT_FIND) {
                 char words[sizeof t->find];
                 Forbid();
@@ -406,11 +419,14 @@ static void dt_entry(void)
                 if (!wb_drawer_find(d, words)) DisplayBeep(t->win->WScreen);
             }
         }
-        if (sigs & wb_notify_sigmask()) wb_notify_collect();       /* its drawer changed: read again 200 ms after */
+        CRUMB("wb_notify_collect");
+        if (sigs & wb_notify_sigmask()) wb_notify_collect();
+        CRUMB("wb_find_collect");       /* its drawer changed: read again 200 ms after */
         if ((sigs & wb_find_sigmask()) && wb_find_collect()) {     /* its search's hits */
             wb_drawer_find_update(d);
             send_event(t, OB_DTE_FOUND);
         }
+        CRUMB("its window's messages");
         while ((im = GT_GetIMsg(idcmp))) {
             ULONG cl = im->Class, secs = im->Seconds, micros = im->Micros;
             UWORD code = im->Code, qual = im->Qualifier;
@@ -429,8 +445,11 @@ static void dt_entry(void)
     t->d = NULL;
     t->win = NULL;
     Permit();
+    CRUMB("wb_drawer_close");
     wb_drawer_close(d);
+    CRUMB("wb_notify_end");
     wb_notify_end();                    /* this task's notifies, and their port */
+    CRUMB("dt_exit");
     dt_exit(t, idcmp, OB_DTE_CLOSED, 0, 0);
 }
 
