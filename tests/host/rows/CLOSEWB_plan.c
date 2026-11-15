@@ -97,4 +97,16 @@ void closewb_plan(void)
               && wbgap_closewb_row_verdict("PASS C6\n", "C6-much-too-long", why, sizeof why) == WBGAP_NONE,
               "no row, an empty one or one too long: none");
     }
+    /* where GFOpenBench's task is when CLOSEWB doesn't end (02:23 GFOS lab: its ARexx port stopped answering) */
+    CHECK(wbgap_closewb_obwait(0, 1, 0xffffffffUL, 20, 21) == WBGAP_OBW_NONE, "no GFOPENBENCH port: none");
+    CHECK(wbgap_closewb_obwait(1, 0, 0, 20, 21) == WBGAP_OBW_RUNNING, "not in TS_WAIT: running");
+    CHECK(wbgap_closewb_obwait(1, 1, (1UL << 20) | (1UL << 21) | (1UL << 12), 20, 21) == WBGAP_OBW_MAIN,
+          "waits for both its ports and more: its main loop");
+    CHECK(wbgap_closewb_obwait(1, 1, 1UL << 30, 20, 21) == WBGAP_OBW_ELSEWHERE, "waits for neither: inside a call");
+    CHECK(wbgap_closewb_obwait(1, 1, 1UL << 20, 20, 21) == WBGAP_OBW_PART, "one of the two: part");
+    CHECK(wbgap_closewb_obwait(1, 1, 1UL << 20, 20, -1) == WBGAP_OBW_MAIN, "no ARexx port: its own port decides");
+    CHECK(wbgap_closewb_obwait(1, 1, 1UL << 31, 31, -1) == WBGAP_OBW_MAIN, "bit 31");
+    CHECK(wbgap_closewb_obwait(1, 1, 0xffffffffUL, -1, 40) == WBGAP_OBW_ELSEWHERE, "no bit to go by: elsewhere");
+    CHECK(!strcmp(wbgap_closewb_obwait_text(WBGAP_OBW_ELSEWHERE), "waiting inside a call, not for its ports (a requester or a reply)")
+          && wbgap_closewb_obwait_text(99)[0], "words for each, and for a value out of range");
 }

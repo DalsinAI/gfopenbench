@@ -88,3 +88,27 @@ int wbgap_closewb_verdict(const char *text, char *why, unsigned cap)
 {
     return wbgap_closewb_row_verdict(text, "C6", why, cap);
 }
+
+int wbgap_closewb_obwait(int found, int waiting, unsigned long sigwait, int pub_bit, int rexx_bit)
+{
+    int pub, rexx, have = 0, hit = 0;
+    if (!found) return WBGAP_OBW_NONE;
+    if (!waiting) return WBGAP_OBW_RUNNING;
+    pub = pub_bit >= 0 && pub_bit < 32;
+    rexx = rexx_bit >= 0 && rexx_bit < 32;
+    if (pub) { have++; hit += (sigwait >> pub_bit) & 1; }
+    if (rexx) { have++; hit += (sigwait >> rexx_bit) & 1; }
+    if (!have || !hit) return WBGAP_OBW_ELSEWHERE;
+    return hit == have ? WBGAP_OBW_MAIN : WBGAP_OBW_PART;
+}
+
+const char *wbgap_closewb_obwait_text(int where)
+{
+    switch (where) {
+    case WBGAP_OBW_MAIN: return "waiting in its main loop";
+    case WBGAP_OBW_PART: return "waiting for some of its ports only";
+    case WBGAP_OBW_ELSEWHERE: return "waiting inside a call, not for its ports (a requester or a reply)";
+    case WBGAP_OBW_RUNNING: return "not waiting (running or ready)";
+    default: return "no GFOPENBENCH port";
+    }
+}

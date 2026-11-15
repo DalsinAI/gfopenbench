@@ -29,3 +29,12 @@ int wbgap_closewb_row_verdict(const char *text, const char *row, char *why, unsi
 /* CLOSEWB's step lines also go to this file, opened and closed for each one:
  * the Run >file output stays open (and may be held) until CLOSEWB ends. */
 #define WBGAP_C6_STEPS "RAM:wbgap-c6-steps"
+/* When CLOSEWB doesn't end, where GFOpenBench's task is (the 15 Nov 02:23 GFOS lab: after C5a its ARexx port
+ * stopped answering): from its tc_SigWait, and the signal bits of its GFOPENBENCH and OPENBENCH ports (-1 when a
+ * port isn't there). WBGAP_OBW_MAIN when it waits for both (its main loop's Wait), WBGAP_OBW_ELSEWHERE when it
+ * waits for neither (inside a call: a requester, a reply), WBGAP_OBW_PART when for one only, WBGAP_OBW_RUNNING
+ * when it isn't waiting (state not TS_WAIT), WBGAP_OBW_NONE when there is no GFOPENBENCH port. The words for each
+ * in out (wbgap_closewb_obwait_text). */
+enum { WBGAP_OBW_NONE, WBGAP_OBW_MAIN, WBGAP_OBW_PART, WBGAP_OBW_ELSEWHERE, WBGAP_OBW_RUNNING };
+int wbgap_closewb_obwait(int found, int waiting, unsigned long sigwait, int pub_bit, int rexx_bit);
+const char *wbgap_closewb_obwait_text(int where);
