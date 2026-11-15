@@ -7,7 +7,9 @@
 
 const char *wbgap_iconfmt_name(int k)
 {
-    static const char *const names[WBGAP_ICONFMT_N] = {"classic", "newicons", "glowicons", "png"};
+    /* b to e: after a, in the order they are made, so a desktop laying a drawer out by name (GFOpenBench) adds each at
+     * the end and moves nothing else */
+    static const char *const names[WBGAP_ICONFMT_N] = {"b_classic", "c_newicons", "d_glowicons", "e_png"};
     return k >= 0 && k < WBGAP_ICONFMT_N ? names[k] : "?";
 }
 

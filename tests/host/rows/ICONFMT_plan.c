@@ -19,11 +19,11 @@ void iconfmt_plan(void)
           "I13 automatic, from ICONFMT");
     CHECK(wbgap_iconfmt_judge(n, all, none, why, sizeof why) == WBGAP_PASS && !why[0], "all four shown: PASS");
     CHECK(wbgap_iconfmt_judge(n, quarter, none, why, sizeof why) == WBGAP_PASS, "a quarter each (label, frame): PASS");
-    CHECK(wbgap_iconfmt_judge(n, under, none, why, sizeof why) == WBGAP_FAIL && strstr(why, "classic: 29 of 120"),
+    CHECK(wbgap_iconfmt_judge(n, under, none, why, sizeof why) == WBGAP_FAIL && strstr(why, "b_classic: 29 of 120"),
           "the classic one under a quarter: FAIL, \"%s\"", why);
     CHECK(wbgap_iconfmt_judge(n, no_new, fb, why, sizeof why) == WBGAP_FAIL &&
-              strstr(why, "newicons: 0 of 120 points its colour, the classic picture (pen 1) shown instead") &&
-              strstr(why, "; png: 2 of 120 points its colour") && !strstr(why, "png: 2 of 120 points its colour,") &&
+              strstr(why, "c_newicons: 0 of 120 points its colour, the classic picture (pen 1) shown instead") &&
+              strstr(why, "; e_png: 2 of 120 points its colour") && !strstr(why, "e_png: 2 of 120 points its colour,") &&
               !strstr(why, "glowicons"),
           "NewIcons on its classic picture, PNG not drawn: FAIL naming both, \"%s\"", why);
     CHECK(wbgap_iconfmt_judge(few, all, none, why, sizeof why) == WBGAP_SKIP && strstr(why, "glowicons"),
@@ -33,5 +33,5 @@ void iconfmt_plan(void)
     CHECK(wbgap_iconfmt_near(0x30D090, WBGAP_ICONFMT_NEWICONS_RGB, 0) && wbgap_iconfmt_near(0x58B8B8, 0x3090D0, 40) &&
               !wbgap_iconfmt_near(0x3090D0, 0x3090FA, 40) && !wbgap_iconfmt_near(0x000000, 0x290000, 40),
           "near: each part within tol, none beyond");
-    CHECK(!strcmp(wbgap_iconfmt_name(3), "png") && !strcmp(wbgap_iconfmt_name(9), "?"), "the names");
+    CHECK(!strcmp(wbgap_iconfmt_name(3), "e_png") && !strcmp(wbgap_iconfmt_name(9), "?"), "the names");
 }

@@ -13,7 +13,7 @@
 
 /* rgb (0xRRGGBB) within tol of want in each of its three parts: 1 */
 int wbgap_iconfmt_near(unsigned long rgb, unsigned long want, unsigned tol);
-/* the formats' names, classic, newicons, glowicons, png, as the icons' files are named */
+/* the formats' names, b_classic, c_newicons, d_glowicons, e_png, as the icons' files are named */
 const char *wbgap_iconfmt_name(int k);
 /* I13: for each format k, n[k] points of its icon's picture read, near[k] of them its colour (the classic one's: pen
  * 1's), pen1[k] of them pen 1's colour (the classic picture the others carry; -1 for the classic one). Each must be
