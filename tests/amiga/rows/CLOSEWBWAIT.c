@@ -24,48 +24,62 @@ WBGAP_MODE(CLOSEWBWAIT, wbt_closewbwait, SCRIPT)
  * so a run shows which step hung (wbgap_closewb_last_step); an IoErr() on
  * opening the Run file is printed too, as Ackerman asked on #222.
  * When CLOSEWB had already decided C6 (wbgap_closewb_verdict) and only its
- * clean-up hung, C6 is that verdict and C6a is a FAIL naming the step: the
- * 14 Nov 23:50 lab run hung at "closing and deleting RAM:WBGapC" after the
- * row's judging, on 3.2.3 alone and on GFOS after RESETREQ. */
+ * clean-up hung, C6 is that verdict and C6a is a FAIL naming the step.
+ * CLOSEWB is over when "INFO C6 done" is in the Run file OR the steps file:
+ * on 3.2.3 (15 Nov 00:32 lab) CLOSEWB ended, Status listing no WBGapTest,
+ * but none of its stdout reached the Run file, so it looked hung; its
+ * verdicts are then taken from the steps file (wbgap_closewb_row_verdict). */
+static long read_text(const char *path, char *to, long cap, long *ioerr)
+{
+    BPTR fh;
+    long n = 0;
+    to[0] = 0;
+    if ((fh = Open((CONST_STRPTR)path, MODE_OLDFILE))) {
+        n = Read(fh, to, cap - 1);
+        to[n > 0 ? n : 0] = 0;
+        Close(fh);
+        if (ioerr) *ioerr = 0;
+    } else if (ioerr) *ioerr = IoErr();
+    return n;
+}
+
+/* one of CLOSEWB's rows: its line already printed from buf, else from the steps file, else the FAIL or SKIP given */
+static void closewb_row(const char *row, const char *buf, const char *steps, int none_state, const char *none_why)
+{
+    char said[128];
+    int v;
+    if (wbgap_closewb_row_verdict(buf, row, said, sizeof said) != WBGAP_NONE) return;   /* printed with buf */
+    if ((v = wbgap_closewb_row_verdict(steps, row, said, sizeof said)) != WBGAP_NONE) wbt_say(row, v, said);
+    else wbt_say(row, none_state, none_why);
+}
+
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096], steps[2048];
     int t, over = 0;
-    long n = 0, ioerr = 0;
-    BPTR fh;
+    long ioerr = 0;
     for (t = 0; t <= secs * 2 && !over; t++) {
         if (t) Delay(25);
-        buf[0] = 0;
-        if ((fh = Open((CONST_STRPTR)path, MODE_OLDFILE))) {
-            n = Read(fh, buf, sizeof buf - 1);
-            buf[n > 0 ? n : 0] = 0;
-            Close(fh);
-            ioerr = 0;
-        } else ioerr = IoErr();
-        over = wbgap_closewb_over(buf);
+        read_text(path, buf, sizeof buf, &ioerr);
+        read_text(WBGAP_C6_STEPS, steps, sizeof steps, NULL);
+        over = wbgap_closewb_over(buf) || wbgap_closewb_over(steps);
     }
-    steps[0] = 0;
-    if (!over && (fh = Open((CONST_STRPTR)WBGAP_C6_STEPS, MODE_OLDFILE))) {
-        n = Read(fh, steps, sizeof steps - 1);
-        steps[n > 0 ? n : 0] = 0;
-        Close(fh);
-    }
-    /* A row that ended has no use for its steps; a hung one keeps them for Type. */
-    if (over) DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);
     if (buf[0]) printf("%s%s", buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
-    if (!over) {
-        char why[192], step[96], said[128];
-        int v, in_buf;
-        if (ioerr) printf("INFO C6 %s couldn't be opened to read (IoErr %ld)\n", path, ioerr);
+    if (ioerr) printf("INFO C6 %s couldn't be opened to read (IoErr %ld)\n", path, ioerr);
+    if (over) {
+        /* ended: its verdicts, from buf or the steps file (the Run file may have none of its stdout) */
+        closewb_row("C6", buf, steps, WBGAP_FAIL, "CLOSEWB ended without a C6 line");
+        closewb_row("C6a", buf, steps, WBGAP_FAIL, "CLOSEWB ended without a C6a line");
+        DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);    /* a row that ended has no use for its steps; a hung one keeps them */
+    } else {
+        char why[192], step[96];
         /* the steps file first: closed after each line, it has every step; buf may be held or short */
         if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
-        in_buf = wbgap_closewb_verdict(buf, said, sizeof said) != WBGAP_NONE;   /* then printed above already */
-        v = in_buf ? WBGAP_NONE : wbgap_closewb_verdict(steps, said, sizeof said);
-        if (in_buf || v != WBGAP_NONE) {
+        if (wbgap_closewb_verdict(buf, why, sizeof why) != WBGAP_NONE || wbgap_closewb_verdict(steps, why, sizeof why) != WBGAP_NONE) {
             /* C6 decided; its clean-up hung: a real fault, counted as C6a (Ackerman, #222) */
             snprintf(why, sizeof why, "%s didn't end in %d s (left running)", step[0] ? step : "the clean-up", secs);
-            if (!in_buf) wbt_say("C6", v, said);
-            wbt_fail("C6a", why);
+            closewb_row("C6", buf, steps, WBGAP_FAIL, "");
+            closewb_row("C6a", buf, steps, WBGAP_FAIL, why);
         } else {
             if (step[0])
                 snprintf(why, sizeof why, "CloseWorkBench() or the row after it didn't return in %d s (left running); last step: %s",
