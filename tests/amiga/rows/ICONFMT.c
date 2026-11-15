@@ -1,8 +1,9 @@
 /* ---- I13: the icon formats a drawer shows: classic, NewIcons, GlowIcons (OS 3.5), PNG ----
  * RAM:WBGapIcF (a snapshotted at 20,10: an empty drawer's window draws otherwise) opened at the top-left, 400x240,
- * and its inside read every 2 pixels for pen 1. The four icons of ICONFMT_icons.h (iconfmt_gen.py) are written in
- * and told to the desktop (UpdateWorkbench); 2 s on, the inside is read again. Each format's colour (ICONFMT.h; the
- * classic one's, pen 3's) must be in WBGAP_ICONFMT_MIN of its points, wherever the desktop put the icon (GFOpenBench
+ * and its inside read every 2 pixels (the window's own colours). The four icons of ICONFMT_icons.h (iconfmt_gen.py)
+ * are written in and told to the desktop (UpdateWorkbench); 2 s on, the inside is read (said, not judged), then the
+ * drawer is closed, opened again and read. Each format's colour (ICONFMT.h; the
+ * classic one's, pen 3's) must be in WBGAP_ICONFMT_MIN more points than before, wherever the desktop put the icon (GFOpenBench
  * lays a drawer out itself); pen 1's growth says whether a classic picture was shown in place of NewIcons or
  * GlowIcons. The drawer is cleared afterwards.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -109,7 +110,7 @@ int wbt_iconfmt(int argc, char **argv)
 {
     unsigned long want[WBGAP_ICONFMT_N + 1] = {0, WBGAP_ICONFMT_NEWICONS_RGB, WBGAP_ICONFMT_GLOW_RGB, WBGAP_ICONFMT_PNG_RGB, 0};
     struct Window *w;
-    int cnt[WBGAP_ICONFMT_N + 1], pen1_before, n, how, k, v;
+    int cnt[WBGAP_ICONFMT_N + 1], base[WBGAP_ICONFMT_N + 1], live[WBGAP_ICONFMT_N + 1], n, how, k, v;
     char why[300];
     (void)argc, (void)argv;
     if_clean();
@@ -122,7 +123,7 @@ int wbt_iconfmt(int argc, char **argv)
     if (!(w = wbt_find_window(IF_TITLE))) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
     want[0] = pen_rgb(w->WScreen, 3);
     want[WBGAP_ICONFMT_N] = pen_rgb(w->WScreen, 1);
-    if_count(w, want + WBGAP_ICONFMT_N, 1, &pen1_before);
+    if_count(w, want, WBGAP_ICONFMT_N + 1, base);   /* the window's own colours: its toolbar, a's icon and label */
     for (k = 0; k < WBGAP_ICONFMT_N; k++)
         if (!if_make(k)) {
             char m[120];
@@ -132,11 +133,25 @@ int wbt_iconfmt(int argc, char **argv)
         }
     Delay(100);
     if (!(w = wbt_find_window(IF_TITLE))) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
+    if_count(w, want, WBGAP_ICONFMT_N + 1, live);
+    /* the drawer opened again, so each icon is read as a drawer's icons are when it opens (GFOpenBench showed a
+     * GlowIcon added to an open window on its classic picture, 15 Nov: the live counts are said, not judged) */
+    CloseWorkbenchObjectA((STRPTR)IF_DIR, NULL);
+    for (k = 0; k < 40 && wbt_find_window(IF_TITLE); k++) Delay(5);
+    if (!wbt_open_drawer(IF_DIR, IF_TITLE, 10, &how) || !(w = wbt_place(IF_TITLE, NULL, 400, 240))) {
+        wbt_fail("I13", IF_DIR "'s window didn't open again");
+        goto out;
+    }
+    Delay(100);
+    if (!(w = wbt_find_window(IF_TITLE))) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
     n = if_count(w, want, WBGAP_ICONFMT_N + 1, cnt);
-    for (k = 0; k < WBGAP_ICONFMT_N; k++)
-        printf("INFO I13 %s: %d of %d points #%06lX\n", wbgap_iconfmt_name(k), cnt[k], n, want[k]);
-    printf("INFO I13 pen 1 (#%06lX): %d points before the icons, %d after\n", want[WBGAP_ICONFMT_N], pen1_before, cnt[WBGAP_ICONFMT_N]);
-    v = wbgap_iconfmt_judge(n, cnt, cnt[WBGAP_ICONFMT_N] - pen1_before, why, sizeof why);
+    for (k = 0; k <= WBGAP_ICONFMT_N; k++) {
+        live[k] -= base[k];
+        cnt[k] -= base[k];
+        printf("INFO I13 %s (#%06lX): %d points more than the drawer without the icons; added to the open window: %d\n",
+               k < WBGAP_ICONFMT_N ? wbgap_iconfmt_name(k) : "pen 1", want[k], cnt[k], live[k]);
+    }
+    v = wbgap_iconfmt_judge(n, cnt, cnt[WBGAP_ICONFMT_N], why, sizeof why);
     wbt_say("I13", v, why);
 out:
     if_clean();

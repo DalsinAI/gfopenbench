@@ -18,8 +18,8 @@
 int wbgap_iconfmt_near(unsigned long rgb, unsigned long want, unsigned tol);
 /* the formats' names, b_classic, c_newicons, d_glowicons, e_png, as the icons' files are named */
 const char *wbgap_iconfmt_name(int k);
-/* I13: the drawer's whole inside read every 2 pixels (n points) with the four icons in it; near[k], how many were
- * format k's colour (the classic one's: pen 3's); pen1_added, how many more were pen 1's than before the icons went in
+/* I13: the drawer's whole inside read every 2 pixels (n points) with the four icons in it; near[k], how many more
+ * were format k's colour (the classic one's: pen 3's) than before the icons went in; pen1_added, the same for pen 1
  * (labels, and any classic picture shown in place of NewIcons or GlowIcons). Each format must be its colour in
  * WBGAP_ICONFMT_MIN points. WBGAP_PASS; WBGAP_FAIL naming each that isn't (with pen 1's growth when it is two pictures'
  * worth, a classic picture shown instead); WBGAP_SKIP if fewer than 2000 points were read */
