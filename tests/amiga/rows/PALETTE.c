@@ -5,7 +5,8 @@
  * no file: Palette's default colours with the screen's own pens; putting it back then writes the screen's own colours 0-7 as read before, and deletes
  * the file). The corner must be
  * one colour before (a drawer pattern or picture SKIPs), at least half the prefs' colour after, and lose it again.
- * 3.2.3: IPrefs sets the Workbench screen's colour 0, a drawer's BACKGROUNDPEN. GFOS: the design has GFOpenLayout's
+ * 3.2.3: IPrefs resets the Workbench screen with the new colour 0, a drawer's BACKGROUNDPEN; the row opens the
+ * drawer again on the new screen and reads it there. GFOS: the design has GFOpenLayout's
  * theme take Palette's pens (designs/WORKBENCH-REDESIGN-20261113.md P3); until it does, this row FAILs there.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
@@ -95,6 +96,37 @@ static int watch(struct Screen *s, int n, int want, int secs)
     return best;
 }
 
+/* the drawer opened again after a reset of the Workbench screen: the new screen and window in *s, *d, its points
+ * read again into *np; 0 if it couldn't be */
+static int reopen(struct Screen **s, struct Window **d, int *np)
+{
+    int t, how;
+    for (t = 0; t < 30; t++) {   /* up to 15 s for Workbench to come back */
+        Delay(25);
+        if (wbt_open_drawer(PAL_DIR, PAL_TITLE, 2, &how) && wbt_place(PAL_TITLE, NULL, 400, 300)) {
+            Delay(50);
+            if (!(*d = wbt_find_window(PAL_TITLE)) || !(*s = (*d)->WScreen)) return 0;
+            *np = points(*s, *d);
+            printf("INFO P3 the Workbench screen was reset by the change (as IPrefs does for Palette): the drawer opened again, "
+                   "%d points\n", *np);
+            return *np >= 20;
+        }
+    }
+    return 0;
+}
+
+/* watch, following the drawer onto a new screen if IPrefs resets Workbench (3.2.3 does for palette.prefs): -1 if it
+ * couldn't be found again */
+static int follow(struct Screen **s, struct Window **d, int *np, int want, int secs)
+{
+    int k, r = -1;
+    for (k = 0; k < 3; k++) {
+        if ((r = watch(*s, *np, want, secs)) >= 0) return r;
+        if (!reopen(s, d, np)) return -1;
+    }
+    return r;
+}
+
 static void clean(void)
 {
     static const char *const files[] = {PAL_DIR "/a.info", PAL_DIR "/a", PAL_DIR ".info", PAL_DIR};
@@ -168,11 +200,11 @@ int wbt_palette(int argc, char **argv)
         wbt_fail("P3", "ENV:Sys/palette.prefs could not be written");
         goto out;
     }
-    after = watch(s, np, 1, 15);
+    after = follow(&s, &d, &np, 1, 15);
     if (after < 0) {
         if (had) put_file(PAL_FILE, was_buf, was_n);
         else DeleteFile((CONST_STRPTR)PAL_FILE);
-        wbt_fail("P3", "the Workbench screen was reset by the new palette.prefs (the drawer went): nothing more read");
+        wbt_fail("P3", "the Workbench screen was reset by the new palette.prefs and the drawer couldn't be opened again");
         goto out;
     }
     printf("INFO P3 after the change: %d of %d points the prefs' colour\n", after, np);
@@ -188,10 +220,10 @@ int wbt_palette(int argc, char **argv)
         }
         put_back = n && wbgap_palette_pens(new_buf, n, pens, npens) && put_file(PAL_FILE, new_buf, n);
     }
-    back = watch(s, np, 0, 15);
+    back = follow(&s, &d, &np, 0, 15);
     if (!had) DeleteFile((CONST_STRPTR)PAL_FILE);
     if (back < 0) {
-        wbt_fail("P3", "the Workbench screen was reset by the old palette.prefs going back (the drawer went)");
+        wbt_fail("P3", "the Workbench screen was reset by the old palette.prefs going back and the drawer couldn't be opened again");
         goto out;
     }
     printf("INFO P3 after the old prefs%s: %d of %d points the prefs' colour\n", put_back ? "" : " (NOT put back)", back, np);
