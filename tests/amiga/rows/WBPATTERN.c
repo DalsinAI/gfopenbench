@@ -2,7 +2,7 @@
  * A picture of one colour (WBGAP_PTRN_RGB, an ILBM of 32 x 24, RAM:WBGapP1.ilbm) is named for the root in a
  * WBPattern.prefs made from the file as it is (its drawers' and screen's PTRN chunks kept) and written to
  * ENV:Sys/WBPattern.prefs, which GFOpenBench watches (0.1.19) and IPrefs follows on 3.2.3. A grid of the Workbench
- * screen's points that no window covers (the desktop's own backdrop windows aside) is read before, after (up to 15 s,
+ * screen's points where the desktop shows (a backdrop window, or 3.2.3's "Workbench" window inside its borders, in front) is read before, after (up to 15 s,
  * for the picture's process to decode it) and with the old file put back (or deleted, if there was none): the colour
  * must cover at least half the points, and go again. Icons and labels over the desktop are why it is half, not all.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
@@ -42,18 +42,32 @@ static int put_file(const char *path, const unsigned char *buf, long n)
     return w == n;
 }
 
-/* the grid's points no window but a backdrop covers, below the screen's title bar */
+/* the desktop's own window: a backdrop, or (3.2.3 with Workbench's Backdrop off) the Workbench window titled "Workbench" */
+static int is_root(struct Window *w)
+{
+    return (w->Flags & WFLG_BACKDROP) || ((w->Flags & WFLG_WBENCHWINDOW) && w->Title && !strcmp((char *)w->Title, "Workbench"));
+}
+
+/* the grid's points below the screen's title bar where the front window there is the desktop's own (inside its
+ * borders), or none is */
 static int points(struct Screen *s, short *px, short *py)
 {
     struct Window *w[MAXW];
     int nw = wbt_windows_now(s, w, MAXW), n = 0, i, j, k, top = s->BarHeight + 2;
+    for (k = 0; k < nw; k++)
+        printf("INFO P1 window \"%s\" %s%s %dx%d at %d,%d\n", w[k]->Title ? (char *)w[k]->Title : "-",
+               w[k]->Flags & WFLG_BACKDROP ? "backdrop" : "", w[k]->Flags & WFLG_WBENCHWINDOW ? " wb" : "",
+               w[k]->Width, w[k]->Height, w[k]->LeftEdge, w[k]->TopEdge);
     for (j = 0; j < GRID_Y; j++)
         for (i = 0; i < GRID_X; i++) {
             int x = (int)((2L * i + 1) * s->Width / (2 * GRID_X)), y = top + (int)((2L * j + 1) * (s->Height - top) / (2 * GRID_Y));
-            for (k = 0; k < nw; k++)
-                if (!(w[k]->Flags & WFLG_BACKDROP) && x >= w[k]->LeftEdge && x < w[k]->LeftEdge + w[k]->Width &&
-                    y >= w[k]->TopEdge && y < w[k]->TopEdge + w[k]->Height) break;
-            if (k == nw) px[n] = (short)x, py[n] = (short)y, n++;
+            struct Window *f = NULL;
+            for (k = 0; k < nw && !f; k++)   /* front first */
+                if (x >= w[k]->LeftEdge && x < w[k]->LeftEdge + w[k]->Width && y >= w[k]->TopEdge && y < w[k]->TopEdge + w[k]->Height)
+                    f = w[k];
+            if (f && (!is_root(f) || x < f->LeftEdge + f->BorderLeft || x >= f->LeftEdge + f->Width - f->BorderRight ||
+                      y < f->TopEdge + f->BorderTop || y >= f->TopEdge + f->Height - f->BorderBottom)) continue;
+            px[n] = (short)x, py[n] = (short)y, n++;
         }
     return n;
 }
