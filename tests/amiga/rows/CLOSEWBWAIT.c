@@ -122,7 +122,7 @@ static void drawers_where(void)
 /* Where in GFOpenBench a task is: OpenBench's segments (its CLI's cli_Module) and, for each of its tasks,
  * the longs on its stack that point into them or into the ROM, so the build's symbols name the calls it is in */
 #define OBW_SEGS 8
-#define OBW_DEPTH 48
+#define OBW_DEPTH 64
 static ULONG obw_seg[OBW_SEGS], obw_len[OBW_SEGS];
 static int obw_nseg;
 
@@ -152,12 +152,16 @@ static void openbench_segs(void)
 }
 
 /* the longs on t's stack that point into OpenBench's hunks or the ROM; under Forbid, copied, printed after */
-static void stack_where(const char *who, struct Task *t)
+static void stack_where(const char *who, struct Task *t)   /* t NULL: GFOPENBENCH's */
 {
     ULONG at[OBW_DEPTH], v[OBW_DEPTH], sp, lo, hi;
     int n = 0, i, k, there = 0;
     struct Node *nd;
     Forbid();
+    if (!t) {                           /* the desktop: GFOPENBENCH's task, alive while its port is there */
+        struct MsgPort *pub = FindPort((CONST_STRPTR)"GFOPENBENCH");
+        if (pub && (pub->mp_Flags & PF_ACTION) == PA_SIGNAL && (t = pub->mp_SigTask)) there = 1;
+    }
     for (nd = SysBase->TaskWait.lh_Head; nd->ln_Succ && !there; nd = nd->ln_Succ) there = (struct Task *)nd == t;
     for (nd = SysBase->TaskReady.lh_Head; nd->ln_Succ && !there; nd = nd->ln_Succ) there = (struct Task *)nd == t;
     if (!there) {
@@ -169,7 +173,7 @@ static void stack_where(const char *who, struct Task *t)
     lo = (ULONG)t->tc_SPLower;
     hi = (ULONG)t->tc_SPUpper;
     if (!(sp & 1) && sp >= lo)
-        for (i = 0; i < 256 && n < OBW_DEPTH && sp + 4 * i + 4 <= hi; i++) {
+        for (i = 0; i < 1024 && n < OBW_DEPTH && sp + 4 * i + 4 <= hi; i++) {
             ULONG x = ((ULONG *)sp)[i];
             int ours = x >= 0xF80000 && x < 0x1000000;
             for (k = 0; k < obw_nseg && !ours; k++) ours = x >= obw_seg[k] && x < obw_seg[k] + obw_len[k];
@@ -200,6 +204,7 @@ static void tasks_where(void)
     int i, j, nf = 0;
     lists[0] = &SysBase->TaskWait;
     lists[1] = &SysBase->TaskReady;
+    stack_where("desktop (GFOPENBENCH's task)", NULL);   /* on no list while the runtime holds it */
     for (j = 0; j < 2; j++) {
         Forbid();
         nf = 0;
