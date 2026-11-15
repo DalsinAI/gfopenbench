@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """I13's four icons, one per format, each a 40x30 picture of one colour:
-classic (planar, pen 1), NewIcons, OS 3.5 GlowIcons (FORM ICON) and a PNG icon,
+classic (planar, pen 3), NewIcons, OS 3.5 GlowIcons (FORM ICON) and a PNG icon,
 made with tests/host/icon_fixtures.py's writers. The NewIcons and GlowIcons ones
 carry a classic picture of pen 1 too, so a desktop that doesn't read their own
 picture shows pen 1, not their colour.
@@ -28,14 +28,14 @@ def rgb3(v):
     return bytes([v >> 16 & 255, v >> 8 & 255, v & 255])
 
 
-def base(x, tooltypes=None):
+def base(x, tooltypes=None, pen=1):
     return {"type": 4, "tool": None, "tooltypes": tooltypes, "x": x, "y": 70, "stack": 4096,
-            "planar": [(W, H, 2, bytes([1]) * (W * H))]}
+            "planar": [(W, H, 2, bytes([pen]) * (W * H))]}
 
 
 def icons():
     out = []
-    out.append(("classic", F.classic(base(10))))
+    out.append(("classic", F.classic(base(10, pen=3))))
     tts = ["*** DON'T EDIT THE FOLLOWING LINES!! ***"] + \
         F.newicons_lines(1, W, H, rgb3(NEWICONS_RGB) + rgb3(NEWICONS_RGB), bytes(W * H), False)
     out.append(("newicons", F.classic(base(70, tts))))

@@ -1,10 +1,10 @@
 /* ---- I13: the icon formats a drawer shows: classic, NewIcons, GlowIcons (OS 3.5), PNG ----
- * RAM:WBGapIcF (a snapshotted at 20,10: an empty drawer's window draws otherwise) opened at the top-left, 400x200.
- * The four icons of ICONFMT_icons.h (iconfmt_gen.py) are written in one at a time, at x 10, 70, 130 and 190, y 70
- * (their own snapshots), each told to the desktop and found where the window's inside changed (as DRAGFILE finds
- * a made icon). The top three-fifths of each one's box (the picture, above its label) is read every 2 pixels: each
- * must be its own colour (ICONFMT.h) in a quarter of its points. A desktop that reads only the classic picture shows
- * pen 1 for NewIcons and GlowIcons, and that is said. The drawer is cleared afterwards.
+ * RAM:WBGapIcF (a snapshotted at 20,10: an empty drawer's window draws otherwise) opened at the top-left, 400x240,
+ * and its inside read every 2 pixels for pen 1. The four icons of ICONFMT_icons.h (iconfmt_gen.py) are written in
+ * and told to the desktop (UpdateWorkbench); 2 s on, the inside is read again. Each format's colour (ICONFMT.h; the
+ * classic one's, pen 3's) must be in WBGAP_ICONFMT_MIN of its points, wherever the desktop put the icon (GFOpenBench
+ * lays a drawer out itself); pen 1's growth says whether a classic picture was shown in place of NewIcons or
+ * GlowIcons. The drawer is cleared afterwards.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 #include <string.h>
@@ -31,8 +31,6 @@ WBGAP_ROWMODE(I13, ICONFMT)
 #define IF_DIR "RAM:WBGapIcF"
 #define IF_TITLE "WBGapIcF"
 
-static unsigned long before[WBT_GRAB_N];
-
 static int put_bytes(const char *path, const unsigned char *buf, long n)
 {
     BPTR fh = Open((CONST_STRPTR)path, MODE_NEWFILE);
@@ -43,16 +41,14 @@ static int put_bytes(const char *path, const unsigned char *buf, long n)
     return w == n;
 }
 
-/* icon k written in as name with its .info, told to the desktop, its box in w's inside found: 1 */
-static int if_make(struct Window *w, int k, long box[4])
+/* icon k written in with its .info and told to the desktop: 1 */
+static int if_make(int k)
 {
     static const unsigned char *const data[WBGAP_ICONFMT_N] = {iconfmt_classic, iconfmt_newicons, iconfmt_glowicons, iconfmt_png};
     static const long size[WBGAP_ICONFMT_N] = {sizeof iconfmt_classic, sizeof iconfmt_newicons, sizeof iconfmt_glowicons,
                                                sizeof iconfmt_png};
     char path[96];
     BPTR l;
-    int gw, gh;
-    wbt_grab(w, before, &gw, &gh);
     snprintf(path, sizeof path, IF_DIR "/%s", wbgap_iconfmt_name(k));
     if (!wbt_write_file(path, "x\n")) return 0;
     snprintf(path, sizeof path, IF_DIR "/%s.info", wbgap_iconfmt_name(k));
@@ -61,7 +57,24 @@ static int if_make(struct Window *w, int k, long box[4])
         UpdateWorkbench((CONST_STRPTR)wbgap_iconfmt_name(k), l, UPDATEWB_ObjectAdded);
         UnLock(l);
     }
-    return wbt_settle(w, before, gw, gh, box);
+    return 1;
+}
+
+/* w's inside read every 2 pixels: how many points, and how many near each of want[0..nw-1] into cnt */
+static int if_count(struct Window *w, const unsigned long *want, int nw, int *cnt)
+{
+    struct Screen *s = w->WScreen;
+    int x, y, k, n = 0;
+    long x0 = w->LeftEdge + w->BorderLeft, y0 = w->TopEdge + w->BorderTop;
+    long iw = w->Width - w->BorderLeft - w->BorderRight, ih = w->Height - w->BorderTop - w->BorderBottom;
+    for (k = 0; k < nw; k++) cnt[k] = 0;
+    for (y = 0; y < ih; y += 2)
+        for (x = 0; x < iw; x += 2) {
+            unsigned long got = wbt_screen_rgb(s, (int)(x0 + x), (int)(y0 + y));
+            n++;
+            for (k = 0; k < nw; k++) cnt[k] += wbgap_iconfmt_near(got, want[k], WBGAP_ICONFMT_TOL);
+        }
+    return n;
 }
 
 static void if_clean(void)
@@ -85,53 +98,45 @@ static void if_clean(void)
     }
 }
 
+static unsigned long pen_rgb(struct Screen *s, int pen)
+{
+    ULONG rgb[3];
+    GetRGB32(s->ViewPort.ColorMap, (ULONG)pen, 1, rgb);
+    return (rgb[0] >> 24) << 16 | (rgb[1] >> 24) << 8 | rgb[2] >> 24;
+}
+
 int wbt_iconfmt(int argc, char **argv)
 {
-    static const unsigned long want[WBGAP_ICONFMT_N] = {0, WBGAP_ICONFMT_NEWICONS_RGB, WBGAP_ICONFMT_GLOW_RGB, WBGAP_ICONFMT_PNG_RGB};
+    unsigned long want[WBGAP_ICONFMT_N + 1] = {0, WBGAP_ICONFMT_NEWICONS_RGB, WBGAP_ICONFMT_GLOW_RGB, WBGAP_ICONFMT_PNG_RGB, 0};
     struct Window *w;
-    struct Screen *s;
-    long box[WBGAP_ICONFMT_N][4];
-    int n[WBGAP_ICONFMT_N] = {0}, near[WBGAP_ICONFMT_N] = {0}, pen1[WBGAP_ICONFMT_N] = {0};
-    unsigned long p1;
+    int cnt[WBGAP_ICONFMT_N + 1], pen1_before, n, how, k, v;
     char why[300];
-    int how, k, x, y, v;
     (void)argc, (void)argv;
     if_clean();
     wbt_drawer(IF_DIR, "a");
-    if (!wbt_open_drawer(IF_DIR, IF_TITLE, 10, &how) || !(w = wbt_place(IF_TITLE, NULL, 400, 200))) {
+    if (!wbt_open_drawer(IF_DIR, IF_TITLE, 10, &how) || !(w = wbt_place(IF_TITLE, NULL, 400, 240))) {
         wbt_fail("I13", IF_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
         goto out;
     }
     Delay(50);
+    if (!(w = wbt_find_window(IF_TITLE))) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
+    want[0] = pen_rgb(w->WScreen, 3);
+    want[WBGAP_ICONFMT_N] = pen_rgb(w->WScreen, 1);
+    if_count(w, want + WBGAP_ICONFMT_N, 1, &pen1_before);
     for (k = 0; k < WBGAP_ICONFMT_N; k++)
-        if (!(w = wbt_find_window(IF_TITLE)) || !if_make(w, k, box[k])) {
+        if (!if_make(k)) {
             char m[120];
-            snprintf(m, sizeof m, "the %s icon never showed in " IF_DIR "'s window (5 s after UpdateWorkbench)", wbgap_iconfmt_name(k));
+            snprintf(m, sizeof m, "the %s icon couldn't be written in " IF_DIR, wbgap_iconfmt_name(k));
             wbt_fail("I13", m);
             goto out;
         }
-    Delay(50);
-    if (!(w = wbt_find_window(IF_TITLE)) || !(s = w->WScreen)) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
-    {
-        ULONG rgb[3];
-        GetRGB32(s->ViewPort.ColorMap, 1, 1, rgb);
-        p1 = (rgb[0] >> 24) << 16 | (rgb[1] >> 24) << 8 | rgb[2] >> 24;
-    }
-    for (k = 0; k < WBGAP_ICONFMT_N; k++) {
-        long x0 = w->LeftEdge + w->BorderLeft + box[k][0], y0 = w->TopEdge + w->BorderTop + box[k][1];
-        unsigned long c = k ? want[k] : p1;
-        for (y = 0; y < box[k][3] * 3 / 5; y += 2)
-            for (x = 0; x < box[k][2]; x += 2) {
-                unsigned long got = wbt_screen_rgb(s, (int)(x0 + x), (int)(y0 + y));
-                n[k]++;
-                near[k] += wbgap_iconfmt_near(got, c, WBGAP_ICONFMT_TOL);
-                pen1[k] += wbgap_iconfmt_near(got, p1, WBGAP_ICONFMT_TOL);
-            }
-        if (!k) pen1[k] = -1;
-        printf("INFO I13 %s at %ld,%ld %ldx%ld: %d of %d points #%06lX, %d pen 1 (#%06lX)\n", wbgap_iconfmt_name(k), box[k][0],
-               box[k][1], box[k][2], box[k][3], near[k], n[k], c, pen1[k], p1);
-    }
-    v = wbgap_iconfmt_judge(n, near, pen1, why, sizeof why);
+    Delay(100);
+    if (!(w = wbt_find_window(IF_TITLE))) { wbt_fail("I13", IF_DIR "'s window went"); goto out; }
+    n = if_count(w, want, WBGAP_ICONFMT_N + 1, cnt);
+    for (k = 0; k < WBGAP_ICONFMT_N; k++)
+        printf("INFO I13 %s: %d of %d points #%06lX\n", wbgap_iconfmt_name(k), cnt[k], n, want[k]);
+    printf("INFO I13 pen 1 (#%06lX): %d points before the icons, %d after\n", want[WBGAP_ICONFMT_N], pen1_before, cnt[WBGAP_ICONFMT_N]);
+    v = wbgap_iconfmt_judge(n, cnt, cnt[WBGAP_ICONFMT_N] - pen1_before, why, sizeof why);
     wbt_say("I13", v, why);
 out:
     if_clean();
