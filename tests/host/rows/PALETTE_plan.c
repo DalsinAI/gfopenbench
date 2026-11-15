@@ -79,6 +79,27 @@ void palette_plan(void)
         for (k = 0; all && k < 8; k++) all = wbgap_palette_colour(a, m, k, &c) && c == scr[k];
         CHECK(all && m == 12 + 14 + 8 + WBGAP_PALT_LEN, "the screen's own eight colours, each read back (%ld)", m);
     }
+    {   /* the drawers' PTRN taken out of a WBPattern.prefs: root, drawers and screen chunks, the drawers' one odd-sized */
+        static unsigned char wp[200], wo[200];
+        long o = 12, m;
+        int k;
+        memset(wp, 0, sizeof wp);
+        memcpy(wp, "FORM\0\0\0\0PREF", 12);
+        memcpy(wp + o, "PRHD\0\0\0\6", 8), o += 8 + 6;
+        for (k = 0; k < 3; k++) {
+            unsigned sz = k == 1 ? 25 : 24;
+            memcpy(wp + o, "PTRN", 4), wp[o + 7] = (unsigned char)sz;
+            wp[o + 8 + 17] = (unsigned char)k, wp[o + 8 + 23] = (unsigned char)(0x40 + k);
+            o += 8 + sz + (sz & 1);
+        }
+        wp[7] = (unsigned char)(o - 8);
+        m = wbgap_ptrn_drop(wp, o, 1, wo, sizeof wo);
+        CHECK(m == o - 34 && be32(wo + 4) == (unsigned long)(m - 8) && !memcmp(wo + 8, wp + 8, 4 + 14 + 32)
+              && !memcmp(wo + 12 + 14 + 32, wp + 12 + 14 + 32 + 34, 32), "the drawers' PTRN out, root and screen as they were (%ld)", m);
+        CHECK(wbgap_ptrn_drop(wo, m, 1, wp, sizeof wp) == 0, "none for drawers: 0, nothing to change");
+        CHECK(wbgap_ptrn_drop(wo, m, 0, wp, 10) == 0 && wbgap_ptrn_drop((const unsigned char *)"FORMxxxxILBM", 12, 1, wp, sizeof wp) == 0,
+              "no room, or not a FORM PREF: 0");
+    }
     CHECK(wbgap_palette_mode(cols, 5, &c) == 3 && c == 2, "the most common colour: 2, three times");
     v = wbgap_palette_judge(150, 150, 0, 140, 0, 1, why, sizeof why);
     CHECK(v == WBGAP_PASS, "followed, then gave back: PASS (%s)", why);

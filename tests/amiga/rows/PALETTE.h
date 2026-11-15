@@ -20,6 +20,10 @@ long wbgap_palette_make(const unsigned char *orig, long len, int index, unsigned
  * has only colours to change and doesn't reset the Workbench screen (a new pen list does; with Palette's default pens 3.2.3
  * stopped on an alert, 15 Nov): 1, or 0 with no PALT or a bad n */
 int wbgap_palette_pens(unsigned char *buf, long len, const unsigned short *pens, int n);
+/* a WBPattern.prefs (FORM PREF) with its PTRN chunks for wbp_Which which (1: drawers) taken out, every other chunk
+ * as it was: its length, or 0 if orig isn't a FORM PREF, has no such PTRN or cap is too small. P3 runs with no drawer
+ * fill, which colour 0 doesn't reach (3.2.3's default prefs fill drawers with Presets/Backdrops/pattern.iff) */
+long wbgap_ptrn_drop(const unsigned char *orig, long len, int which, unsigned char *out, long cap);
 /* colour index in a palette.prefs as 0xRRGGBB (the top byte of each 16-bit part): 1, or 0 if it has none */
 int wbgap_palette_colour(const unsigned char *buf, long len, int index, unsigned long *rgb);
 /* the most common of n colours: how many there are of it, and it in *rgb (n 0: 0) */

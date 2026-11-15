@@ -32,12 +32,13 @@ WBGAP_MODE(PALETTE, wbt_palette, SCRIPT)
 WBGAP_ROWMODE(P3, PALETTE)
 
 #define PAL_FILE "ENV:Sys/palette.prefs"
+#define PTRN_FILE "ENV:Sys/WBPattern.prefs"
 #define PAL_DIR "RAM:WBGapPal"
 #define PAL_TITLE "WBGapPal"
 #define PAL_MAX 200
 #define MAXW 48
 
-static unsigned char was_buf[4096], new_buf[4096], tmp_buf[4096];
+static unsigned char was_buf[4096], new_buf[4096], tmp_buf[4096], pt_was[4096], pt_new[4096];
 static short px[PAL_MAX], py[PAL_MAX];
 static unsigned long seen[PAL_MAX];
 
@@ -148,12 +149,21 @@ int wbt_palette(int argc, char **argv)
     unsigned long mode = 0, was0 = 0, scr_col[8];
     unsigned short pens[31];
     long was_n, n;
-    int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v, npens = 0;
+    int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v, npens = 0, pt_changed = 0;
+    long pt_n;
     (void)argc, (void)argv;
     clean();
     was_n = wbt_read_all(PAL_FILE, (char *)was_buf, sizeof was_buf);
     had = was_n >= 0;
     if (had && was_n >= (long)sizeof was_buf - 1) { wbt_skip("P3", "ENV:Sys/palette.prefs is bigger than this row reads; left as it is"); return 0; }
+    pt_n = wbt_read_all(PTRN_FILE, (char *)pt_was, sizeof pt_was);
+    if (pt_n > 0 && pt_n < (long)sizeof pt_was - 1 && (n = wbgap_ptrn_drop(pt_was, pt_n, 1, pt_new, sizeof pt_new)) > 0) {
+        /* drawers filled with a picture or pattern: colour 0 doesn't reach it, so the row runs with none, then puts it back */
+        if (!put_file(PTRN_FILE, pt_new, n)) { put_file(PTRN_FILE, pt_was, pt_n); wbt_fail("P3", PTRN_FILE " could not be written"); goto out; }
+        pt_changed = 1;
+        printf("INFO P3 %s gives drawers a fill: taken out for the row, put back after\n", PTRN_FILE);
+        Delay(150);
+    }
     wbt_drawer(PAL_DIR, "a");
     if (!wbt_open_drawer(PAL_DIR, PAL_TITLE, 10, &how) || !(d = wbt_place(PAL_TITLE, NULL, 400, 300))) {
         wbt_fail("P3", PAL_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
@@ -231,5 +241,6 @@ int wbt_palette(int argc, char **argv)
     wbt_say("P3", v, why);
 out:
     clean();
+    if (pt_changed && !put_file(PTRN_FILE, pt_was, pt_n)) wbt_fail("P3", PTRN_FILE " could not be put back");
     return wbt_fails() ? 5 : 0;
 }

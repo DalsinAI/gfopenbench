@@ -122,6 +122,24 @@ int wbgap_palette_pens(unsigned char *buf, long len, const unsigned short *pens,
     return 1;
 }
 
+long wbgap_ptrn_drop(const unsigned char *orig, long len, int which, unsigned char *out, long cap)
+{
+    long at = 12, o = 12, from;
+    unsigned long sz;
+    const unsigned char *id, *d;
+    int dropped = 0;
+    if (!is_pref(orig, len) || len > cap) return 0;
+    memcpy(out, orig, 12);
+    for (from = at; next_chunk(orig, len, &at, &id, &d, &sz); from = at) {
+        if (!memcmp(id, "PTRN", 4) && sz >= 18 && (int)be16(d + 16) == which) { dropped = 1; continue; }
+        memcpy(out + o, orig + from, (size_t)(at - from));
+        o += at - from;
+    }
+    if (!dropped) return 0;
+    put32(out + 4, (unsigned long)(o - 8));
+    return o;
+}
+
 int wbgap_palette_colour(const unsigned char *buf, long len, int index, unsigned long *rgb)
 {
     const unsigned char *d = find_palt(buf, len);
