@@ -1,0 +1,161 @@
+/* ---- P3: Palette's colour 0 reaches a drawer's background (ENV:Sys/palette.prefs) ----
+ * RAM:WBGapPal opened at the top-left, 400x300, with one icon at its top-left, so the inside's bottom-right is empty.
+ * A 120 x 80 corner of it (every 8th pixel, where the drawer is the front window) is read before, after (up to 15 s)
+ * and with the old file put back. The prefs are made from the file as it is with colour 0 set to WBGAP_PAL_RGB (with
+ * no file: Palette's defaults, so putting it back writes those, then deletes the file, as P7 does). The corner must be
+ * one colour before (a drawer pattern or picture SKIPs), at least half the prefs' colour after, and lose it again.
+ * 3.2.3: IPrefs sets the Workbench screen's colour 0, a drawer's BACKGROUNDPEN. GFOS: the design has GFOpenLayout's
+ * theme take Palette's pens (designs/WORKBENCH-REDESIGN-20261113.md P3); until it does, this row FAILs there.
+ * MIT, Copyright (c) 2026 AmiCradle Team. */
+#include <stdio.h>
+#include <string.h>
+
+#include <exec/types.h>
+#include <dos/dos.h>
+#include <intuition/intuition.h>
+#include <intuition/screens.h>
+#include <workbench/workbench.h>
+#include <proto/dos.h>
+#include <proto/exec.h>
+#include <proto/intuition.h>
+#include <proto/wb.h>
+
+#include "wbgap_rows.h"
+#include "wbgap_test.h"
+#include "WBPATTERN.h"
+#include "PALETTE.h"
+
+WBGAP_MODE(PALETTE, wbt_palette, SCRIPT)
+WBGAP_ROWMODE(P3, PALETTE)
+
+#define PAL_FILE "ENV:Sys/palette.prefs"
+#define PAL_DIR "RAM:WBGapPal"
+#define PAL_TITLE "WBGapPal"
+#define PAL_MAX 200
+#define MAXW 48
+
+static unsigned char was_buf[4096], new_buf[4096];
+static short px[PAL_MAX], py[PAL_MAX];
+static unsigned long seen[PAL_MAX];
+
+static int put_file(const char *path, const unsigned char *buf, long n)
+{
+    BPTR fh = Open((CONST_STRPTR)path, MODE_NEWFILE);
+    LONG w;
+    if (!fh) return 0;
+    w = Write(fh, (APTR)buf, n);
+    Close(fh);
+    return w == n;
+}
+
+/* the inside's bottom-right corner, where d is the front window: the screen points into px, py */
+static int points(struct Screen *s, struct Window *d)
+{
+    struct Window *w[MAXW];
+    int nw = wbt_windows_now(s, w, MAXW), n = 0, x, y, k;
+    int x1 = d->LeftEdge + d->Width - d->BorderRight - 8, y1 = d->TopEdge + d->Height - d->BorderBottom - 8;
+    for (y = y1 - 80; y < y1 && n < PAL_MAX; y += 8)
+        for (x = x1 - 120; x < x1 && n < PAL_MAX; x += 8) {
+            struct Window *f = NULL;
+            for (k = 0; k < nw && !f; k++)   /* front first */
+                if (x >= w[k]->LeftEdge && x < w[k]->LeftEdge + w[k]->Width && y >= w[k]->TopEdge && y < w[k]->TopEdge + w[k]->Height)
+                    f = w[k];
+            if (f == d) px[n] = (short)x, py[n] = (short)y, n++;
+        }
+    return n;
+}
+
+static int count(struct Screen *s, int n)
+{
+    int i, c = 0;
+    for (i = 0; i < n; i++) c += wbgap_rgb_near(wbt_screen_rgb(s, px[i], py[i]), WBGAP_PAL_RGB, WBGAP_PAL_TOL);
+    return c;
+}
+
+static int watch(struct Screen *s, int n, int want, int secs)
+{
+    int t, c, best = want ? 0 : n;
+    for (t = 0; t <= secs * 2; t++) {
+        c = count(s, n);
+        if (want ? c > best : c < best) best = c;
+        if (want ? c * 2 >= n : c * 5 < n) break;
+        Delay(25);
+    }
+    return best;
+}
+
+static void clean(void)
+{
+    static const char *const files[] = {PAL_DIR "/a.info", PAL_DIR "/a", PAL_DIR ".info", PAL_DIR};
+    unsigned i, pass;
+    int t;
+    CloseWorkbenchObjectA((STRPTR)PAL_DIR, NULL);
+    for (t = 0; t < 40 && wbt_find_window(PAL_TITLE); t++) Delay(5);
+    for (pass = 0; pass < 2; pass++) {
+        if (pass) Delay(25);
+        for (i = 0; i < sizeof files / sizeof files[0]; i++) DeleteFile((CONST_STRPTR)files[i]);
+    }
+}
+
+int wbt_palette(int argc, char **argv)
+{
+    struct Screen *s = NULL;
+    struct Window *d;
+    char why[220];
+    unsigned long mode = 0, was0 = 0;
+    long was_n, n;
+    int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v;
+    (void)argc, (void)argv;
+    clean();
+    was_n = wbt_read_all(PAL_FILE, (char *)was_buf, sizeof was_buf);
+    had = was_n >= 0;
+    if (had && was_n >= (long)sizeof was_buf - 1) { wbt_skip("P3", "ENV:Sys/palette.prefs is bigger than this row reads; left as it is"); return 0; }
+    wbt_drawer(PAL_DIR, "a");
+    if (!wbt_open_drawer(PAL_DIR, PAL_TITLE, 10, &how) || !(d = wbt_place(PAL_TITLE, NULL, 400, 300))) {
+        wbt_fail("P3", PAL_DIR "'s window didn't open, or couldn't be sized and put at the top-left");
+        goto out;
+    }
+    Delay(50);
+    if (!(d = wbt_find_window(PAL_TITLE)) || !(s = d->WScreen)) { wbt_fail("P3", PAL_DIR "'s window went"); goto out; }
+    np = points(s, d);
+    for (i = 0; i < np; i++) seen[i] = wbt_screen_rgb(s, px[i], py[i]);
+    same = wbgap_palette_mode(seen, np, &mode);
+    before = count(s, np);
+    printf("INFO P3 %s %s (%ld bytes)%s; %d points of the drawer's corner, %d of them #%06lX, %d the prefs' colour\n", PAL_FILE,
+           had ? "there" : "not there", had ? was_n : 0L,
+           had && wbgap_palette_colour(was_buf, was_n, 0, &was0) ? ", colour 0 set" : "", np, same, mode, before);
+    if (np < 20 || same * 10 < np * 9 || before * 5 >= np) {
+        v = wbgap_palette_judge(np, same, before, 0, 0, 1, why, sizeof why);
+        wbt_say("P3", v, why);
+        goto out;
+    }
+    n = wbgap_palette_make(had ? was_buf : NULL, had ? was_n : 0, 0, WBGAP_PAL_RGB, new_buf, sizeof new_buf);
+    {
+        unsigned long got = 0;
+        if (!n || !wbgap_palette_colour(new_buf, n, 0, &got) || got != WBGAP_PAL_RGB) {
+            wbt_fail("P3", "the row's own prefs file came out wrong (a test fault, not the desktop's); nothing written");
+            goto out;
+        }
+    }
+    if (!put_file(PAL_FILE, new_buf, n)) {
+        if (had) put_file(PAL_FILE, was_buf, was_n);
+        else DeleteFile((CONST_STRPTR)PAL_FILE);
+        wbt_fail("P3", "ENV:Sys/palette.prefs could not be written");
+        goto out;
+    }
+    after = watch(s, np, 1, 15);
+    printf("INFO P3 after the change: %d of %d points the prefs' colour\n", after, np);
+    if (had) put_back = put_file(PAL_FILE, was_buf, was_n);
+    else {   /* no file before: Palette's defaults applied (IPrefs keeps the last colours it was given), then none */
+        n = wbgap_palette_make(NULL, 0, 0, 0xAAAAAAUL, new_buf, sizeof new_buf);
+        put_back = n && put_file(PAL_FILE, new_buf, n);
+    }
+    back = watch(s, np, 0, 15);
+    if (!had) DeleteFile((CONST_STRPTR)PAL_FILE);
+    printf("INFO P3 after the old prefs%s: %d of %d points the prefs' colour\n", put_back ? "" : " (NOT put back)", back, np);
+    v = wbgap_palette_judge(np, same, before, after, back, put_back, why, sizeof why);
+    wbt_say("P3", v, why);
+out:
+    clean();
+    return wbt_fails() ? 5 : 0;
+}

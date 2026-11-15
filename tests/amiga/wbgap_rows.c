@@ -149,7 +149,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     /* 11. Prefs */
     {"P1", NULL, A, NULL, "WBPattern: the root picture its prefs name"},
     {"P2", NULL, L, NULL, "icon text font"},
-    {"P3", NULL, L, NULL, "Palette, through GFOpenLayout's pens (13 Nov)"},
+    {"P3", NULL, A, NULL, "Palette: colour 0 reaches a drawer's background, through GFOpenLayout's pens (13 Nov)"},
     {"P4", NULL, A, NULL, "Pointer, as 3.2.3 (13 Nov)"},
     {"P4a", "P4", A, NULL, "the pointer goes where it is moved, as 3.2.3 (13 Nov)"},
     {"P4b", "P4", A, NULL, "on RTG the pointer is a sprite layer: the screen's pixels under it are untouched (13 Nov)"},
