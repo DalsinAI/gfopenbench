@@ -7,6 +7,7 @@
 #include <exec/types.h>
 #include <exec/ports.h>
 #include <exec/tasks.h>
+#include <exec/execbase.h>
 #include <dos/dos.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -79,6 +80,33 @@ static void openbench_where(void)
                 wbgap_closewb_obwait_text(where), (unsigned long)sigwait, (unsigned long)recvd, pub_bit, rexx_bit);
 }
 
+/* GFOpenBench's drawer tasks (ob_dtask.c names them "GFOpenBench drawer"): each one's state and signals, so a
+ * drawer that never takes its close (Ctrl-F, DT_NOTE_SIG) shows up next to the desktop that waits for it */
+static void drawers_where(void)
+{
+    struct { int state; ULONG wait, recvd; } d[8];
+    struct List *lists[2];
+    struct Node *n;
+    int i, k = 0;
+    lists[0] = &SysBase->TaskWait;
+    lists[1] = &SysBase->TaskReady;
+    Forbid();
+    for (i = 0; i < 2; i++)
+        for (n = lists[i]->lh_Head; n->ln_Succ && k < 8; n = n->ln_Succ)
+            if (n->ln_Name && !strcmp(n->ln_Name, "GFOpenBench drawer")) {
+                struct Task *t = (struct Task *)n;
+                d[k].state = t->tc_State;
+                d[k].wait = t->tc_SigWait;
+                d[k].recvd = t->tc_SigRecvd;
+                k++;
+            }
+    Permit();
+    printf("INFO C6 GFOpenBench drawer tasks: %d\n", k);
+    for (i = 0; i < k; i++)
+        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx\n", i, d[i].state,
+               (unsigned long)d[i].wait, (unsigned long)d[i].recvd);
+}
+
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096], steps[2048];
@@ -100,6 +128,9 @@ static int closewb_wait(const char *path, int secs)
     } else {
         char why[192], step[96];
         openbench_where();                          /* a CLOSEWB that doesn't end: is GFOpenBench answering? */
+        Delay(10);
+        openbench_where();                          /* twice: a task that spins shows "running" both times */
+        drawers_where();
         /* the steps file first: closed after each line, it has every step; buf may be held or short */
         if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
         if (wbgap_closewb_verdict(buf, why, sizeof why) != WBGAP_NONE || wbgap_closewb_verdict(steps, why, sizeof why) != WBGAP_NONE) {
