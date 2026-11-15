@@ -55,6 +55,9 @@ typedef struct ob_dt_env {
     void (*pack)(const char *dir, ob_dpack *p);
     /* what pack's answers depend on, as it is now: asked after each call a drawer makes, which may change it */
     unsigned long (*gen)(void);
+    /* while ob_dt_close_all waits for the drawers: what else the desktop answers meanwhile, at least every half
+     * second (workbench.library's UpdateWorkbench, which a closing drawer calls and waits for: C6a); may be NULL */
+    void (*closing)(void);
 } ob_dt_env;
 
 /* The desktop's side (its port for the drawers' calls and events); 1 when ready. env is kept. */

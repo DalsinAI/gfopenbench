@@ -751,9 +751,11 @@ void ob_dt_close_all(void)
     while (nlive) {
         int renote = 0;
         ob_dt_service();
+        if (env.closing) env.closing();
         if (!nlive) break;
         wait_half();
         ob_dt_service();
+        if (env.closing) env.closing();
         if (!nlive) break;
         DateStamp(&now);
         for (i = 0; i < nlive; i++) {

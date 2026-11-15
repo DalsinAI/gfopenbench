@@ -27,6 +27,7 @@
 #include <workbench/icon.h>
 #include <utility/hooks.h>
 #include <utility/tagitem.h>
+#include <clib/alib_protos.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
@@ -301,6 +302,30 @@ void ob_wb_handle(void)
         control(OWBCTRLA_TakeNotes, (ULONG)&notes);
         if (notes && env.changed) env.changed(notes);
     }
+}
+
+#if OWBREQ_UPDATE != OB_WBP_CALL_UPDATE
+#error "ob_wbplan.h's OB_WBP_CALL_UPDATE must be OWBREQ_UPDATE"
+#endif
+
+void ob_wb_answer_while_down(void)
+{
+    struct List keep;
+    struct Message *m;
+    if (!req_port) return;
+    NewList(&keep);
+    while ((m = GetMsg(req_port))) {
+        struct OWBRequest *rq = (struct OWBRequest *)m;
+        if (ob_wbp_answer_while_down(rq->or_Call)) {
+            rq->or_Result = TRUE;
+            rq->or_IoErr = 0;
+            ReplyMsg(m);
+        } else
+            AddTail(&keep, &m->mn_Node);
+    }
+    Forbid();
+    while ((m = (struct Message *)RemTail(&keep))) AddHead(&req_port->mp_MsgList, &m->mn_Node);
+    Permit();
 }
 
 void ob_wb_stop(void)

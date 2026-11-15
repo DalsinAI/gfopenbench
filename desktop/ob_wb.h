@@ -117,6 +117,9 @@ void ob_wb_stop(void);
 ULONG ob_wb_sigmask(void);
 /* Its signal came: the calls put are answered, the changes told (env.changed), AppMessages replied to freed. */
 void ob_wb_handle(void);
+/* While every drawer closes (ob_dt_close_all): the UpdateWorkbench calls put answered TRUE at once, nothing read
+ * again (ob_wbp_answer_while_down); every other call stays for ob_wb_handle, in its order. */
+void ob_wb_answer_while_down(void);
 /* The AppIcons, at most max, oldest first; each dobj to be freed with FreeDiskObject. How many. */
 int ob_wb_icons(ob_wb_icon *out, int max);
 /* The AppMenuItems, titles and parent items, at most max, in the order added. How many. */

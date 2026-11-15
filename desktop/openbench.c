@@ -2652,7 +2652,7 @@ static void drawer_event(ob_dt *t, int kind, long err, unsigned long largest)
     }
 }
 
-static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen };
+static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen, ob_wb_answer_while_down };
 
 /* WBGapF3, in a lab only (ENV:GFOpenBench/X4Test set): what the supervisor saw of each drawer task, a line each in
  * T:GFOpenBench-X4.log, which WBGapF3.rexx shows when it fails */
