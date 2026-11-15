@@ -8,6 +8,8 @@
 void palette_plan(void);
 WBGAP_PLAN(palette_plan)
 
+static unsigned be16(const unsigned char *p) { return (unsigned)(p[0] << 8 | p[1]); }
+
 static unsigned long be32(const unsigned char *p)
 {
     return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) | ((unsigned long)p[2] << 8) | p[3];
@@ -51,6 +53,17 @@ void palette_plan(void)
           "the others Palette's defaults (3 #6688BB, 7 #EE9900)");
     CHECK(n > 60 && out[34 + 16] == 0 && out[34 + 17] == 0 && out[34 + 18] == 0 && out[34 + 19] == 1 && out[34 + 42] == 0xff,
           "the default pens, ending at ~0");
+    {   /* the screen's own pens put in a file made from nothing: both lists, then ~0, the rest 0 */
+        static const unsigned short p3[12] = {1, 2, 1, 2, 1, 3, 1, 0, 2, 1, 2, 1};
+        int k, ok = wbgap_palette_pens(out, n, p3, 12);
+        for (k = 0; ok && k < 12; k++)
+            ok = be16(out + 34 + 16 + 2 * k) == p3[k] && be16(out + 34 + 80 + 2 * k) == p3[k];
+        CHECK(ok && be16(out + 34 + 16 + 24) == 0xffff && be16(out + 34 + 80 + 24) == 0xffff && be16(out + 34 + 16 + 26) == 0,
+              "the screen's pens in both lists, ended at ~0");
+        CHECK(wbgap_palette_colour(out, n, 0, &c) && c == WBGAP_PAL_RGB, "the colours left as they were");
+        CHECK(!wbgap_palette_pens(out, n, p3, 0) && !wbgap_palette_pens(out, n, p3, 32) && !wbgap_palette_pens(out, 20, p3, 12),
+              "no pens, too many, or no PALT: 0");
+    }
     CHECK(wbgap_palette_make(saved, len, 0, 1, out, 100) == 0 && wbgap_palette_make(NULL, 0, 0, 1, out, 100) == 0, "no room: 0");
     CHECK(wbgap_palette_make(saved, len, -1, 1, out, sizeof out) == 0, "no such colour: 0");
     {   /* the put back with no file: eight colours set one by one on a fresh file, as PALETTE.c builds it */

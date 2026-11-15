@@ -110,6 +110,18 @@ long wbgap_palette_make(const unsigned char *orig, long len, int index, unsigned
     return palt_set(out + 34, index, rgb) ? 12 + 14 + 8 + WBGAP_PALT_LEN : 0;
 }
 
+int wbgap_palette_pens(unsigned char *buf, long len, const unsigned short *pens, int n)
+{
+    unsigned char *d = (unsigned char *)find_palt(buf, len);
+    int k;
+    if (!d || n < 1 || n > 31) return 0;
+    for (k = 0; k < 32; k++) {
+        unsigned v = k < n ? pens[k] : (k == n ? 0xffffu : 0u);
+        put16(d + 16 + 2 * k, v), put16(d + 80 + 2 * k, v);
+    }
+    return 1;
+}
+
 int wbgap_palette_colour(const unsigned char *buf, long len, int index, unsigned long *rgb)
 {
     const unsigned char *d = find_palt(buf, len);

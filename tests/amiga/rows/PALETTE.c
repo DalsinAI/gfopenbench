@@ -2,7 +2,7 @@
  * RAM:WBGapPal opened at the top-left, 400x300, with one icon at its top-left, so the inside's bottom-right is empty.
  * A 120 x 80 corner of it (every 8th pixel, where the drawer is the front window) is read before, after (up to 15 s)
  * and with the old file put back. The prefs are made from the file as it is with colour 0 set to WBGAP_PAL_RGB (with
- * no file: Palette's defaults; putting it back then writes the screen's own colours 0-7 as read before, and deletes
+ * no file: Palette's default colours with the screen's own pens; putting it back then writes the screen's own colours 0-7 as read before, and deletes
  * the file). The corner must be
  * one colour before (a drawer pattern or picture SKIPs), at least half the prefs' colour after, and lose it again.
  * 3.2.3: IPrefs sets the Workbench screen's colour 0, a drawer's BACKGROUNDPEN. GFOS: the design has GFOpenLayout's
@@ -74,10 +74,19 @@ static int count(struct Screen *s, int n)
     return c;
 }
 
+/* the drawer still on s: an IPrefs reset of the Workbench screen closes s, and its pixels mustn't be read then */
+static int still(struct Screen *s)
+{
+    struct Window *w = wbt_find_window(PAL_TITLE);
+    return w && w->WScreen == s;
+}
+
+/* -1 if the screen went */
 static int watch(struct Screen *s, int n, int want, int secs)
 {
     int t, c, best = want ? 0 : n;
     for (t = 0; t <= secs * 2; t++) {
+        if (!still(s)) return -1;
         c = count(s, n);
         if (want ? c > best : c < best) best = c;
         if (want ? c * 2 >= n : c * 5 < n) break;
@@ -105,8 +114,9 @@ int wbt_palette(int argc, char **argv)
     struct Window *d;
     char why[220];
     unsigned long mode = 0, was0 = 0, scr_col[8];
+    unsigned short pens[31];
     long was_n, n;
-    int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v;
+    int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v, npens = 0;
     (void)argc, (void)argv;
     clean();
     was_n = wbt_read_all(PAL_FILE, (char *)was_buf, sizeof was_buf);
@@ -124,6 +134,13 @@ int wbt_palette(int argc, char **argv)
         GetRGB32(s->ViewPort.ColorMap, (ULONG)i, 1, rgb);
         scr_col[i] = (rgb[0] >> 24) << 16 | (rgb[1] >> 24) << 8 | rgb[2] >> 24;
     }
+    {   /* the screen's own pens, for a file made from nothing: IPrefs resets the screen for new pens */
+        struct DrawInfo *dri = GetScreenDrawInfo(s);
+        if (dri) {
+            for (; npens < (int)dri->dri_NumPens && npens < 31; npens++) pens[npens] = dri->dri_Pens[npens];
+            FreeScreenDrawInfo(s, dri);
+        }
+    }
     np = points(s, d);
     for (i = 0; i < np; i++) seen[i] = wbt_screen_rgb(s, px[i], py[i]);
     same = wbgap_palette_mode(seen, np, &mode);
@@ -137,6 +154,7 @@ int wbt_palette(int argc, char **argv)
         goto out;
     }
     n = wbgap_palette_make(had ? was_buf : NULL, had ? was_n : 0, 0, WBGAP_PAL_RGB, new_buf, sizeof new_buf);
+    if (n && !had && !wbgap_palette_pens(new_buf, n, pens, npens)) n = 0;
     {
         unsigned long got = 0;
         if (!n || !wbgap_palette_colour(new_buf, n, 0, &got) || got != WBGAP_PAL_RGB) {
@@ -151,6 +169,12 @@ int wbt_palette(int argc, char **argv)
         goto out;
     }
     after = watch(s, np, 1, 15);
+    if (after < 0) {
+        if (had) put_file(PAL_FILE, was_buf, was_n);
+        else DeleteFile((CONST_STRPTR)PAL_FILE);
+        wbt_fail("P3", "the Workbench screen was reset by the new palette.prefs (the drawer went): nothing more read");
+        goto out;
+    }
     printf("INFO P3 after the change: %d of %d points the prefs' colour\n", after, np);
     if (had) put_back = put_file(PAL_FILE, was_buf, was_n);
     else {   /* no file before: the screen's own colours 0-7 as they were (IPrefs keeps the last colours it was given,
@@ -162,10 +186,14 @@ int wbt_palette(int argc, char **argv)
             memcpy(new_buf, tmp_buf, (size_t)m);
             n = m;
         }
-        put_back = n && put_file(PAL_FILE, new_buf, n);
+        put_back = n && wbgap_palette_pens(new_buf, n, pens, npens) && put_file(PAL_FILE, new_buf, n);
     }
     back = watch(s, np, 0, 15);
     if (!had) DeleteFile((CONST_STRPTR)PAL_FILE);
+    if (back < 0) {
+        wbt_fail("P3", "the Workbench screen was reset by the old palette.prefs going back (the drawer went)");
+        goto out;
+    }
     printf("INFO P3 after the old prefs%s: %d of %d points the prefs' colour\n", put_back ? "" : " (NOT put back)", back, np);
     v = wbgap_palette_judge(np, same, before, after, back, put_back, why, sizeof why);
     wbt_say("P3", v, why);

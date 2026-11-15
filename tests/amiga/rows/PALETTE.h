@@ -16,6 +16,10 @@
  * by repeating it), added to the list if it isn't there; every other chunk and colour as it was. Its length, 0 if cap
  * is too small or the list has no room */
 long wbgap_palette_make(const unsigned char *orig, long len, int index, unsigned long rgb, unsigned char *out, long cap);
+/* both pen lists of buf's PALT set to pens[0..n-1], ended with ~0 (n 1-31), so IPrefs, given the screen's own pens,
+ * has only colours to change and doesn't reset the Workbench screen (a new pen list does; with Palette's default pens 3.2.3
+ * stopped on an alert, 15 Nov): 1, or 0 with no PALT or a bad n */
+int wbgap_palette_pens(unsigned char *buf, long len, const unsigned short *pens, int n);
 /* colour index in a palette.prefs as 0xRRGGBB (the top byte of each 16-bit part): 1, or 0 if it has none */
 int wbgap_palette_colour(const unsigned char *buf, long len, int index, unsigned long *rgb);
 /* the most common of n colours: how many there are of it, and it in *rgb (n 0: 0) */
