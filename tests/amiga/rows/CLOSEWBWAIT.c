@@ -5,7 +5,10 @@
 #include <string.h>
 
 #include <exec/types.h>
+#include <exec/ports.h>
+#include <exec/tasks.h>
 #include <dos/dos.h>
+#include <proto/exec.h>
 #include <proto/dos.h>
 
 #include "wbgap_rows.h"
@@ -53,6 +56,29 @@ static void closewb_row(const char *row, const char *buf, const char *steps, int
     else wbt_say(row, none_state, none_why);
 }
 
+/* where GFOpenBench's task is, read under Forbid from its GFOPENBENCH port's task (wbgap_closewb_obwait) */
+static void openbench_where(void)
+{
+    struct MsgPort *pub, *rexx;
+    struct Task *t;
+    ULONG sigwait = 0, recvd = 0;
+    int found = 0, waiting = 0, pub_bit = -1, rexx_bit = -1, where;
+    Forbid();
+    if ((pub = FindPort((CONST_STRPTR)"GFOPENBENCH")) && (t = pub->mp_SigTask)) {
+        found = 1;
+        waiting = t->tc_State == TS_WAIT;
+        sigwait = t->tc_SigWait;
+        recvd = t->tc_SigRecvd;
+        pub_bit = pub->mp_SigBit;
+        if ((rexx = FindPort((CONST_STRPTR)"OPENBENCH")) && rexx->mp_SigTask == t) rexx_bit = rexx->mp_SigBit;
+    }
+    Permit();
+    where = wbgap_closewb_obwait(found, waiting, sigwait, pub_bit, rexx_bit);
+    if (!found) printf("INFO C6 GFOpenBench: %s\n", wbgap_closewb_obwait_text(where));
+    else printf("INFO C6 GFOpenBench's task is %s: waits for $%08lx, has $%08lx; GFOPENBENCH bit %d, OPENBENCH bit %d\n",
+                wbgap_closewb_obwait_text(where), (unsigned long)sigwait, (unsigned long)recvd, pub_bit, rexx_bit);
+}
+
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096], steps[2048];
@@ -73,6 +99,7 @@ static int closewb_wait(const char *path, int secs)
         DeleteFile((CONST_STRPTR)WBGAP_C6_STEPS);    /* a row that ended has no use for its steps; a hung one keeps them */
     } else {
         char why[192], step[96];
+        openbench_where();                          /* a CLOSEWB that doesn't end: is GFOpenBench answering? */
         /* the steps file first: closed after each line, it has every step; buf may be held or short */
         if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
         if (wbgap_closewb_verdict(buf, why, sizeof why) != WBGAP_NONE || wbgap_closewb_verdict(steps, why, sizeof why) != WBGAP_NONE) {
