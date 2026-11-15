@@ -134,7 +134,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"C2", NULL, A, NULL, "Left-Amiga-M and N"},
     {"C2a", "C2", A, NULL, "Left-Amiga-M"},
     {"C2b", "C2", A, NULL, "Left-Amiga-N"},
-    {"C3", NULL, A, NULL, "screen dragging: the title bar dragged down moves the screen; composited, an offset (13 Nov)"},
+    {"C3", NULL, A, NULL, "screen dragging: the title bar dragged down moves the screen, on RTG too; a GFOS feature, composited at an offset (13 Nov; Dale, 15 Nov)"},
     {"C4", NULL, A, NULL, "LockPubScreen(Workbench)"},
     {"C5", NULL, L, NULL, "ScreenMode change with windows open"},
     {"C5a", "C5", A, NULL, "the reset requester: lists the windows in the way, goes when they close, Cancel"},
