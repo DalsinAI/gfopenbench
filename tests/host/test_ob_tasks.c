@@ -332,16 +332,13 @@ static void test_ask(void)
 
 static void test_close_next(void)
 {
-    CHECK("close: waits at first", ob_close_next(0, 0, 0) == OB_CL_WAIT);
-    CHECK("close: waits under a second", ob_close_next(0, OB_ASK_TICKS - 1, OB_ASK_TICKS - 1) == OB_CL_WAIT);
-    CHECK("close: told again after a second", ob_close_next(0, OB_ASK_TICKS, OB_ASK_TICKS) == OB_CL_RENOTE);
-    CHECK("close: not again just after", ob_close_next(0, OB_ASK_TICKS + 5, 5) == OB_CL_WAIT);
-    CHECK("close: told again a second later", ob_close_next(0, 2 * OB_ASK_TICKS, OB_ASK_TICKS) == OB_CL_RENOTE);
-    CHECK("close: still waits just under the limit", ob_close_next(0, OB_CLOSE_TICKS - 1, 0) == OB_CL_WAIT);
-    CHECK("close: let go at the limit", ob_close_next(0, OB_CLOSE_TICKS, 0) == OB_CL_LET_GO);
-    CHECK("close: let go at the limit, even when due a note", ob_close_next(0, OB_CLOSE_TICKS, OB_ASK_TICKS) == OB_CL_LET_GO);
-    CHECK("close: a held one is let go at once", ob_close_next(1, 0, 0) == OB_CL_LET_GO);
-    CHECK("close: the limit is more than a note's wait", OB_CLOSE_TICKS > OB_ASK_TICKS);
+    CHECK("close: waits at first", ob_close_next(0, 0) == OB_CL_WAIT);
+    CHECK("close: waits under a second", ob_close_next(0, OB_ASK_TICKS - 1) == OB_CL_WAIT);
+    CHECK("close: told again after a second", ob_close_next(0, OB_ASK_TICKS) == OB_CL_RENOTE);
+    CHECK("close: told again however long it has been", ob_close_next(0, 100000) == OB_CL_RENOTE);
+    CHECK("close: a live one is never let go", ob_close_next(0, 1000000) != OB_CL_ABANDON);
+    CHECK("close: a held one is abandoned at once", ob_close_next(1, 0) == OB_CL_ABANDON);
+    CHECK("close: a held one is abandoned, not told again", ob_close_next(1, OB_ASK_TICKS) == OB_CL_ABANDON);
 }
 
 static void test_dpack(void)

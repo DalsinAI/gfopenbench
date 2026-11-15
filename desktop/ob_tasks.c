@@ -387,11 +387,10 @@ int ob_q_withdraw(volatile int *state, unsigned long waited_ticks)
     return 1;
 }
 
-int ob_close_next(int held, unsigned long waited_ticks, unsigned long since_note)
+int ob_close_next(int held, unsigned long since_note)
 {
-    if (held || waited_ticks >= OB_CLOSE_TICKS) return OB_CL_LET_GO;
-    if (since_note >= OB_ASK_TICKS) return OB_CL_RENOTE;
-    return OB_CL_WAIT;
+    if (held) return OB_CL_ABANDON;
+    return since_note >= OB_ASK_TICKS ? OB_CL_RENOTE : OB_CL_WAIT;
 }
 
 int ob_guard_read(const unsigned char *rec, ob_held *h)
