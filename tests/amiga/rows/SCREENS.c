@@ -2,7 +2,8 @@
  * P4, as 3.2.3: the pointer goes where it is moved (P4a); on RTG it is a sprite layer (P4b): with the pointer over
  * a square of the Workbench screen, the screen's own pixels there are what they are with it away.
  * Then a screen of our own in front: its depth gadget clicked (C1), Left-Amiga-M (C2a) and Left-Amiga-N (C2b)
- * sent through DragTest; Intuition's front screen read after each.
+ * sent through DragTest; Intuition's front screen read after each. C3: its title bar dragged 120 pixels down (at a third
+ * of its width, clear of the depth gadget): its TopEdge must follow; it is put back at 0 after.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <stdio.h>
 
@@ -21,6 +22,7 @@ WBGAP_MODE(SCREENS, wbt_screens, SCRIPT)
 WBGAP_ROWMODE(C1, SCREENS)
 WBGAP_ROWMODE(C2a, SCREENS)
 WBGAP_ROWMODE(C2b, SCREENS)
+WBGAP_ROWMODE(C3, SCREENS)
 WBGAP_ROWMODE(C4, SCREENS)
 WBGAP_ROWMODE(P4a, SCREENS)
 WBGAP_ROWMODE(P4b, SCREENS)
@@ -93,6 +95,21 @@ int wbt_screens(int argc, char **argv)
     ScreenToFront(s);
     Delay(50);
     if (amiga_key(0x36) == wb) wbt_pass("C2b"); else wbt_fail("C2b", "Left-Amiga-N didn't bring Workbench to the front"); /* N */
+    ScreenToFront(s);
+    Delay(50);
+    {   /* C3 */
+        long x = s->Width / 3, y = s->BarHeight / 2 + 1, top0 = s->TopEdge;
+        char why[160];
+        snprintf(cmd, sizeof cmd, "%s DRAG %ld %ld %ld %ld STEPS 12", wbt_dragtest(), x, y, x, y + 120);
+        wbt_run(cmd);
+        Delay(50);
+        printf("INFO C3 title bar dragged from %ld,%ld 120 down: TopEdge %ld to %d\n", x, y, top0, s->TopEdge);
+        wbt_say("C3", wbgap_screen_drag(top0, s->TopEdge, 120, why, sizeof why), why);
+        if (s->TopEdge != top0) {
+            MoveScreen(s, 0, (LONG)(top0 - s->TopEdge));
+            Delay(25);
+        }
+    }
     CloseScreen(s);
     UnlockPubScreen(NULL, wb);
     return wbt_fails() ? 5 : 0;
