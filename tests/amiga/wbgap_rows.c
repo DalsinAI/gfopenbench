@@ -83,7 +83,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
     {"I14", NULL, A, MENUS, "files with no icon shown (Show All Files)"},
     {"I15", NULL, L, NULL, "a disk's status window with a pie chart, no gauge (13 Nov)"},
-    {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},
+    {"I16", NULL, A, NULL, "keyboard selection: cursor keys (Shift adds), Tab and Shift-Tab, in a drawer (13 Nov)"},
     /* 3. Information window */
     {"N1", NULL, L, NULL, "name, type, size, date shown"},
     {"N2", NULL, A, NULL, "protection bits SARWED saved"},
