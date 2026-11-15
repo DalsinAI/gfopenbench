@@ -56,27 +56,35 @@ static void closewb_copy_line(const char *from, char *why, unsigned cap)
     why[len] = 0;
 }
 
-int wbgap_closewb_verdict(const char *text, char *why, unsigned cap)
+int wbgap_closewb_row_verdict(const char *text, const char *row, char *why, unsigned cap)
 {
-    static const char *const pass[] = { "PASS C6", "INFO C6 verdict: PASS" };
-    static const char *const fail[] = { "FAIL C6", "INFO C6 verdict: FAIL" };
+    static const char *const word[] = { "PASS", "FAIL", "SKIP" };
+    static const int state[] = { WBGAP_PASS, WBGAP_FAIL, WBGAP_SKIP };
+    char want[2][40];
     const char *p, *line, *after = NULL;
-    int v = WBGAP_NONE, i, k;
+    int v = WBGAP_NONE, f, k;
     if (why && cap) why[0] = 0;
-    if (!text) return WBGAP_NONE;
+    if (!text || !row || !row[0] || strlen(row) > 8) return WBGAP_NONE;
     for (line = text; *line; line = p + 1) {
-        for (i = 0; i < 2; i++)
-            for (k = 0; k < 2; k++) {
-                const char *want = k ? fail[i] : pass[i];
-                size_t n = strlen(want);
+        for (k = 0; k < 3; k++) {
+            snprintf(want[0], sizeof want[0], "%s %s", word[k], row);                 /* its stdout line */
+            snprintf(want[1], sizeof want[1], "INFO %s verdict: %s", row, word[k]);  /* its steps file line */
+            for (f = 0; f < 2; f++) {
+                size_t n = strlen(want[f]);
                 char c = line[n];
-                if (!strncmp(line, want, n) && (c == 0 || c == '\n' || c == '\r' || (k && c == ' '))) {
-                    v = k ? WBGAP_FAIL : WBGAP_PASS;
+                if (!strncmp(line, want[f], n) && (c == 0 || c == '\n' || c == '\r' || (k && c == ' '))) {
+                    v = state[k];
                     after = line + n;
                 }
             }
+        }
         if (!(p = strchr(line, '\n'))) break;
     }
-    if (v == WBGAP_FAIL) closewb_copy_line(after, why, cap);
+    if (v == WBGAP_FAIL || v == WBGAP_SKIP) closewb_copy_line(after, why, cap);
     return v;
+}
+
+int wbgap_closewb_verdict(const char *text, char *why, unsigned cap)
+{
+    return wbgap_closewb_row_verdict(text, "C6", why, cap);
 }

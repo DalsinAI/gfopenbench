@@ -20,6 +20,12 @@ int wbgap_closewb_last_step(const char *text, char *out, unsigned cap);
  * none (or text is NULL). CLOSEWBWAIT reports it when the row decided but its
  * clean-up then didn't end in time, so a hung clean-up isn't counted as C6. */
 int wbgap_closewb_verdict(const char *text, char *why, unsigned cap);
+/* The same for any row CLOSEWB writes (C6, C6a): "PASS|FAIL|SKIP <row> <why>"
+ * or "INFO <row> verdict: PASS|FAIL|SKIP <why>"; WBGAP_SKIP too, its why kept. The 15 Nov 00:32 lab run on
+ * 3.2.3 showed why both files count: CLOSEWB ended (Status listed no
+ * WBGapTest) yet none of its stdout reached the Run file, so its verdicts,
+ * and its "INFO C6 done", are written to WBGAP_C6_STEPS too. */
+int wbgap_closewb_row_verdict(const char *text, const char *row, char *why, unsigned cap);
 /* CLOSEWB's step lines also go to this file, opened and closed for each one:
  * the Run >file output stays open (and may be held) until CLOSEWB ends. */
 #define WBGAP_C6_STEPS "RAM:wbgap-c6-steps"

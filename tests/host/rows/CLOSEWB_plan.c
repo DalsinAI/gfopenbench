@@ -75,4 +75,26 @@ void closewb_plan(void)
               "cut to the room given: \"%s\"", why);
         CHECK(wbgap_closewb_verdict("FAIL C6 x\n", NULL, 0) == WBGAP_FAIL, "no room: still FAIL");
     }
+    /* any of CLOSEWB's rows, from the Run file or the steps file (3.2.3 left the Run file without CLOSEWB's stdout) */
+    {
+        char why[48];
+        const char *steps = "INFO C6 step: waiting\nINFO C6 verdict: PASS\nINFO C6 step: ending\nINFO C6a verdict: PASS\nINFO C6 done\n";
+        CHECK(wbgap_closewb_row_verdict(steps, "C6", why, sizeof why) == WBGAP_PASS, "C6 from the steps file");
+        CHECK(wbgap_closewb_row_verdict(steps, "C6a", why, sizeof why) == WBGAP_PASS, "C6a from the steps file");
+        CHECK(wbgap_closewb_over(steps), "the steps file's INFO C6 done: over");
+        CHECK(wbgap_closewb_row_verdict("PASS C6a\n", "C6", why, sizeof why) == WBGAP_NONE, "PASS C6a isn't C6's");
+        CHECK(wbgap_closewb_row_verdict("PASS C6\nINFO C6 verdict: PASS\n", "C6a", why, sizeof why) == WBGAP_NONE,
+              "C6's lines aren't C6a's");
+        CHECK(wbgap_closewb_row_verdict("INFO C6a verdict: FAIL RAM:WBGapC's window wouldn't close (parked)\n", "C6a", why, sizeof why)
+              == WBGAP_FAIL && !strcmp(why, "RAM:WBGapC's window wouldn't close (parked)"), "C6a's FAIL: \"%s\"", why);
+        CHECK(wbgap_closewb_row_verdict("INFO C6 verdict: SKIP no Workbench screen\n", "C6", why, sizeof why) == WBGAP_SKIP
+              && !strcmp(why, "no Workbench screen"), "a SKIP, its reason kept: \"%s\"", why);
+        CHECK(wbgap_closewb_row_verdict("SKIP C6a C6 didn't decide\n", "C6a", why, sizeof why) == WBGAP_SKIP
+              && !strcmp(why, "C6 didn't decide"), "a SKIP line from stdout: \"%s\"", why);
+        CHECK(wbgap_closewb_row_verdict("INFO C6 verdict: SKIPPED\n", "C6", why, sizeof why) == WBGAP_NONE, "only a whole word");
+        CHECK(wbgap_closewb_row_verdict("PASS C6\n", NULL, why, sizeof why) == WBGAP_NONE
+              && wbgap_closewb_row_verdict("PASS C6\n", "", why, sizeof why) == WBGAP_NONE
+              && wbgap_closewb_row_verdict("PASS C6\n", "C6-much-too-long", why, sizeof why) == WBGAP_NONE,
+              "no row, an empty one or one too long: none");
+    }
 }
