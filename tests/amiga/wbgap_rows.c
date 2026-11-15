@@ -80,7 +80,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"I12a", "I12", A, "LAUNCH, STARTUP CHECK", "the icon's stack (its field and STACK=) gives the tool that stack"},
     {"I12b", "I12", A, "LAUNCH, STARTUP CHECK", "TOOLPRI= gives the tool that priority"},
     {"I12c", "I12", A, "STARTUP CHECK", "STACK= alone, the icon's stack field the default, gives that stack; GFOS (3.2.3 reads the field)"},
-    {"I13", NULL, L, NULL, "icon formats: classic, NewIcons, GlowIcons, PNG"},
+    {"I13", NULL, A, NULL, "icon formats, each drawn in its own colours: classic and GlowIcons (the base sets), NewIcons and PNG too (Dale, 15 Nov)"},
     {"I14", NULL, A, MENUS, "files with no icon shown (Show All Files)"},
     {"I15", NULL, L, NULL, "a disk's status window with a pie chart, no gauge (13 Nov)"},
     {"I16", NULL, H, NULL, "keyboard selection everywhere: cursor keys, Return, Tab (13 Nov)"},

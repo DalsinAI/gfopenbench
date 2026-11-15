@@ -143,6 +143,14 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 "$OUT/test_ob_tasks"
 "$OUT/test_benchmark"
 
+# I13's icons (WBGapTest ICONFMT) are what tests/amiga/rows/iconfmt_gen.py makes
+python3 "$HERE/tests/amiga/rows/iconfmt_gen.py" > "$OUT/ICONFMT_icons.h"
+if ! cmp -s "$OUT/ICONFMT_icons.h" "$HERE/tests/amiga/rows/ICONFMT_icons.h"; then
+  echo "FAIL tests/amiga/rows/ICONFMT_icons.h isn't what iconfmt_gen.py makes: run it again"
+  exit 1
+fi
+echo "iconfmt icons: as made"
+
 rm -rf "$OUT/icons"
 python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/icons"
 "$OUT/test_icon_core" "$OUT/icons"
