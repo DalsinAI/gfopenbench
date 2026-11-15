@@ -59,13 +59,25 @@ void wbpattern_plan(void)
     CHECK(n == 12 + 14 + 44 + 8 + 42, "the made file's length: %ld", n);
     CHECK(n > 8 && be32(out + 4) == (unsigned long)(n - 8), "FORM's length the rest: %lu", n > 8 ? be32(out + 4) : 0);
     CHECK(n > 26 && !memcmp(out + 12, saved + 12, 14), "PRHD as it was");
-    CHECK(n > 70 && !memcmp(out + 26, saved + 26 + 44, 44), "the drawers' PTRN as it was, the old root's gone");
+    CHECK(n == 120 && !memcmp(out + 26 + 50, saved + 26 + 44, 44), "the drawers' PTRN as it was, after the new root; the old root's gone");
     CHECK(wbgap_ptrn_root(out, n, name, sizeof name) && !strcmp(name, "RAM:WBGapP1.ilbm"), "the row reads the new root: %s", name);
     name[0] = 0;
     CHECK(desktop_root(out, n, name, sizeof name) && !strcmp(name, "RAM:WBGapP1.ilbm"), "GFOpenBench's reader reads it too: %s", name);
     {   /* byte for byte: the new PTRN's head (as the 68k put32/put16 must write it) */
         static const unsigned char head[] = {'P','T','R','N', 0,0,0,41, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0, 0,0, 1,0, 0,17};
-        CHECK(n == 120 && !memcmp(out + 70, head, sizeof head) && out[119] == 0, "the root's PTRN byte for byte, its pad");
+        CHECK(n == 120 && !memcmp(out + 26, head, sizeof head) && out[75] == 0, "the root's PTRN straight after PRHD, byte for byte, its pad");
+    }
+    {   /* a saved file bigger than GFOpenBench's 2 KB read: the new root still inside the first 2 KB */
+        static unsigned char big[3000], bigout[3200];
+        long bn;
+        memcpy(big, saved, 26);
+        memcpy(big + 26, "WBXX", 4), big[30] = 0, big[31] = 0, big[32] = (2900 >> 8), big[33] = 2900 & 0xff;
+        memset(big + 34, 7, 2900);
+        big[4] = 0, big[5] = 0, big[6] = (unsigned char)((34 + 2900 - 8) >> 8), big[7] = (unsigned char)((34 + 2900 - 8) & 0xff);
+        bn = wbgap_ptrn_make(big, 34 + 2900, "RAM:WBGapP1.ilbm", bigout, sizeof bigout);
+        name[0] = 0;
+        CHECK(bn == 34 + 2900 + 50 && desktop_root(bigout, bn < 2048 ? bn : 2048, name, sizeof name) && !strcmp(name, "RAM:WBGapP1.ilbm"),
+              "a 2.9 KB file: GFOpenBench's first 2 KB still name the new root (%ld, %s)", bn, name);
     }
     n = wbgap_ptrn_make(NULL, 0, "RAM:x", out, sizeof out);
     CHECK(n == 12 + 14 + 8 + 30 && wbgap_ptrn_root(out, n, name, sizeof name) && !strcmp(name, "RAM:x"),

@@ -48,17 +48,38 @@ static int is_root(const unsigned char *id, const unsigned char *d, unsigned lon
     return !memcmp(id, "PTRN", 4) && sz >= PTRN_HEAD && d[16] == 0 && d[17] == 0;
 }
 
+/* the new root's PTRN at out + n: its length, 0 if no room */
+static long put_root(unsigned char *out, long n, long cap, const char *name, unsigned long nl)
+{
+    unsigned long pl = PTRN_HEAD + nl;
+    if (n + 8 + (long)pl + (long)(pl & 1) > cap) return 0;
+    memcpy(out + n, "PTRN", 4), put32(out + n + 4, pl);
+    memset(out + n + 8, 0, PTRN_HEAD);
+    out[n + 8 + 20] = 1;                    /* wbp_Revision; wbp_Which 0 (WBP_ROOT), wbp_Flags 0 (a picture) */
+    put16(out + n + 8 + 22, (unsigned)nl);  /* wbp_DataLength, the name and its 0 */
+    memcpy(out + n + 8 + PTRN_HEAD, name, nl);
+    if (pl & 1) out[n + 8 + pl] = 0;
+    return 8 + (long)pl + (long)(pl & 1);
+}
+
+/* The new root goes straight after PRHD, before the other chunks: GFOpenBench reads only the file's first 2 KB
+ * (desktop/openbench.c root_picture), so a big saved file with the root last would hide it (Ackerman, #225). */
 long wbgap_ptrn_make(const unsigned char *orig, long len, const char *name, unsigned char *out, long cap)
 {
-    long at = 12, n = 12;
-    unsigned long sz, nl = name ? strlen(name) + 1 : 0, pl;
+    long at = 12, n = 12, r;
+    unsigned long sz, nl = name ? strlen(name) + 1 : 0;
     const unsigned char *id, *d;
+    int pref = is_form(orig, len, "PREF"), rooted = 0;
     if (!name || nl < 2 || nl > 255 || cap < 12) return 0;
     memcpy(out, "FORM", 4), memcpy(out + 8, "PREF", 4);
-    if (is_form(orig, len, "PREF")) {
+    if (pref) {
         while (next_chunk(orig, len, &at, &id, &d, &sz)) {
             unsigned long whole = 8 + sz + (sz & 1);
             if (is_root(id, d, sz)) continue;
+            if (!rooted && memcmp(id, "PRHD", 4)) {   /* the first chunk after PRHD: the root before it */
+                if (!(r = put_root(out, n, cap, name, nl))) return 0;
+                n += r, rooted = 1;
+            }
             if (n + (long)whole > cap) return 0;
             memcpy(out + n, id, 8 + sz);
             if (sz & 1) out[n + 8 + sz] = 0;
@@ -69,15 +90,10 @@ long wbgap_ptrn_make(const unsigned char *orig, long len, const char *name, unsi
         memcpy(out + n, "PRHD", 4), put32(out + n + 4, 6), memset(out + n + 8, 0, 6);
         n += 14;
     }
-    pl = PTRN_HEAD + nl;
-    if (n + 8 + (long)pl + (long)(pl & 1) > cap) return 0;
-    memcpy(out + n, "PTRN", 4), put32(out + n + 4, pl);
-    memset(out + n + 8, 0, PTRN_HEAD);
-    out[n + 8 + 20] = 1;                    /* wbp_Revision; wbp_Which 0 (WBP_ROOT), wbp_Flags 0 (a picture) */
-    put16(out + n + 8 + 22, (unsigned)nl);  /* wbp_DataLength, the name and its 0 */
-    memcpy(out + n + 8 + PTRN_HEAD, name, nl);
-    n += 8 + (long)pl;
-    if (pl & 1) out[n++] = 0;
+    if (!rooted) {
+        if (!(r = put_root(out, n, cap, name, nl))) return 0;
+        n += r;
+    }
     put32(out + 4, (unsigned long)(n - 8));
     return n;
 }

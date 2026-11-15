@@ -5,8 +5,8 @@
 #define WBPATTERN_H
 
 /* a WBPattern.prefs made from orig (len bytes; NULL, or not a FORM PREF: one made afresh, with a PRHD) with its root's
- * PTRN chunk (wbp_Which 0) taken out and a new one for the picture file name put at the end; the other chunks (PRHD,
- * the drawers' and the screen's PTRN) as they were. Its length, 0 if cap is too small or name too long */
+ * PTRN chunk (wbp_Which 0) taken out and a new one for the picture file name put straight after PRHD (GFOpenBench
+ * reads only the first 2 KB); the other chunks (PRHD, the drawers' and the screen's PTRN) as they were, in order. Its length, 0 if cap is too small or name too long */
 long wbgap_ptrn_make(const unsigned char *orig, long len, const char *name, unsigned char *out, long cap);
 /* the picture a WBPattern.prefs names for the root, as GFOpenBench reads it (desktop/openbench.c root_picture): a PTRN
  * with wbp_Which 0, no WBPF_PATTERN and a name; 1 and the name in out, 0 if there is none */
