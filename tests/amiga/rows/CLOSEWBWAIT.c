@@ -62,29 +62,36 @@ static void openbench_where(void)
 {
     struct MsgPort *pub, *rexx;
     struct Task *t;
-    ULONG sigwait = 0, recvd = 0;
+    ULONG sigwait = 0, recvd = 0, sp = 0, at_sp = 0;
     int found = 0, waiting = 0, pub_bit = -1, rexx_bit = -1, where;
     Forbid();
-    if ((pub = FindPort((CONST_STRPTR)"GFOPENBENCH")) && (t = pub->mp_SigTask)) {
+    /* mp_SigTask is a task only on a PA_SIGNAL port (a PA_SOFTINT one's is an Interrupt: Ackerman, #223) */
+    if ((pub = FindPort((CONST_STRPTR)"GFOPENBENCH")) && (pub->mp_Flags & PF_ACTION) == PA_SIGNAL &&
+        (t = pub->mp_SigTask)) {
         found = 1;
         waiting = t->tc_State == TS_WAIT;
         sigwait = t->tc_SigWait;
         recvd = t->tc_SigRecvd;
+        sp = (ULONG)t->tc_SPReg;
+        if (sp >= (ULONG)t->tc_SPLower && sp + 4 <= (ULONG)t->tc_SPUpper && !(sp & 1)) at_sp = *(ULONG *)sp;
         pub_bit = pub->mp_SigBit;
-        if ((rexx = FindPort((CONST_STRPTR)"OPENBENCH")) && rexx->mp_SigTask == t) rexx_bit = rexx->mp_SigBit;
+        if ((rexx = FindPort((CONST_STRPTR)"OPENBENCH")) && (rexx->mp_Flags & PF_ACTION) == PA_SIGNAL &&
+            rexx->mp_SigTask == t)
+            rexx_bit = rexx->mp_SigBit;
     }
     Permit();
     where = wbgap_closewb_obwait(found, waiting, sigwait, pub_bit, rexx_bit);
     if (!found) printf("INFO C6 GFOpenBench: %s\n", wbgap_closewb_obwait_text(where));
-    else printf("INFO C6 GFOpenBench's task is %s: waits for $%08lx, has $%08lx; GFOPENBENCH bit %d, OPENBENCH bit %d\n",
-                wbgap_closewb_obwait_text(where), (unsigned long)sigwait, (unsigned long)recvd, pub_bit, rexx_bit);
+    else printf("INFO C6 GFOpenBench's task is %s: waits for $%08lx, has $%08lx; GFOPENBENCH bit %d, OPENBENCH bit %d; "
+                "SP $%08lx: $%08lx\n", wbgap_closewb_obwait_text(where), (unsigned long)sigwait, (unsigned long)recvd,
+                pub_bit, rexx_bit, (unsigned long)sp, (unsigned long)at_sp);
 }
 
 /* GFOpenBench's drawer tasks (ob_dtask.c names them "GFOpenBench drawer"): each one's state and signals, so a
  * drawer that never takes its close (Ctrl-F, DT_NOTE_SIG) shows up next to the desktop that waits for it */
 static void drawers_where(void)
 {
-    struct { int state; ULONG wait, recvd; } d[8];
+    struct { int state; ULONG wait, recvd, sp, at_sp; } d[8];
     struct List *lists[2];
     struct Node *n;
     int i, k = 0;
@@ -98,13 +105,17 @@ static void drawers_where(void)
                 d[k].state = t->tc_State;
                 d[k].wait = t->tc_SigWait;
                 d[k].recvd = t->tc_SigRecvd;
+                d[k].sp = (ULONG)t->tc_SPReg;
+                d[k].at_sp = d[k].sp >= (ULONG)t->tc_SPLower && d[k].sp + 4 <= (ULONG)t->tc_SPUpper && !(d[k].sp & 1) ?
+                             *(ULONG *)d[k].sp : 0;
                 k++;
             }
     Permit();
     printf("INFO C6 GFOpenBench drawer tasks: %d\n", k);
     for (i = 0; i < k; i++)
-        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx\n", i, d[i].state,
-               (unsigned long)d[i].wait, (unsigned long)d[i].recvd);
+        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx; SP $%08lx: $%08lx\n", i,
+               d[i].state, (unsigned long)d[i].wait, (unsigned long)d[i].recvd, (unsigned long)d[i].sp,
+               (unsigned long)d[i].at_sp);
 }
 
 static int closewb_wait(const char *path, int secs)
