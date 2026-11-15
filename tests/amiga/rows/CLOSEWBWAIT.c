@@ -9,6 +9,7 @@
 #include <exec/tasks.h>
 #include <exec/execbase.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 
@@ -118,6 +119,101 @@ static void drawers_where(void)
                (unsigned long)d[i].at_sp);
 }
 
+/* Where in GFOpenBench a task is: OpenBench's segments (its CLI's cli_Module) and, for each of its tasks,
+ * the longs on its stack that point into them or into the ROM, so the build's symbols name the calls it is in */
+#define OBW_SEGS 8
+#define OBW_DEPTH 48
+static ULONG obw_seg[OBW_SEGS], obw_len[OBW_SEGS];
+static int obw_nseg;
+
+static void openbench_segs(void)
+{
+    LONG n, max;
+    obw_nseg = 0;
+    Forbid();
+    max = MaxCli();
+    for (n = 1; n <= max && !obw_nseg; n++) {
+        struct Process *p = FindCliProc((ULONG)n);
+        struct CommandLineInterface *cli = p ? (struct CommandLineInterface *)BADDR(p->pr_CLI) : NULL;
+        UBYTE *name = cli ? (UBYTE *)BADDR(cli->cli_CommandName) : NULL;
+        BPTR seg;
+        if (!name || name[0] < 9 || memcmp(name + 1 + name[0] - 9, "OpenBench", 9)) continue;
+        for (seg = cli->cli_Module; seg && obw_nseg < OBW_SEGS; seg = *(BPTR *)BADDR(seg)) {
+            ULONG *sp = (ULONG *)BADDR(seg);
+            obw_seg[obw_nseg] = (ULONG)(sp + 1);
+            obw_len[obw_nseg] = sp[-1] - 8;
+            obw_nseg++;
+        }
+    }
+    Permit();
+    for (n = 0; n < obw_nseg; n++)
+        printf("INFO C6 OpenBench hunk %ld at $%08lx, %lu bytes\n", (long)n, (unsigned long)obw_seg[n],
+               (unsigned long)obw_len[n]);
+}
+
+/* the longs on t's stack that point into OpenBench's hunks or the ROM; under Forbid, copied, printed after */
+static void stack_where(const char *who, struct Task *t)
+{
+    ULONG at[OBW_DEPTH], v[OBW_DEPTH], sp, lo, hi;
+    int n = 0, i, k, there = 0;
+    struct Node *nd;
+    Forbid();
+    for (nd = SysBase->TaskWait.lh_Head; nd->ln_Succ && !there; nd = nd->ln_Succ) there = (struct Task *)nd == t;
+    for (nd = SysBase->TaskReady.lh_Head; nd->ln_Succ && !there; nd = nd->ln_Succ) there = (struct Task *)nd == t;
+    if (!there) {
+        Permit();
+        printf("INFO C6 %s ended\n", who);
+        return;
+    }
+    sp = (ULONG)t->tc_SPReg;
+    lo = (ULONG)t->tc_SPLower;
+    hi = (ULONG)t->tc_SPUpper;
+    if (!(sp & 1) && sp >= lo)
+        for (i = 0; i < 256 && n < OBW_DEPTH && sp + 4 * i + 4 <= hi; i++) {
+            ULONG x = ((ULONG *)sp)[i];
+            int ours = x >= 0xF80000 && x < 0x1000000;
+            for (k = 0; k < obw_nseg && !ours; k++) ours = x >= obw_seg[k] && x < obw_seg[k] + obw_len[k];
+            if (ours) { at[n] = (ULONG)i * 4; v[n] = x; n++; }
+        }
+    Permit();
+    for (i = 0; i < n; i++) {
+        int h = -1;
+        for (k = 0; k < obw_nseg; k++)
+            if (v[i] >= obw_seg[k] && v[i] < obw_seg[k] + obw_len[k]) h = k;
+        if (h >= 0)
+            printf("INFO C6 %s SP+%lu: $%08lx = hunk %d +$%lx\n", who, (unsigned long)at[i], (unsigned long)v[i], h,
+                   (unsigned long)(v[i] - obw_seg[h]));
+        else
+            printf("INFO C6 %s SP+%lu: $%08lx = ROM +$%lx\n", who, (unsigned long)at[i], (unsigned long)v[i],
+                   (unsigned long)(v[i] - 0xF80000));
+    }
+}
+
+/* GFOpenBench's own tasks (the desktop, "GFOpenBench" and its drawers) found by name, each one's stack read */
+static void tasks_where(void)
+{
+    static const char *names[] = { "GFOpenBench", "GFOpenBench drawer" };
+    struct List *lists[2];
+    struct Task *found[8];
+    char label[48];
+    struct Node *nd;
+    int i, j, nf = 0;
+    lists[0] = &SysBase->TaskWait;
+    lists[1] = &SysBase->TaskReady;
+    for (j = 0; j < 2; j++) {
+        Forbid();
+        nf = 0;
+        for (i = 0; i < 2; i++)
+            for (nd = lists[i]->lh_Head; nd->ln_Succ && nf < 8; nd = nd->ln_Succ)
+                if (nd->ln_Name && !strcmp(nd->ln_Name, names[j])) found[nf++] = (struct Task *)nd;
+        Permit();
+        for (i = 0; i < nf; i++) {
+            snprintf(label, sizeof label, "%s %d", j ? "drawer" : "desktop", i);
+            stack_where(label, found[i]);   /* looked for again under its own Forbid: one that ended isn't read */
+        }
+    }
+}
+
 static int closewb_wait(const char *path, int secs)
 {
     static char buf[4096], steps[2048];
@@ -142,6 +238,8 @@ static int closewb_wait(const char *path, int secs)
         Delay(10);
         openbench_where();                          /* twice: a task that spins shows "running" both times */
         drawers_where();
+        openbench_segs();
+        tasks_where();
         /* the steps file first: closed after each line, it has every step; buf may be held or short */
         if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
         if (wbgap_closewb_verdict(buf, why, sizeof why) != WBGAP_NONE || wbgap_closewb_verdict(steps, why, sizeof why) != WBGAP_NONE) {
