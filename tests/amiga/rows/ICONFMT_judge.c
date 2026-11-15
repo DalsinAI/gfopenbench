@@ -11,6 +11,17 @@ const char *wbgap_iconfmt_name(int k)
     return k >= 0 && k < WBGAP_ICONFMT_N ? names[k] : "?";
 }
 
+int wbgap_iconfmt_near(unsigned long rgb, unsigned long want, unsigned tol)
+{
+    int sh;
+    for (sh = 0; sh <= 16; sh += 8) {
+        int d = (int)(rgb >> sh & 0xff) - (int)(want >> sh & 0xff);
+        if (d < 0) d = -d;
+        if ((unsigned)d > tol) return 0;
+    }
+    return 1;
+}
+
 int wbgap_iconfmt_judge(const int *n, const int *near, const int *pen1, char *why, unsigned cap)
 {
     int k, bad = 0;

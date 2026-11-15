@@ -30,5 +30,8 @@ void iconfmt_plan(void)
           "too few points read: SKIP, \"%s\"", why);
     CHECK(wbgap_iconfmt_judge(n, no_new, fb, why, 8) == WBGAP_FAIL && strlen(why) < 8, "a short buffer: cut, still judged");
     CHECK(wbgap_iconfmt_judge(n, all, none, NULL, 0) == WBGAP_PASS, "no room for a reason: still judged");
+    CHECK(wbgap_iconfmt_near(0x30D090, WBGAP_ICONFMT_NEWICONS_RGB, 0) && wbgap_iconfmt_near(0x58B8B8, 0x3090D0, 40) &&
+              !wbgap_iconfmt_near(0x3090D0, 0x3090FA, 40) && !wbgap_iconfmt_near(0x000000, 0x290000, 40),
+          "near: each part within tol, none beyond");
     CHECK(!strcmp(wbgap_iconfmt_name(3), "png") && !strcmp(wbgap_iconfmt_name(9), "?"), "the names");
 }

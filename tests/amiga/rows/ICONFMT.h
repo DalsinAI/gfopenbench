@@ -11,6 +11,8 @@
 #define WBGAP_ICONFMT_PNG_RGB 0xD0A030UL
 #define WBGAP_ICONFMT_TOL 40
 
+/* rgb (0xRRGGBB) within tol of want in each of its three parts: 1 */
+int wbgap_iconfmt_near(unsigned long rgb, unsigned long want, unsigned tol);
 /* the formats' names, classic, newicons, glowicons, png, as the icons' files are named */
 const char *wbgap_iconfmt_name(int k);
 /* I13: for each format k, n[k] points of its icon's picture read, near[k] of them its colour (the classic one's: pen

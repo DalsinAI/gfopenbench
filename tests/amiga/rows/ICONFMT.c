@@ -22,7 +22,6 @@
 
 #include "wbgap_rows.h"
 #include "wbgap_test.h"
-#include "WBPATTERN.h"   /* wbgap_rgb_near */
 #include "ICONFMT.h"
 #include "ICONFMT_icons.h"
 
@@ -125,8 +124,8 @@ int wbt_iconfmt(int argc, char **argv)
             for (x = 0; x < box[k][2]; x += 2) {
                 unsigned long got = wbt_screen_rgb(s, (int)(x0 + x), (int)(y0 + y));
                 n[k]++;
-                near[k] += wbgap_rgb_near(got, c, WBGAP_ICONFMT_TOL);
-                pen1[k] += wbgap_rgb_near(got, p1, WBGAP_ICONFMT_TOL);
+                near[k] += wbgap_iconfmt_near(got, c, WBGAP_ICONFMT_TOL);
+                pen1[k] += wbgap_iconfmt_near(got, p1, WBGAP_ICONFMT_TOL);
             }
         if (!k) pen1[k] = -1;
         printf("INFO I13 %s at %ld,%ld %ldx%ld: %d of %d points #%06lX, %d pen 1 (#%06lX)\n", wbgap_iconfmt_name(k), box[k][0],
