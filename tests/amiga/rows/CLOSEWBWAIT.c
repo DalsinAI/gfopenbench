@@ -115,6 +115,7 @@ static void openbench_segs(void)
         }
     }
     Permit();
+    if (!obw_nseg) printf("INFO C6 OpenBench's hunks not found (no CLI running SYS:System/OpenBench): only ROM addresses below\n");
     for (n = 0; n < obw_nseg; n++)
         printf("INFO C6 OpenBench hunk %ld at $%08lx, %lu bytes\n", (long)n, (unsigned long)obw_seg[n],
                (unsigned long)obw_len[n]);
@@ -124,7 +125,7 @@ static void openbench_segs(void)
  * drawer that never takes its close (Ctrl-F, DT_NOTE_SIG) shows up next to the desktop that waits for it */
 static void drawers_where(void)
 {
-    struct { int state; ULONG wait, recvd, sp, at_sp; char at[48]; } d[8];
+    struct { int state; ULONG wait, recvd, sp, at_sp; } d[8];
     struct List *lists[2];
     struct Node *n;
     int i, k = 0;
@@ -138,16 +139,6 @@ static void drawers_where(void)
                 d[k].state = t->tc_State;
                 d[k].wait = t->tc_SigWait;
                 d[k].recvd = t->tc_SigRecvd;
-                d[k].at[0] = 0;
-                if (n->ln_Type == NT_PROCESS) {   /* a lab build's crumb: a string in OpenBench's hunks only */
-                    ULONG a = (ULONG)((struct Process *)t)->pr_Arguments;
-                    int h, j;
-                    for (h = 0; h < obw_nseg; h++)
-                        if (a >= obw_seg[h] && a + sizeof d[k].at <= obw_seg[h] + obw_len[h]) {
-                            for (j = 0; j < (int)sizeof d[k].at - 1 && ((char *)a)[j]; j++) d[k].at[j] = ((char *)a)[j];
-                            d[k].at[j] = 0;
-                        }
-                }
                 d[k].sp = (ULONG)t->tc_SPReg;
                 d[k].at_sp = d[k].sp >= (ULONG)t->tc_SPLower && d[k].sp + 4 <= (ULONG)t->tc_SPUpper && !(d[k].sp & 1) ?
                              *(ULONG *)d[k].sp : 0;
@@ -156,9 +147,9 @@ static void drawers_where(void)
     Permit();
     printf("INFO C6 GFOpenBench drawer tasks: %d\n", k);
     for (i = 0; i < k; i++)
-        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx; SP $%08lx: $%08lx; at: %s\n", i,
+        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx; SP $%08lx: $%08lx\n", i,
                d[i].state, (unsigned long)d[i].wait, (unsigned long)d[i].recvd, (unsigned long)d[i].sp,
-               (unsigned long)d[i].at_sp, d[i].at[0] ? d[i].at : "-");
+               (unsigned long)d[i].at_sp);
 }
 
 /* the longs on t's stack that point into OpenBench's hunks or the ROM; under Forbid, copied, printed after */
@@ -185,7 +176,7 @@ static void stack_where(const char *who, struct Task *t)   /* t NULL: GFOPENBENC
     if (!(sp & 1) && sp >= lo)
         for (i = 0; i < 1024 && n < OBW_DEPTH && sp + 4 * i + 4 <= hi; i++) {
             ULONG x = ((ULONG *)sp)[i];
-            int ours = x >= 0xF80000 && x < 0x1000000;
+            int ours = (x >= 0xF80000 && x < 0x1000000) || (x >= 0xE00000 && x < 0xE80000);
             for (k = 0; k < obw_nseg && !ours; k++) ours = x >= obw_seg[k] && x < obw_seg[k] + obw_len[k];
             if (ours) { at[n] = (ULONG)i * 4; v[n] = x; n++; }
         }
@@ -198,8 +189,7 @@ static void stack_where(const char *who, struct Task *t)   /* t NULL: GFOPENBENC
             printf("INFO C6 %s SP+%lu: $%08lx = hunk %d +$%lx\n", who, (unsigned long)at[i], (unsigned long)v[i], h,
                    (unsigned long)(v[i] - obw_seg[h]));
         else
-            printf("INFO C6 %s SP+%lu: $%08lx = ROM +$%lx\n", who, (unsigned long)at[i], (unsigned long)v[i],
-                   (unsigned long)(v[i] - 0xF80000));
+            printf("INFO C6 %s SP+%lu: $%08lx = ROM\n", who, (unsigned long)at[i], (unsigned long)v[i]);
     }
 }
 
