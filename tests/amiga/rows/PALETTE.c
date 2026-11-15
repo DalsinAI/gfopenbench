@@ -2,7 +2,8 @@
  * RAM:WBGapPal opened at the top-left, 400x300, with one icon at its top-left, so the inside's bottom-right is empty.
  * A 120 x 80 corner of it (every 8th pixel, where the drawer is the front window) is read before, after (up to 15 s)
  * and with the old file put back. The prefs are made from the file as it is with colour 0 set to WBGAP_PAL_RGB (with
- * no file: Palette's defaults, so putting it back writes those, then deletes the file, as P7 does). The corner must be
+ * no file: Palette's defaults; putting it back then writes the screen's own colours 0-7 as read before, and deletes
+ * the file). The corner must be
  * one colour before (a drawer pattern or picture SKIPs), at least half the prefs' colour after, and lose it again.
  * 3.2.3: IPrefs sets the Workbench screen's colour 0, a drawer's BACKGROUNDPEN. GFOS: the design has GFOpenLayout's
  * theme take Palette's pens (designs/WORKBENCH-REDESIGN-20261113.md P3); until it does, this row FAILs there.
@@ -17,6 +18,7 @@
 #include <workbench/workbench.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
+#include <proto/graphics.h>
 #include <proto/intuition.h>
 #include <proto/wb.h>
 
@@ -34,7 +36,7 @@ WBGAP_ROWMODE(P3, PALETTE)
 #define PAL_MAX 200
 #define MAXW 48
 
-static unsigned char was_buf[4096], new_buf[4096];
+static unsigned char was_buf[4096], new_buf[4096], tmp_buf[4096];
 static short px[PAL_MAX], py[PAL_MAX];
 static unsigned long seen[PAL_MAX];
 
@@ -102,7 +104,7 @@ int wbt_palette(int argc, char **argv)
     struct Screen *s = NULL;
     struct Window *d;
     char why[220];
-    unsigned long mode = 0, was0 = 0;
+    unsigned long mode = 0, was0 = 0, scr_col[8];
     long was_n, n;
     int had, np, same, i, how, before, after = 0, back = 0, put_back = 0, v;
     (void)argc, (void)argv;
@@ -117,6 +119,11 @@ int wbt_palette(int argc, char **argv)
     }
     Delay(50);
     if (!(d = wbt_find_window(PAL_TITLE)) || !(s = d->WScreen)) { wbt_fail("P3", PAL_DIR "'s window went"); goto out; }
+    for (i = 0; i < 8; i++) {   /* the screen's colours 0-7 before the change, for the put back with no file */
+        ULONG rgb[3];
+        GetRGB32(s->ViewPort.ColorMap, (ULONG)i, 1, rgb);
+        scr_col[i] = (rgb[0] >> 24) << 16 | (rgb[1] >> 24) << 8 | rgb[2] >> 24;
+    }
     np = points(s, d);
     for (i = 0; i < np; i++) seen[i] = wbt_screen_rgb(s, px[i], py[i]);
     same = wbgap_palette_mode(seen, np, &mode);
@@ -146,8 +153,15 @@ int wbt_palette(int argc, char **argv)
     after = watch(s, np, 1, 15);
     printf("INFO P3 after the change: %d of %d points the prefs' colour\n", after, np);
     if (had) put_back = put_file(PAL_FILE, was_buf, was_n);
-    else {   /* no file before: Palette's defaults applied (IPrefs keeps the last colours it was given), then none */
-        n = wbgap_palette_make(NULL, 0, 0, 0xAAAAAAUL, new_buf, sizeof new_buf);
+    else {   /* no file before: the screen's own colours 0-7 as they were (IPrefs keeps the last colours it was given,
+              * so Palette's defaults would leave a themed screen changed: Ackerman, #227), then no file */
+        n = 0;
+        for (i = 0; i < 8; i++) {
+            long m = wbgap_palette_make(i ? new_buf : NULL, i ? n : 0, i, scr_col[i], tmp_buf, sizeof tmp_buf);
+            if (!m) { n = 0; break; }
+            memcpy(new_buf, tmp_buf, (size_t)m);
+            n = m;
+        }
         put_back = n && put_file(PAL_FILE, new_buf, n);
     }
     back = watch(s, np, 0, 15);

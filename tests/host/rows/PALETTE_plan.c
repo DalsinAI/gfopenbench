@@ -53,6 +53,19 @@ void palette_plan(void)
           "the default pens, ending at ~0");
     CHECK(wbgap_palette_make(saved, len, 0, 1, out, 100) == 0 && wbgap_palette_make(NULL, 0, 0, 1, out, 100) == 0, "no room: 0");
     CHECK(wbgap_palette_make(saved, len, -1, 1, out, sizeof out) == 0, "no such colour: 0");
+    {   /* the put back with no file: eight colours set one by one on a fresh file, as PALETTE.c builds it */
+        static const unsigned long scr[8] = {0x101010, 0x202020, 0x303030, 0x404040, 0x505050, 0x606060, 0x707070, 0x808080};
+        static unsigned char a[1024], b[1024];
+        long m = 0;
+        int k, all = 1;
+        for (k = 0; k < 8; k++) {
+            long r = wbgap_palette_make(k ? a : NULL, k ? m : 0, k, scr[k], b, sizeof b);
+            if (!r) { all = 0; break; }
+            memcpy(a, b, (size_t)r), m = r;
+        }
+        for (k = 0; all && k < 8; k++) all = wbgap_palette_colour(a, m, k, &c) && c == scr[k];
+        CHECK(all && m == 12 + 14 + 8 + WBGAP_PALT_LEN, "the screen's own eight colours, each read back (%ld)", m);
+    }
     CHECK(wbgap_palette_mode(cols, 5, &c) == 3 && c == 2, "the most common colour: 2, three times");
     v = wbgap_palette_judge(150, 150, 0, 140, 0, 1, why, sizeof why);
     CHECK(v == WBGAP_PASS, "followed, then gave back: PASS (%s)", why);
