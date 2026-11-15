@@ -88,37 +88,6 @@ static void openbench_where(void)
                 pub_bit, rexx_bit, (unsigned long)sp, (unsigned long)at_sp);
 }
 
-/* GFOpenBench's drawer tasks (ob_dtask.c names them "GFOpenBench drawer"): each one's state and signals, so a
- * drawer that never takes its close (Ctrl-F, DT_NOTE_SIG) shows up next to the desktop that waits for it */
-static void drawers_where(void)
-{
-    struct { int state; ULONG wait, recvd, sp, at_sp; } d[8];
-    struct List *lists[2];
-    struct Node *n;
-    int i, k = 0;
-    lists[0] = &SysBase->TaskWait;
-    lists[1] = &SysBase->TaskReady;
-    Forbid();
-    for (i = 0; i < 2; i++)
-        for (n = lists[i]->lh_Head; n->ln_Succ && k < 8; n = n->ln_Succ)
-            if (n->ln_Name && !strcmp(n->ln_Name, "GFOpenBench drawer")) {
-                struct Task *t = (struct Task *)n;
-                d[k].state = t->tc_State;
-                d[k].wait = t->tc_SigWait;
-                d[k].recvd = t->tc_SigRecvd;
-                d[k].sp = (ULONG)t->tc_SPReg;
-                d[k].at_sp = d[k].sp >= (ULONG)t->tc_SPLower && d[k].sp + 4 <= (ULONG)t->tc_SPUpper && !(d[k].sp & 1) ?
-                             *(ULONG *)d[k].sp : 0;
-                k++;
-            }
-    Permit();
-    printf("INFO C6 GFOpenBench drawer tasks: %d\n", k);
-    for (i = 0; i < k; i++)
-        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx; SP $%08lx: $%08lx\n", i,
-               d[i].state, (unsigned long)d[i].wait, (unsigned long)d[i].recvd, (unsigned long)d[i].sp,
-               (unsigned long)d[i].at_sp);
-}
-
 /* Where in GFOpenBench a task is: OpenBench's segments (its CLI's cli_Module) and, for each of its tasks,
  * the longs on its stack that point into them or into the ROM, so the build's symbols name the calls it is in */
 #define OBW_SEGS 8
@@ -149,6 +118,47 @@ static void openbench_segs(void)
     for (n = 0; n < obw_nseg; n++)
         printf("INFO C6 OpenBench hunk %ld at $%08lx, %lu bytes\n", (long)n, (unsigned long)obw_seg[n],
                (unsigned long)obw_len[n]);
+}
+
+/* GFOpenBench's drawer tasks (ob_dtask.c names them "GFOpenBench drawer"): each one's state and signals, so a
+ * drawer that never takes its close (Ctrl-F, DT_NOTE_SIG) shows up next to the desktop that waits for it */
+static void drawers_where(void)
+{
+    struct { int state; ULONG wait, recvd, sp, at_sp; char at[48]; } d[8];
+    struct List *lists[2];
+    struct Node *n;
+    int i, k = 0;
+    lists[0] = &SysBase->TaskWait;
+    lists[1] = &SysBase->TaskReady;
+    Forbid();
+    for (i = 0; i < 2; i++)
+        for (n = lists[i]->lh_Head; n->ln_Succ && k < 8; n = n->ln_Succ)
+            if (n->ln_Name && !strcmp(n->ln_Name, "GFOpenBench drawer")) {
+                struct Task *t = (struct Task *)n;
+                d[k].state = t->tc_State;
+                d[k].wait = t->tc_SigWait;
+                d[k].recvd = t->tc_SigRecvd;
+                d[k].at[0] = 0;
+                if (n->ln_Type == NT_PROCESS) {   /* a lab build's crumb: a string in OpenBench's hunks only */
+                    ULONG a = (ULONG)((struct Process *)t)->pr_Arguments;
+                    int h, j;
+                    for (h = 0; h < obw_nseg; h++)
+                        if (a >= obw_seg[h] && a + sizeof d[k].at <= obw_seg[h] + obw_len[h]) {
+                            for (j = 0; j < (int)sizeof d[k].at - 1 && ((char *)a)[j]; j++) d[k].at[j] = ((char *)a)[j];
+                            d[k].at[j] = 0;
+                        }
+                }
+                d[k].sp = (ULONG)t->tc_SPReg;
+                d[k].at_sp = d[k].sp >= (ULONG)t->tc_SPLower && d[k].sp + 4 <= (ULONG)t->tc_SPUpper && !(d[k].sp & 1) ?
+                             *(ULONG *)d[k].sp : 0;
+                k++;
+            }
+    Permit();
+    printf("INFO C6 GFOpenBench drawer tasks: %d\n", k);
+    for (i = 0; i < k; i++)
+        printf("INFO C6 drawer task %d: tc_State %d, waits for $%08lx, has $%08lx; SP $%08lx: $%08lx; at: %s\n", i,
+               d[i].state, (unsigned long)d[i].wait, (unsigned long)d[i].recvd, (unsigned long)d[i].sp,
+               (unsigned long)d[i].at_sp, d[i].at[0] ? d[i].at : "-");
 }
 
 /* the longs on t's stack that point into OpenBench's hunks or the ROM; under Forbid, copied, printed after */
@@ -242,8 +252,8 @@ static int closewb_wait(const char *path, int secs)
         openbench_where();                          /* a CLOSEWB that doesn't end: is GFOpenBench answering? */
         Delay(10);
         openbench_where();                          /* twice: a task that spins shows "running" both times */
-        drawers_where();
         openbench_segs();
+        drawers_where();
         tasks_where();
         /* the steps file first: closed after each line, it has every step; buf may be held or short */
         if (!wbgap_closewb_last_step(steps, step, sizeof step)) wbgap_closewb_last_step(buf, step, sizeof step);
