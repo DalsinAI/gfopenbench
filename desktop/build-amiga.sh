@@ -1,6 +1,7 @@
 #!/bin/sh
 # GFOpenBench for Cradle's stove_build (target desktop): Cradle checks out this repo alone and sets STOVE and OUT, so
-# this fetches the checkouts desktop/build.sh needs beside it (gfopengadtools, gfopenprefs, gfopenfilemanager and,
+# this fetches the checkouts desktop/build.sh needs beside it (gfopengadtools, gfopenprefs, gfopenfilemanager,
+# gfopenlayout (0.1.68's Recover deleted links its stub) and,
 # when it can, gfopentata) at main into $OUT/deps, says which commit each was, then runs build.sh. A local build
 # can still run build.sh itself with OGT, OAP, FILES and TATA set (Team 5, 25 October 2026).
 set -eu
@@ -27,7 +28,8 @@ fetch() {   # fetch NAME [optional]
 fetch gfopengadtools
 fetch gfopenprefs
 fetch gfopenfilemanager
+fetch gfopenlayout
 fetch gfopentata optional
-OS32_GCC16=$STOVE OGT="$DEPS/gfopengadtools" OAP="$DEPS/gfopenprefs" FILES="$DEPS/gfopenfilemanager" \
+OS32_GCC16=$STOVE OGT="$DEPS/gfopengadtools" OAP="$DEPS/gfopenprefs" FILES="$DEPS/gfopenfilemanager" LAYOUT="$DEPS/gfopenlayout" \
     TATA="$DEPS/gfopentata" sh "$HERE/build.sh" "$OUT"
 rm -rf "$DEPS"   # the job's out/ keeps the program, not the sources
