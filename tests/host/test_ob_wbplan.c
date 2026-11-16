@@ -40,6 +40,14 @@ int main(void)
     int own, k;
     ob_wbp_row rows[32];
 
+    /* ---- while every drawer closes: UpdateWorkbench answered at once, nothing else (C6a) ---- */
+    CHECK(ob_wbp_answer_while_down(OB_WBP_CALL_UPDATE), "UpdateWorkbench: answered while the drawers close");
+    CHECK(OB_WBP_CALL_UPDATE == 6, "UpdateWorkbench's call is ob_wb.h's OWBREQ_UPDATE (6)");
+    for (k = 0; k < 16; k++)
+        if (k != OB_WBP_CALL_UPDATE)
+            CHECK(!ob_wbp_answer_while_down((unsigned long)k), "call %d waits for the desktop's loop", k);
+    CHECK(!ob_wbp_answer_while_down(0xFFFFFFFFUL), "an unknown call waits");
+
     /* ---- paths ---- */
     CHECK(split_is("Work:Pictures/x", "Work:Pictures", "x"), "a file in a drawer");
     CHECK(split_is("RAM:WBGap/a", "RAM:WBGap", "a"), "WBGapTest's A8a");

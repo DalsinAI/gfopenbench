@@ -330,6 +330,17 @@ static void test_ask(void)
     CHECK("ask: a taken one is never withdrawn", ob_q_withdraw(&st, 100000) == 0 && st == OB_Q_TAKEN);
 }
 
+static void test_close_next(void)
+{
+    CHECK("close: waits at first", ob_close_next(0, 0) == OB_CL_WAIT);
+    CHECK("close: waits under a second", ob_close_next(0, OB_ASK_TICKS - 1) == OB_CL_WAIT);
+    CHECK("close: told again after a second", ob_close_next(0, OB_ASK_TICKS) == OB_CL_RENOTE);
+    CHECK("close: told again however long it has been", ob_close_next(0, 100000) == OB_CL_RENOTE);
+    CHECK("close: a live one is never let go", ob_close_next(0, 1000000) != OB_CL_ABANDON);
+    CHECK("close: a held one is abandoned at once", ob_close_next(1, 0) == OB_CL_ABANDON);
+    CHECK("close: a held one is abandoned, not told again", ob_close_next(1, OB_ASK_TICKS) == OB_CL_ABANDON);
+}
+
 static void test_dpack(void)
 {
     ob_dpack p;
@@ -449,6 +460,7 @@ int main(void)
     test_guard();
     test_out();
     test_ask();
+    test_close_next();
     test_place();
     test_shown();
     printf("ob_tasks: %s\n", fails ? "FAILED" : "all passed");

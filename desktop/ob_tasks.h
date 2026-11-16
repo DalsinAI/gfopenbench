@@ -170,6 +170,14 @@ enum { OB_Q_QUEUED = 0, OB_Q_TAKEN, OB_Q_WITHDRAWN };
 int ob_q_take(volatile int *state);
 int ob_q_withdraw(volatile int *state, unsigned long waited_ticks);
 
+/* ---- the desktop closing every drawer before the screen closes (ob_dtask.c's ob_dt_close_all) ----
+ * A drawer's close is a note on its Ctrl-F. One that hasn't ended is told again every OB_ASK_TICKS, so a close it
+ * didn't see can't hold the desktop. A live drawer is never let go: it holds a copy of the desktop's look (fonts,
+ * DrawInfo, theme), which desktop_down frees next (Ackerman, #224). A held one (crashed) is abandoned at once, as
+ * before. ob_close_next: what to do with one that hasn't ended, since_note ticks after it was last told. */
+enum { OB_CL_WAIT = 0, OB_CL_RENOTE, OB_CL_ABANDON };
+int ob_close_next(int held, unsigned long since_note);
+
 /* ---- a drawer task's answers about its own drawer (ob_dtask.h) ----
  * wb_look's hidden and snapped are asked once for every entry a drawer reads. A drawer task asks the desktop once
  * for everything about its drawer: the entries left out on the desktop (hidden) and those snapshotted in it, and

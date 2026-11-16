@@ -737,20 +737,39 @@ int ob_dt_each(ob_dt *t, int (*fn)(void *ctx, const char *name, int type, int se
     return ask(t, q) ? q->at : -1;
 }
 
+/* Every drawer told to close and waited for, as ob_close_next (ob_tasks.h) says: told again each second (C6a: on
+ * GFOS after a screen reset, GFOpenBench stayed in here while one drawer didn't end, and stopped answering ARexx
+ * and programs' CloseWorkbenchObject and CloseWorkBench), and a held one abandoned at once. A live one is waited
+ * for: it holds a copy of the look desktop_down frees next. */
 void ob_dt_close_all(void)
 {
+    struct DateStamp noted, now;
     int i;
     closing_all = 1;
     for (i = 0; i < nlive; i++) ob_dt_close(live[i]);
+    DateStamp(&noted);
     while (nlive) {
+        int renote = 0;
         ob_dt_service();
+        if (env.closing) env.closing();
         if (!nlive) break;
-        if (wait_half()) continue;
-        for (i = 0; i < nlive; i++)
-            if (held(live[i])) {
+        wait_half();
+        ob_dt_service();
+        if (env.closing) env.closing();
+        if (!nlive) break;
+        DateStamp(&now);
+        for (i = 0; i < nlive; i++) {
+            int next = ob_close_next(held(live[i]), ticks_between(&noted, &now));
+            if (next == OB_CL_ABANDON) {
                 ob_dt_abandon(live[i]);
-                break;
+                break;                  /* live[] changed: looked at again */
             }
+            if (next == OB_CL_RENOTE) renote = 1;
+        }
+        if (renote) {
+            for (i = 0; i < nlive; i++) ob_dt_close(live[i]);
+            noted = now;
+        }
     }
     closing_all = 0;
 }

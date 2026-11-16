@@ -305,8 +305,8 @@
 #include "ogt_draw.h"
 #include "ogt_font.h"
 
-#define OPENBENCH_VERSION "0.1.67"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.69"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (15.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -2652,7 +2652,7 @@ static void drawer_event(ob_dt *t, int kind, long err, unsigned long largest)
     }
 }
 
-static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen };
+static const ob_dt_env dt_env = { &look, drawer_event, drawer_pack, share_gen, ob_wb_answer_while_down };
 
 /* WBGapF3, in a lab only (ENV:GFOpenBench/X4Test set): what the supervisor saw of each drawer task, a line each in
  * T:GFOpenBench-X4.log, which WBGapF3.rexx shows when it fails */

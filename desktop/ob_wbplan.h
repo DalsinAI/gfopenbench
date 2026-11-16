@@ -79,4 +79,13 @@ int ob_wbp_tools_at(const char *const *titles, int nt, int any, int *own);
 #define OB_WBP_WBO_ICON   2
 int ob_wbp_which(int at, const char *path, char *name, int n);
 
+/* While the desktop waits for its drawers to close (ob_dt_close_all, before the screen closes): which of
+ * workbench.library's calls it answers there, at once. UpdateWorkbench only: a drawer's own PutDiskObject on its
+ * way out (its place, gfopengadtools wb_drawer_close) calls it and waits for the answer, while the desktop waits for
+ * that drawer to end (C6a on GFOS: CloseWorkBench after a screen reset, the desktop and the drawer each waited for
+ * the other for good). Nothing is read again then: every drawer is closing. Every other call waits for the
+ * desktop's loop, in its order. 1 to answer it now. OB_WBP_CALL_UPDATE is ob_wb.h's OWBREQ_UPDATE. */
+#define OB_WBP_CALL_UPDATE 6
+int ob_wbp_answer_while_down(unsigned long call);
+
 #endif
