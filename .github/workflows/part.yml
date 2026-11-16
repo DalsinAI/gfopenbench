@@ -1,0 +1,78 @@
+# Copyright (c) 2026 AmiCradle Team. MIT licence.
+# GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on a GitHub-hosted
+# runner with the os32-gcc16 stove (gfopenup's stove action), never the Team's machines. desktop/build.sh is built
+# against the siblings' main as build_pack.py builds it (OGT, OAP, FILES, TATA, LAYOUT). A pull request builds only;
+# a push to main publishes build/os3/GFOpenBench to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
+# with PART.json (this commit, the siblings' commits, the compiler) and latest.json. The newest 30 builds are kept.
+# The private siblings are read with the organisation secret PARTS_READ_TOKEN (read-only Contents).
+name: GFOpenUp part
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: part-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  part:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      SIBLINGS: gfopengadtools gfopenprefs gfopenfilemanager gfopentata gfopenlayout
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: gfopenbench
+      - name: The siblings at main
+        env:
+          TOKEN: ${{ secrets.PARTS_READ_TOKEN }}
+        run: |
+          set -eu
+          for r in $SIBLINGS; do
+            if [ -n "$TOKEN" ]; then url="https://x-access-token:$TOKEN@github.com/DalsinAI/$r"; else url="https://github.com/DalsinAI/$r"; fi
+            git clone -q --depth 1 "$url" "$r" || { echo "::error::$r: no read access (organisation secret PARTS_READ_TOKEN)"; exit 1; }
+            git -C "$r" remote set-url origin "https://github.com/DalsinAI/$r"
+          done
+      - uses: DalsinAI/gfopenup/.github/actions/stove@team3/parts-on-merge-20261117
+      - name: Build (build.sh, desktop/build.sh)
+        run: |
+          set -eu
+          W=$GITHUB_WORKSPACE
+          sh gfopenbench/build.sh "$W/gfopenbench/build/os3"
+          OGT=$W/gfopengadtools OAP=$W/gfopenprefs FILES=$W/gfopenfilemanager TATA=$W/gfopentata LAYOUT=$W/gfopenlayout \
+            sh gfopenbench/desktop/build.sh "$W/gfopenbench/build/os3"
+          ls -l gfopenbench/build/os3/GFOpenBench
+      - name: Host tests
+        run: sh gfopenbench/tests/host/run.sh
+      - name: The part
+        id: part
+        run: |
+          set -eu
+          c=$(git -C gfopenbench rev-parse HEAD); s=${c:0:12}
+          sibs=$(for r in $SIBLINGS; do printf '"%s": "%s", ' "$r" "$(git -C "$r" rev-parse HEAD)"; done)
+          cc=$("$STOVE/prefix/bin/m68k-amigaos-gcc" --version | head -1)
+          mkdir -p out
+          cat > gfopenbench/PART.json <<J
+          {"repo": "gfopenbench", "commit": "$c", "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+           "files": ["build/os3/GFOpenBench"], "siblings": {${sibs%, }}, "compiler": "$cc"}
+          J
+          tar -C gfopenbench -czf "out/gfopenbench-$s.tar.gz" PART.json build/os3/GFOpenBench
+          cp gfopenbench/PART.json out/latest.json
+          cat out/latest.json
+          echo "asset=out/gfopenbench-$s.tar.gz" >> "$GITHUB_OUTPUT"
+      - name: Publish to the "parts" pre-release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          gh release view parts >/dev/null 2>&1 || gh release create parts --prerelease --target main \
+            --title "GFOpenUp part builds" --notes "Each merge's GFOpenUp part, by commit (gfopenup docs/design/PARTS-ON-MERGE.md)."
+          gh release upload parts "${{ steps.part.outputs.asset }}" out/latest.json --clobber
+          gh release view parts --json assets --jq '[.assets[] | select(.name | startswith("gfopenbench-"))] | sort_by(.createdAt) | reverse | .[30:] | .[].name' \
+            | while read -r n; do gh release delete-asset parts "$n" -y; done
