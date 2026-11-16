@@ -28,3 +28,16 @@ int wbgap_pointer_layer(unsigned long mode, unsigned long away1, unsigned long o
     if (why && cap) snprintf(why, cap, "%s", r);
     return v;
 }
+
+int wbgap_screen_drag(long top0, long top1, long dy, char *why, unsigned cap)
+{
+    long moved = top1 - top0;
+    char r[120] = "";
+    int v = WBGAP_FAIL;
+    if (!moved) snprintf(r, sizeof r, "the screen didn't move (TopEdge %ld) for a drag of its title bar %ld down", top0, dy);
+    else if (moved * 2 < dy || moved * 2 > dy * 3)
+        snprintf(r, sizeof r, "the screen moved %ld (TopEdge %ld to %ld) for a drag of %ld down", moved, top0, top1, dy);
+    else v = WBGAP_PASS;
+    if (why && cap) snprintf(why, cap, "%s", r);
+    return v;
+}

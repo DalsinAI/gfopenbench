@@ -14,3 +14,8 @@ int wbgap_pointer_at(long mx, long my, long tx, long ty);
  * A chipset mode or a square that changed by itself is a SKIP. The reason in why. */
 int wbgap_pointer_layer(unsigned long mode, unsigned long away1, unsigned long over, unsigned long away2, char *why,
                         unsigned cap);
+
+/* C3: a screen's title bar dragged down dy pixels moves the screen down with it (as 3.2.3's chipset screens; GFOS
+ * composites, 13 Nov). top0, top1: its TopEdge before and after. PASS if it moved down between half and one and a
+ * half times dy, else FAIL; the reason in why */
+int wbgap_screen_drag(long top0, long top1, long dy, char *why, unsigned cap);
