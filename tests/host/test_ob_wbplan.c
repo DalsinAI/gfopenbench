@@ -162,6 +162,18 @@ int main(void)
         CHECK(ob_wbp_which(OB_WBP_AT_ICON, "RAM:abcdef", NULL, 0) == OB_WBP_WBO_ICON, "no buffer: the type only");
     }
 
+    /* 0.1.69 (gap P3 lab, 16 Nov 2026): the desktop waiting in desktop_down for RAM:WBGapPal's drawer, which waited in
+     * UpdateWorkbench (its icon saved as it closed) for the desktop: UpdateWorkbench is answered then, the rest kept */
+    {
+        int call, at_once = 0;
+        CHECK(ob_wbp_while_down(OB_WBP_REQ_UPDATE) == 1, "UpdateWorkbench is answered while the drawers close");
+        for (call = 0; call <= 12; call++) at_once += ob_wbp_while_down(call);
+        CHECK(at_once == 1, "only UpdateWorkbench is: %d calls", at_once);
+        CHECK(!ob_wbp_while_down(1) && !ob_wbp_while_down(2) && !ob_wbp_while_down(7),
+              "open, close and Information wait for the desktop's loop");
+        CHECK(!ob_wbp_while_down(-1), "an unknown call waits too");
+    }
+
     printf("ob_wbplan: %d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

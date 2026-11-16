@@ -306,9 +306,11 @@
 #include "ogt_theme.h"
 #include "ogt_draw.h"
 #include "ogt_font.h"
+#define OGT_PALETTE_READ
+#include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.68"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (14.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.69"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (16.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -417,12 +419,38 @@ static int look_mode_now(void)
     return mode;
 }
 
+/* 0.1.69 (gap P3, Dale 16 Nov 2026: "Backgrounds follow colour 0"): Palette's colour 0 as the theme now has it,
+ * "" when it draws its own backgrounds; a change of ENV:Sys/palette.prefs that moves it puts the desktop up again */
+static char pal_applied[8];
+
+/* The theme's window and drawer backgrounds follow Palette's colour 0 (gfopengadtools lib/ogt_palette.h); what they
+ * took in out ("" none) */
+static void palette_follow(ogt_theme *t, char out[8])
+{
+    static unsigned char buf[1024];
+    unsigned long n = ogt_palette_read(buf, sizeof buf);
+    const char *v;
+    out[0] = 0;
+    if (ogt_palette_follow(t, n ? buf : NULL, n) && (v = ogt_theme_get(t, OGT_LIGHT, "list")))
+        snprintf(out, 8, "%s", v);
+}
+
+/* 1 when Palette's colour 0 is no longer what the desktop was put up with */
+static int palette_moved(void)
+{
+    static ogt_theme probe;
+    char now[8];
+    probe.nover = 0;
+    palette_follow(&probe, now);
+    return strcmp(now, pal_applied) != 0;
+}
+
 static int load_theme(int *mode)
 {
     char name[80] = "Open", path[200], err[96];
     char *prefs = load_text("ENV:GFOpenGadTools/Look"), *text;
     ogt_rgb accent;
-    int has_accent = 0, now;
+    int has_accent = 0, now, ok;
     *mode = OGT_LIGHT;
     if (prefs) {
         char *line = prefs, *next;
@@ -445,15 +473,18 @@ static int load_theme(int *mode)
     if ((now = look_mode_now()) >= 0) *mode = now;
     snprintf(path, sizeof path, "%s%s%s", THEME_DIR, name, strstr(name, ".theme") ? "" : ".theme");
     if ((text = load_text(path))) {
-        int ok = ogt_theme_parse(&theme, text, err, sizeof err);
+        ok = ogt_theme_parse(&theme, text, err, sizeof err);
         free(text);
         if (ok) {
             if (has_accent) ogt_theme_set_accent(&theme, accent);
+            palette_follow(&theme, pal_applied);
             return 1;
         }
     }
     *mode = OGT_LIGHT;
-    return ogt_theme_parse(&theme, fallback_theme, err, sizeof err);
+    ok = ogt_theme_parse(&theme, fallback_theme, err, sizeof err);
+    if (ok) palette_follow(&theme, pal_applied);
+    return ok;
 }
 
 /* ---- the screen's title ---------------------------------------------------------------------- */
@@ -4181,8 +4212,8 @@ static int quit_to_wb;
  * ENV:Sys/DesktopIcons (gfopenprefs Common/deskicons.h): "none", no icons on the desktop; "show" or no variable, the
  * icons. Set by GFOpenPrefs' Icons page, by Window > No icons and by Icons > Clean Up (off), and followed at once. */
 static struct Menu *menus;
-static struct NotifyRequest dic_nr;
-static int dic_notify;
+static struct NotifyRequest dic_nr, pal_nr;
+static int dic_notify, pal_notify;
 
 /* 1 when ENV:Sys/DesktopIcons says no icons */
 static int deskicons_none(void)
@@ -5178,6 +5209,7 @@ static struct NotifyRequest wbp_nr, pat_nr, lbl_nr, fnt_nr, lay_nr;
 static struct MsgPort *nfy_port;
 static int wbp_notify, pat_notify, lbl_notify, fnt_notify, lay_notify;
 static int font_check;                      /* 0.1.31: Font prefs changed: look again at the next tick but one */
+static int pal_check;                       /* 0.1.69: Palette prefs changed: the same, for colour 0 (gap P3) */
 
 /* 0.1.31: Font prefs' Workbench icon text font is not the one the labels were opened in. Font prefs' Use resets
  * the Workbench screen (IPrefs), and the desktop comes back in the new font by itself; this is for a change that
@@ -5229,7 +5261,8 @@ static void notify_end(void)
     if (lay_notify) EndNotify(&lay_nr);
     if (fnt_notify) EndNotify(&fnt_nr);
     if (dic_notify) EndNotify(&dic_nr);
-    wbp_notify = pat_notify = lbl_notify = fnt_notify = lay_notify = dic_notify = 0;
+    if (pal_notify) EndNotify(&pal_nr);
+    wbp_notify = pat_notify = lbl_notify = fnt_notify = lay_notify = dic_notify = pal_notify = 0;
     if (nfy_port) {
         notify_take();
         ob_port_free(nfy_port);
@@ -5733,12 +5766,15 @@ static int run(void)
     ob_seen_init(&seen);
     iconprefs_moved();                             /* what the labels' look compares with */
     fnt_notify = notify_on(&fnt_nr, "ENV:Sys/font.prefs", OB_FILE_FONT);
+    /* 0.1.69: Palette's colour 0 behind the window and drawer backgrounds (gap P3) */
+    pal_notify = notify_on(&pal_nr, OGT_PALETTE_FILE, OB_FILE_PALETTE);
     wbc_start();                                   /* GFOpenLook's close notice */
     if (wbc_sig < 0 || !wbc_port) no_signal("GFOpenLook's close notice");
     /* 0.1.26: before the dock and WBStartup add AppWindows */
     if (!ob_drop_start(&drop_env)) no_signal("drag and drop's ports");
     /* 0.1.56: workbench.library's Workbench, before the dock and WBStartup add AppIcons and menu items */
     if (!ob_wb_start(&wb_env) && WorkbenchBase && WorkbenchBase->lib_Version >= 44) no_signal("workbench.library's calls");
+    ob_dt_set_waiting(ob_wb_while_down);            /* 0.1.69: a closing drawer's icon save answered */
     /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
     if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
@@ -5872,6 +5908,7 @@ static int run(void)
         }
         if ((todo & OB_DO_PICTURE) && root) new_picture();
         if (todo & OB_DO_FONT) font_check = 2;     /* after the reset IPrefs may make */
+        if (todo & OB_DO_PALETTE) pal_check = 2;   /* 0.1.69 (gap P3): looked at on the tick, as fonts */
         if (todo & OB_DO_ICONS) {
             /* IconLabels, IconLayout, or (0.1.37) ENV:Sys/DesktopIcons (No icons): that at once */
             noicons_apply(ob_show_set(&show, deskicons_none()));
@@ -5928,6 +5965,16 @@ static int run(void)
             /* 0.1.31: Font prefs changed and the screen wasn't reset: the desktop and its drawers again, in the
              * icons' new font, as after a reset */
             if (font_check && --font_check == 0 && !wb_down && root && label_font_changed()) {
+                go_down();
+                if (!go_up()) {
+                    desktop_down();
+                    wb_down = 2;                    /* tried again each tick */
+                }
+            }
+            /* 0.1.69 (gap P3): Palette's colour 0 moved and no reset brought the desktop up with it (IPrefs resets
+             * the screen for a palette on some screens, and desktop_up reads it then): the desktop and its drawers
+             * again, as after a reset, so no drawer task draws while the theme's colours change */
+            if (pal_check && --pal_check == 0 && !wb_down && root && palette_moved()) {
                 go_down();
                 if (!go_up()) {
                     desktop_down();

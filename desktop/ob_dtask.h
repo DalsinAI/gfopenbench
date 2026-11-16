@@ -82,6 +82,9 @@ void ob_dt_close(ob_dt *t);
 /* every drawer closed and waited for (the screen is about to close, GFOpenBench is quitting); their calls in the
  * meantime are answered 0 */
 void ob_dt_close_all(void);
+/* 0.1.69: fn (NULL: none) called each time round while ob_dt_close_all waits, for the desktop's other callers a
+ * closing drawer may wait on (ob_wb_while_down) */
+void ob_dt_set_waiting(void (*fn)(void));
 void ob_dt_note(ob_dt *t, ULONG notes);
 /* Window > Find...: the search of every drive, from this drawer (its window to the front first) */
 void ob_dt_find(ob_dt *t, const char *words);

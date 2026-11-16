@@ -22,7 +22,8 @@ enum {
     OB_FILE_LAYOUT,                         /* ENV:Sys/IconLayout */
     OB_FILE_FONT,                           /* ENV:Sys/font.prefs */
     OB_FILE_DESKICONS,                      /* ENV:Sys/DesktopIcons (No icons) */
-    OB_FILE_LAST = OB_FILE_DESKICONS
+    OB_FILE_PALETTE,                        /* ENV:Sys/palette.prefs (gap P3) */
+    OB_FILE_LAST = OB_FILE_PALETTE
 };
 
 /* What the files that changed ask for */
@@ -30,8 +31,10 @@ enum {
     OB_DO_WBPREFS = 1,                      /* Workbench.prefs read again; the volumes scanned and drawn again */
     OB_DO_PICTURE = 2,                      /* the root picture again */
     OB_DO_FONT = 4,                         /* the labels' font looked at two ticks on (font_check) */
-    OB_DO_ICONS = 8                         /* No icons looked at; the icons laid out again only when IconLabels or
+    OB_DO_ICONS = 8,                        /* No icons looked at; the icons laid out again only when IconLabels or
                                              * IconLayout really changed (ob_show.h, ob_seen_changed) */
+    OB_DO_PALETTE = 16                      /* Palette's colour 0 looked at: the window and drawer backgrounds follow it
+                                             * (gfopengadtools lib/ogt_palette.h), the desktop put up again if it moved */
 };
 
 /* The files changed so far (0 to begin with), with the one user_data names; one it doesn't name changes nothing.

@@ -157,3 +157,8 @@ int ob_wbp_tools_at(const char *const *titles, int nt, int any, int *own)
         if (titles[i] && !strcmp(titles[i], "Icons")) return i + 1;
     return nt;
 }
+
+int ob_wbp_while_down(int call)
+{
+    return call == OB_WBP_REQ_UPDATE;
+}

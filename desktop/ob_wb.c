@@ -285,6 +285,26 @@ static void app_free(struct AppMessage *am)
     FreeVec(am);
 }
 
+/* 0.1.69: while the desktop waits for its drawers to close: the calls ob_wbp_while_down names answered at once (a
+ * drawer saving its icon as it closes waits in UpdateWorkbench for the desktop, which waits for it), every other
+ * one left on the port, in its order, for the desktop's loop */
+typedef char ob_wb_update_is_6[OWBREQ_UPDATE == OB_WBP_REQ_UPDATE ? 1 : -1];
+
+void ob_wb_while_down(void)
+{
+    struct Node *n, *next;
+    if (!req_port) return;
+    Forbid();
+    for (n = req_port->mp_MsgList.lh_Head; (next = n->ln_Succ); n = next) {
+        struct OWBRequest *rq = (struct OWBRequest *)n;
+        if (!ob_wbp_while_down((int)rq->or_Call)) continue;
+        Remove(n);
+        rq->or_Result = TRUE;
+        ReplyMsg((struct Message *)n);
+    }
+    Permit();
+}
+
 void ob_wb_handle(void)
 {
     struct Message *m;

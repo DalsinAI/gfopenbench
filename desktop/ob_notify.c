@@ -15,5 +15,6 @@ unsigned ob_notify_todo(unsigned changed)
     if (changed & 1u << OB_FILE_PATTERN) todo |= OB_DO_PICTURE;
     if (changed & 1u << OB_FILE_FONT) todo |= OB_DO_FONT;
     if (changed & (1u << OB_FILE_LABELS | 1u << OB_FILE_LAYOUT | 1u << OB_FILE_DESKICONS)) todo |= OB_DO_ICONS;
+    if (changed & 1u << OB_FILE_PALETTE) todo |= OB_DO_PALETTE;
     return todo;
 }
