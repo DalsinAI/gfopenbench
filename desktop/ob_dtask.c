@@ -347,6 +347,17 @@ static void x4_test(const char *path)
     __asm volatile("illegal");
 }
 
+/* LAB ONLY: progress marks for the P3 stall */
+static void ddbg(const char *s)
+{
+    BPTR f = Open((CONST_STRPTR)"SYS:T/obdbg", MODE_READWRITE);
+    if (!f) return;
+    Seek(f, 0, OFFSET_END);
+    Write(f, (APTR)s, strlen(s));
+    Write(f, (APTR)"\n", 1);
+    Close(f);
+}
+
 static void dt_entry(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -389,9 +400,11 @@ static void dt_entry(void)
         ULONG sigs = Wait((1UL << idcmp->mp_SigBit) | (1UL << t->qport->mp_SigBit) | DT_NOTE_SIG |
                           wb_notify_sigmask() | wb_find_sigmask());
         ULONG notes;
+        if (closing_all) ddbg("dt woke");
         answer_queries(t);
+        if (closing_all) ddbg("dt answered");
         if ((sigs & DT_NOTE_SIG) && (notes = take_notes(t))) {
-            if (notes & DT_CLOSE) break;
+            if (notes & DT_CLOSE) { ddbg("dt close note"); break; }
             if (notes & OB_DT_REREAD) wb_drawer_reread(d);
             if (notes & OB_DT_REDRAW) wb_drawer_redraw(d);
             if (notes & OB_DT_THUMBS) wb_drawer_thumbs(d);
@@ -429,8 +442,11 @@ static void dt_entry(void)
     t->d = NULL;
     t->win = NULL;
     Permit();
+    ddbg("dt drawer_close");
     wb_drawer_close(d);
+    ddbg("dt notify_end");
     wb_notify_end();                    /* this task's notifies, and their port */
+    ddbg("dt exit");
     dt_exit(t, idcmp, OB_DTE_CLOSED, 0, 0);
 }
 
@@ -743,6 +759,7 @@ void ob_dt_close_all(void)
     closing_all = 1;
     for (i = 0; i < nlive; i++) ob_dt_close(live[i]);
     while (nlive) {
+        { char b[40]; sprintf(b, "close_all nlive %d", nlive); ddbg(b); }
         ob_dt_service();
         if (!nlive) break;
         if (wait_half()) continue;

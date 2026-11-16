@@ -5856,6 +5856,7 @@ static int run(void)
             while ((am = (struct IntuiMessage *)GetMsg(aloha_port))) {
                 ULONG cl = am->Class;
                 UWORD code = am->Code;
+                if (cl == IDCMP_WBENCHMESSAGE) { char b[40]; sprintf(b, "wbmsg %u wb_down %d", code, wb_down); dbg(b); }
                 if (cl == IDCMP_WBENCHMESSAGE && code == WBENCHCLOSE && !wb_down) {
                     go_down();
                     wb_down = 1;
