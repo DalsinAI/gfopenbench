@@ -5,7 +5,7 @@
 # common/sysprobe (ACInfo SPEED's loop, the CPU's name, accontrol.device's host status) and
 # gfopenrtg (ORTG, default ../../gfopenrtg) for ogles3.library's dispatch slots, which its
 # library/ogles3/gen_ogles3.py makes from ogles3_api.txt. build-amiga.sh fetches both for Cradle's
-# stove_build. The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16; it
+# stove_build. The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/kitchen/stoves/os32-gcc16 (tools/stove-dir.sh); it
 # stops when given a GCC older than 16.
 # Built for the 68040 with its FPU (-m68881, libm881): the FPU tests are of the FPU, not of soft
 # float, so this is the one program here not built with toolchain/m68k-soft-m68040.specs.
@@ -14,7 +14,7 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 GUEST=${GUEST:-$HERE/../../amicradle-guest}
 ORTG=${ORTG:-$HERE/../../gfopenrtg}
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
+STOVE=${OS32_GCC16:-${STOVE:-$(sh "$HERE/../tools/stove-dir.sh")}}
 if [ -x "$STOVE/prefix/bin/m68k-amigaos-gcc" ]; then PREFIX=$STOVE/prefix; else PREFIX=$STOVE; fi
 CC="$PREFIX/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)

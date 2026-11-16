@@ -3,7 +3,7 @@
 # in this repository). Step R1: our workbench.library and icon.library,
 # which forward every call to Hyperion's originals, and wbspy.
 #   build.sh [OUT_DIR]   (default build/os3)
-# The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16 (as desktop/build.sh); it stops
+# The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/kitchen/stoves/os32-gcc16 (tools/stove-dir.sh) (as desktop/build.sh); it stops
 # when given an older GCC (the os32 stove's GCC 6.5.0b merges a word clear and the long clear after it into one
 # clr.l at -O2), and builds -fno-tree-loop-distribute-patterns (GCC 16.2.0b's loop-shift trap).
 # MIT, Copyright (c) 2026 AmiCradle Team.
@@ -12,7 +12,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 # Soft float: the specs file links libnix's soft libm020 (maths through the
 # mathieee libraries), not libm881, so one build runs on every 68040.
 SPECS="-specs=$HERE/toolchain/m68k-soft-m68040.specs"
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
+STOVE=${OS32_GCC16:-${STOVE:-$(sh "$HERE/tools/stove-dir.sh")}}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
 [ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: this needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }

@@ -4,7 +4,7 @@
 # MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-STOVE=${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}
+STOVE=${STOVE:-$(sh "$HERE/../../tools/stove-dir.sh")}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 OUT=${OUT:-$HERE/build-amiga}
 mkdir -p "$OUT"

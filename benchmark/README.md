@@ -102,7 +102,7 @@ Without a battery clock it falls back to the E clock, and says so. The summary g
 ## Building
 
 ```
-STOVE=~/AmiCradle/stoves/os32-gcc16 GUEST=../amicradle-guest ORTG=../gfopenrtg sh benchmark/build.sh [OUT_DIR]
+STOVE=~/AmiCradle/kitchen/stoves/os32-gcc16 GUEST=../amicradle-guest ORTG=../gfopenrtg sh benchmark/build.sh [OUT_DIR]
 ```
 
 Or use Cradle's `stove_build`, with target `benchmark` and stove `os32-gcc16`. Its `build-amiga.sh` fetches the parts it needs at main:

@@ -1,6 +1,6 @@
 #!/bin/sh
 # GFOpenMeters, the desktop widget (meters/openmeters.c), for AmigaOS 3.x with the os32-gcc16 stove.
-# The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/stoves/os32-gcc16 (as desktop/build.sh); it stops
+# The compiler: OS32_GCC16, else STOVE, else ~/AmiCradle/kitchen/stoves/os32-gcc16 (tools/stove-dir.sh) (as desktop/build.sh); it stops
 # when given an older GCC (the os32 stove's GCC 6.5.0b merges a word clear and the long clear after it into one
 # clr.l at -O2), and builds -fno-tree-loop-distribute-patterns (GCC 16.2.0b's loop-shift trap).
 #   meters/build.sh [OUT_DIR]   (default build/os3): GFOpenMeters and its icon, GFOpenMeters.info
@@ -17,7 +17,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 SPECS="-specs=$(cd "$HERE/.." && pwd)/toolchain/m68k-soft-m68040.specs"
 OGT=${OGT:-$HERE/../../gfopengadtools}
 OAP=${OAP:-$HERE/../../gfopenprefs}
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
+STOVE=${OS32_GCC16:-${STOVE:-$(sh "$HERE/../tools/stove-dir.sh")}}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
 [ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: this needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }
