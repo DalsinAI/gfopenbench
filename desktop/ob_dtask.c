@@ -737,6 +737,13 @@ int ob_dt_each(ob_dt *t, int (*fn)(void *ctx, const char *name, int type, int se
     return ask(t, q) ? q->at : -1;
 }
 
+static void (*waiting)(void);
+
+void ob_dt_set_waiting(void (*fn)(void))
+{
+    waiting = fn;
+}
+
 void ob_dt_close_all(void)
 {
     int i;
@@ -744,6 +751,7 @@ void ob_dt_close_all(void)
     for (i = 0; i < nlive; i++) ob_dt_close(live[i]);
     while (nlive) {
         ob_dt_service();
+        if (waiting) waiting();                 /* 0.1.69: a drawer saving its icon (UpdateWorkbench) */
         if (!nlive) break;
         if (wait_half()) continue;
         for (i = 0; i < nlive; i++)

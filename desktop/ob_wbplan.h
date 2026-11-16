@@ -79,4 +79,12 @@ int ob_wbp_tools_at(const char *const *titles, int nt, int any, int *own);
 #define OB_WBP_WBO_ICON   2
 int ob_wbp_which(int at, const char *path, char *name, int n);
 
+/* 0.1.69: while the desktop waits for its drawers to close (desktop_down), a drawer's own save of its icon
+ * (PutDiskObject, which calls UpdateWorkbench) waits for the desktop, and the desktop for it: so a call that has
+ * nothing to do then is answered at once, and every other one stays on the port for the desktop's loop.
+ * call: the request's or_Call (ob_wb.h OWBREQ_*). 1 for UpdateWorkbench (OB_WBP_REQ_UPDATE): its drawer is going,
+ * and is read whole when it opens again; 0 for the rest. */
+#define OB_WBP_REQ_UPDATE 6
+int ob_wbp_while_down(int call);
+
 #endif

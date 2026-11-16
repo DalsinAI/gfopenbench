@@ -5774,6 +5774,7 @@ static int run(void)
     if (!ob_drop_start(&drop_env)) no_signal("drag and drop's ports");
     /* 0.1.56: workbench.library's Workbench, before the dock and WBStartup add AppIcons and menu items */
     if (!ob_wb_start(&wb_env) && WorkbenchBase && WorkbenchBase->lib_Version >= 44) no_signal("workbench.library's calls");
+    ob_dt_set_waiting(ob_wb_while_down);            /* 0.1.69: a closing drawer's icon save answered */
     /* 0.1.53: the ARexx ports WORKBENCH and OPENBENCH, before WBStartup's programs, which may use them */
     if (!ob_arexx_start(&rexx_env) && run_shell) PutStr((CONST_STRPTR)"GFOpenBench: no ARexx port opened\n");
     start_dock();
