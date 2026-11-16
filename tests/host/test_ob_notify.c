@@ -38,17 +38,19 @@ static void each(void)
     CHECK(todo_of(f) == OB_DO_ICONS, "IconLayout: the icons' look");
     f[0] = OB_FILE_DESKICONS;
     CHECK(todo_of(f) == OB_DO_ICONS, "DesktopIcons: the same look (it shared IconLabels' signal)");
+    f[0] = OB_FILE_PALETTE;
+    CHECK(todo_of(f) == OB_DO_PALETTE, "palette.prefs: colour 0 looked at (gap P3)");
 }
 
 /* Several messages before GFOpenBench wakes: one look each, whatever their number and order */
 static void together(void)
 {
     unsigned long all[] = { OB_FILE_DESKICONS, OB_FILE_FONT, OB_FILE_LAYOUT, OB_FILE_PATTERN, OB_FILE_LABELS,
-                            OB_FILE_WBPREFS, 0 };
+                            OB_FILE_WBPREFS, OB_FILE_PALETTE, 0 };
     unsigned long twice[] = { OB_FILE_PATTERN, OB_FILE_PATTERN, OB_FILE_PATTERN, 0 };
     unsigned long icons[] = { OB_FILE_LABELS, OB_FILE_LAYOUT, OB_FILE_DESKICONS, OB_FILE_LABELS, 0 };
     unsigned long none[] = { 0 };
-    CHECK(todo_of(all) == (OB_DO_WBPREFS | OB_DO_PICTURE | OB_DO_FONT | OB_DO_ICONS), "all six: all four");
+    CHECK(todo_of(all) == (OB_DO_WBPREFS | OB_DO_PICTURE | OB_DO_FONT | OB_DO_ICONS | OB_DO_PALETTE), "all seven: all five");
     CHECK(todo_of(twice) == OB_DO_PICTURE, "the same file three times: once");
     CHECK(todo_of(icons) == OB_DO_ICONS, "the icons' three files: one look");
     CHECK(todo_of(none) == 0, "no message: nothing");
