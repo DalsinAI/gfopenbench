@@ -4,7 +4,7 @@
 # copy engine (engine/of_*.c), for drag and drop (0.1.26, ob_drop.c), from a gfopenfilemanager checkout:
 # FILES, default ../../gfopenfilemanager.
 #   desktop/build.sh [OUT_DIR]   (default build/os3)
-# The compiler: OS32_GCC16 (as GFOpenFTP's build-os3.sh), else STOVE, else ~/AmiCradle/stoves/os32-gcc16.
+# The compiler: OS32_GCC16 (as GFOpenFTP's build-os3.sh), else STOVE, else ~/AmiCradle/kitchen/stoves/os32-gcc16 (tools/stove-dir.sh).
 # Not the os32 stove's GCC 6.5.0b: at -O2 its peephole2 clears a word and the field after it with one clr.l
 # (it broke GFOpenCompress's LhA reader and zlib's deflate, both built into programs like this one), so this
 # script stops when given a GCC older than 16. GCC 16.2.0b has a trap of its own: at -O2 it can turn a loop
@@ -17,7 +17,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 # mathieee libraries), not libm881, so one build runs on every 68040.
 SPECS="-specs=$(cd "$HERE/.." && pwd)/toolchain/m68k-soft-m68040.specs"
 OGT=${OGT:-$HERE/../../gfopengadtools}
-STOVE=${OS32_GCC16:-${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}}
+STOVE=${OS32_GCC16:-${STOVE:-$(sh "$HERE/../tools/stove-dir.sh")}}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 GCCV=$("$CC" -dumpversion 2>/dev/null || echo 0)
 [ "${GCCV%%.*}" -ge 16 ] 2>/dev/null || { echo "$CC is GCC $GCCV: GFOpenBench needs GCC 16 (the os32-gcc16 stove; set OS32_GCC16)"; exit 2; }

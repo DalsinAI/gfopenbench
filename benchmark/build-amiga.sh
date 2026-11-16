@@ -8,7 +8,7 @@
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT=${OUT:-$HERE/../build/os3}
-STOVE=${STOVE:-$HOME/AmiCradle/stoves/os32-gcc16}
+STOVE=${STOVE:-$(sh "$HERE/../tools/stove-dir.sh")}
 DEPS=${DEPS:-$OUT/deps}
 GIT_BASE=${AMIGACHROME_GIT_BASE:-https://github.com/}
 mkdir -p "$DEPS"
