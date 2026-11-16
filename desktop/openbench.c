@@ -309,7 +309,7 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.69"
+#define OPENBENCH_VERSION "0.1.69-labdbg"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (16.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -422,6 +422,17 @@ static int look_mode_now(void)
 /* 0.1.69 (gap P3, Dale 16 Nov 2026: "Backgrounds follow colour 0"): Palette's colour 0 as the theme now has it,
  * "" when it draws its own backgrounds; a change of ENV:Sys/palette.prefs that moves it puts the desktop up again */
 static char pal_applied[8];
+
+/* LAB ONLY: progress marks for the P3 stall */
+static void dbg(const char *s)
+{
+    BPTR f = Open((CONST_STRPTR)"SYS:T/obdbg", MODE_READWRITE);
+    if (!f) return;
+    Seek(f, 0, OFFSET_END);
+    Write(f, (APTR)s, strlen(s));
+    Write(f, (APTR)"\n", 1);
+    Close(f);
+}
 
 /* The theme's window and drawer backgrounds follow Palette's colour 0 (gfopengadtools lib/ogt_palette.h); what they
  * took in out ("" none) */
@@ -4662,7 +4673,9 @@ static void desktop_down(void)
     ob_info_quit_all();                         /* the Information windows (they close without saving) */
     /* row 3: every drawer's task told to close and waited for (the screen closes next); drawer_paths[] is kept */
     drawers_down = 1;
+    dbg("close_all");
     ob_dt_close_all();
+    dbg("closed_all");
     while (ndrawers) {
         unsigned long sid = ob_dt_user(drawers[ndrawers - 1]);
         if (sid) ob_super_ended(&super, sid);
@@ -4693,6 +4706,7 @@ static void desktop_down(void)
     if (look.ctx) { ogt_ctx_free(&ctx); look.ctx = NULL; }
     ogt_theme_free(&theme);
     if (look.scr) { UnlockPubScreen(NULL, look.scr); look.scr = NULL; }
+    dbg("desktop_down done");
 }
 
 static int native_monitor(ULONG *mode_id);
@@ -5041,6 +5055,7 @@ static int go_up(void)
 {
     int i;
     if (!desktop_up()) return 0;
+    dbg("desktop_up done");
     for (i = 0; i < nreopen; i++) {
         char path[sizeof drawer_paths[0]];
         WORD x = drawer_box[i].x, y = drawer_box[i].y, w = drawer_box[i].w, h = drawer_box[i].h;
@@ -5063,6 +5078,7 @@ static int go_up(void)
     nreopen = 0;
     tell_dock(WBC_OPEN);
     mark_ours();
+    dbg("go_up done");
     return 1;
 }
 
@@ -5907,6 +5923,7 @@ static int run(void)
         }
         if ((todo & OB_DO_PICTURE) && root) new_picture();
         if (todo & OB_DO_FONT) font_check = 2;     /* after the reset IPrefs may make */
+        if (todo) { char b[32]; sprintf(b, "todo %u", todo); dbg(b); }
         if (todo & OB_DO_PALETTE) pal_check = 2;   /* 0.1.69 (gap P3): looked at on the tick, as fonts */
         if (todo & OB_DO_ICONS) {
             /* IconLabels, IconLayout, or (0.1.37) ENV:Sys/DesktopIcons (No icons): that at once */
@@ -5973,8 +5990,11 @@ static int run(void)
             /* 0.1.69 (gap P3): Palette's colour 0 moved and no reset brought the desktop up with it (IPrefs resets
              * the screen for a palette on some screens, and desktop_up reads it then): the desktop and its drawers
              * again, as after a reset, so no drawer task draws while the theme's colours change */
-            if (pal_check && --pal_check == 0 && !wb_down && root && palette_moved()) {
+            if (pal_check) { char b[48]; sprintf(b, "tick pal_check %d wb_down %d root %d", pal_check, wb_down, root != NULL); dbg(b); }
+            if (pal_check && --pal_check == 0 && !wb_down && root && (dbg("moved?"), palette_moved())) {
+                dbg("go_down");
                 go_down();
+                dbg("go_up");
                 if (!go_up()) {
                     desktop_down();
                     wb_down = 2;                    /* tried again each tick */
