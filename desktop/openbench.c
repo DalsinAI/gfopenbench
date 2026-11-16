@@ -5209,6 +5209,7 @@ static struct NotifyRequest wbp_nr, pat_nr, lbl_nr, fnt_nr, lay_nr;
 static struct MsgPort *nfy_port;
 static int wbp_notify, pat_notify, lbl_notify, fnt_notify, lay_notify;
 static int font_check;                      /* 0.1.31: Font prefs changed: look again at the next tick but one */
+static int pal_check;                       /* 0.1.69: Palette prefs changed: the same, for colour 0 (gap P3) */
 
 /* 0.1.31: Font prefs' Workbench icon text font is not the one the labels were opened in. Font prefs' Use resets
  * the Workbench screen (IPrefs), and the desktop comes back in the new font by itself; this is for a change that
@@ -5906,16 +5907,7 @@ static int run(void)
         }
         if ((todo & OB_DO_PICTURE) && root) new_picture();
         if (todo & OB_DO_FONT) font_check = 2;     /* after the reset IPrefs may make */
-        /* 0.1.69 (gap P3): Palette's colour 0 moved and no reset put the desktop up again with it (IPrefs resets the
-         * screen for a palette on some screens, and desktop_up then reads it): the desktop and its drawers again, as
-         * a reset does, so no drawer task draws while the theme's colours change */
-        if ((todo & OB_DO_PALETTE) && !wb_down && root && palette_moved()) {
-            go_down();
-            if (!go_up()) {
-                desktop_down();                     /* tried again each tick, as after a reset */
-                wb_down = 2;
-            }
-        }
+        if (todo & OB_DO_PALETTE) pal_check = 2;   /* 0.1.69 (gap P3): looked at on the tick, as fonts */
         if (todo & OB_DO_ICONS) {
             /* IconLabels, IconLayout, or (0.1.37) ENV:Sys/DesktopIcons (No icons): that at once */
             noicons_apply(ob_show_set(&show, deskicons_none()));
@@ -5972,6 +5964,16 @@ static int run(void)
             /* 0.1.31: Font prefs changed and the screen wasn't reset: the desktop and its drawers again, in the
              * icons' new font, as after a reset */
             if (font_check && --font_check == 0 && !wb_down && root && label_font_changed()) {
+                go_down();
+                if (!go_up()) {
+                    desktop_down();
+                    wb_down = 2;                    /* tried again each tick */
+                }
+            }
+            /* 0.1.69 (gap P3): Palette's colour 0 moved and no reset brought the desktop up with it (IPrefs resets
+             * the screen for a palette on some screens, and desktop_up reads it then): the desktop and its drawers
+             * again, as after a reset, so no drawer task draws while the theme's colours change */
+            if (pal_check && --pal_check == 0 && !wb_down && root && palette_moved()) {
                 go_down();
                 if (!go_up()) {
                     desktop_down();
