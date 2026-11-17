@@ -2,7 +2,8 @@
 # GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on a GitHub-hosted
 # runner with the os32-gcc16 stove (gfopenup's stove action), never the Team's machines. desktop/build.sh is built
 # against the siblings' main as build_pack.py builds it (OGT, OAP, FILES, TATA, LAYOUT). A pull request builds only;
-# a push to main publishes build/os3/GFOpenBench to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
+# a push to main publishes build/os3/GFOpenBench, and GFOpenMeters with its icon (meters/build.sh; the icon by
+# amicradle's icon writer, so amicradle is a sibling), to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
 # with PART.json (this commit, the siblings' commits, the compiler) and latest.json. The newest 30 builds are kept.
 # The private siblings are read with the organisation secret PARTS_READ_TOKEN (read-only Contents).
 name: GFOpenUp part
@@ -22,7 +23,7 @@ jobs:
     permissions:
       contents: write
     env:
-      SIBLINGS: gfopengadtools gfopenprefs gfopenfilemanager gfopentata gfopenlayout
+      SIBLINGS: gfopengadtools gfopenprefs gfopenfilemanager gfopentata gfopenlayout amicradle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,14 +39,16 @@ jobs:
             git -C "$r" remote set-url origin "https://github.com/DalsinAI/$r"
           done
       - uses: DalsinAI/gfopenup/.github/actions/stove@team3/parts-on-merge-20261117
-      - name: Build (build.sh, desktop/build.sh)
+      - name: Build (build.sh, desktop/build.sh, meters/build.sh)
         run: |
           set -eu
           W=$GITHUB_WORKSPACE
           sh gfopenbench/build.sh "$W/gfopenbench/build/os3"
           OGT=$W/gfopengadtools OAP=$W/gfopenprefs FILES=$W/gfopenfilemanager TATA=$W/gfopentata LAYOUT=$W/gfopenlayout \
             sh gfopenbench/desktop/build.sh "$W/gfopenbench/build/os3"
-          ls -l gfopenbench/build/os3/GFOpenBench
+          python3 -m pip install --quiet pillow
+          OGT=$W/gfopengadtools OAP=$W/gfopenprefs AMICRADLE=$W/amicradle sh gfopenbench/meters/build.sh "$W/gfopenbench/build/os3"
+          ls -l gfopenbench/build/os3/GFOpenBench gfopenbench/build/os3/GFOpenMeters gfopenbench/build/os3/GFOpenMeters.info
       - name: Host tests
         run: sh gfopenbench/tests/host/run.sh
       - name: The part
@@ -58,9 +61,9 @@ jobs:
           mkdir -p out
           cat > gfopenbench/PART.json <<J
           {"repo": "gfopenbench", "commit": "$c", "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-           "files": ["build/os3/GFOpenBench"], "siblings": {${sibs%, }}, "compiler": "$cc"}
+           "files": ["build/os3/GFOpenBench", "build/os3/GFOpenMeters", "build/os3/GFOpenMeters.info"], "siblings": {${sibs%, }}, "compiler": "$cc"}
           J
-          tar -C gfopenbench -czf "out/gfopenbench-$s.tar.gz" PART.json build/os3/GFOpenBench
+          tar -C gfopenbench -czf "out/gfopenbench-$s.tar.gz" PART.json build/os3/GFOpenBench build/os3/GFOpenMeters build/os3/GFOpenMeters.info
           cp gfopenbench/PART.json out/latest.json
           cat out/latest.json
           echo "asset=out/gfopenbench-$s.tar.gz" >> "$GITHUB_OUTPUT"
