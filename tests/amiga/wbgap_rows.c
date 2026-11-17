@@ -151,7 +151,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"F1", NULL, A, NULL, "a new file shows without Update"},
     {"F2", NULL, A, NULL, "a changed .info updates its icon"},
     /* 11. Prefs */
-    {"P1", NULL, L, NULL, "WBPattern"},
+    {"P1", NULL, A, NULL, "WBPattern: the root picture its prefs name"},
     {"P2", NULL, L, NULL, "icon text font"},
     {"P3", NULL, L, NULL, "Palette, through GFOpenLayout's pens (13 Nov)"},
     {"P4", NULL, A, NULL, "Pointer, as 3.2.3 (13 Nov)"},

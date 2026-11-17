@@ -70,6 +70,7 @@ int wbt_windows_now(struct Screen *s, struct Window **out, int n); /* s's window
 int wbt_still_there(struct Screen *s, struct Window *w);    /* w still one of s's windows */
 unsigned long wbt_screen_box(struct Screen *s, int cx, int cy, int half); /* a square of the screen's pixels, one number */
 unsigned long wbt_mode_id(struct Screen *s);                  /* GetVPModeID of its ViewPort */
+unsigned long wbt_screen_rgb(struct Screen *s, int x, int y); /* one pixel as 0xRRGGBB, deep or by its pen */
 void wbt_key(int code);                                      /* DragTest KEY code, then 15 ticks */
 
 #endif
