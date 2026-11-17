@@ -34,9 +34,12 @@ echo "GFOpenMeters: $(wc -c < "$OUT/GFOpenMeters") bytes"
 # its icon, GFOpenMeters.info beside it: a frosted panel of bars, a GlowIcon in the GFOpen family's style, with the
 # tooltypes MAKEICON writes (meters/make_icon.py; needs Python with Pillow and an amicradle checkout,
 # AMICRADLE, for its icon writer)
+# amicradle's icon writer is scripts/icons/amiga_icon.py since amicradle #1179 (16 Nov 2026), scripts/amiga_icon.py
+# before it: either is taken. Looking only in the old place, a build against amicradle main made no icon.
+has_icon_writer() { [ -f "$1/scripts/icons/amiga_icon.py" ] || [ -f "$1/scripts/amiga_icon.py" ]; }
 AMICRADLE=${AMICRADLE:-$HOME/AmiCradle}
-[ -f "$AMICRADLE/scripts/amiga_icon.py" ] || AMICRADLE=$HERE/../../amicradle
-if [ -f "$AMICRADLE/scripts/amiga_icon.py" ]; then
+has_icon_writer "$AMICRADLE" || AMICRADLE=$HERE/../../amicradle
+if has_icon_writer "$AMICRADLE"; then
     python3 "$HERE/make_icon.py" "$AMICRADLE" "$OUT/GFOpenMeters.info" 16384
 else
     echo "$OUT/GFOpenMeters.info not made: no amicradle checkout (set AMICRADLE)" >&2
