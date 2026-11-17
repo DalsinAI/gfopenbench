@@ -92,6 +92,10 @@ static void every_id(void)
         CHECK(wbgap_find(printed_ids[i]) >= 0, "%s (already printed) is a row", printed_ids[i]);
     for (i = 0; i < sizeof decision_ids / sizeof decision_ids[0]; i++)
         CHECK(wbgap_find(decision_ids[i]) >= 0, "%s (13 Nov decision) is a row", decision_ids[i]);
+    CHECK(wbgap_find("C6a") == wbgap_find("C6") + 1 && wbgap_row(wbgap_find("C6a"))->parent
+          && !strcmp(wbgap_row(wbgap_find("C6a"))->parent, "C6") && wbgap_row(wbgap_find("C6a"))->mode
+          && !strcmp(wbgap_row(wbgap_find("C6a"))->mode, "CLOSEWB"),
+          "C6a, the drawer window closing after the Workbench reopens (Ackerman, #222), is C6's part, checked by CLOSEWB");
     CHECK(wbgap_has_parts(wbgap_find("A8")) && wbgap_has_parts(wbgap_find("I12")) && wbgap_has_parts(wbgap_find("C2")),
           "A8, C2 and I12 are made of parts");
     CHECK(!wbgap_has_parts(wbgap_find("M19")), "M19 isn't");
