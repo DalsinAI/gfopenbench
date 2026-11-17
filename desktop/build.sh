@@ -241,14 +241,25 @@ else
     FIND_SRC="$W/wb_find_none.c"
     echo "GFOpenBench: no amicradle-guest at $GUEST (set GUEST): drawers built without the search of every drive"
 fi
+# A drawer's contents drawn off the screen and shown in one write (gfopengadtools' wb_drawer.c with WB_OLSURFACE):
+# GFOpenLayout's surface, from LAYOUT above. An older gfopenlayout or gfopengadtools: into the window, as before.
+if [ -f "$LAYOUT/include/gfopenlayout_surface.h" ] && [ -f "$LAYOUT/amiga/olsurface_amiga.c" ] && grep -q WB_OLSURFACE "$W/wb_drawer.c"; then
+    OFF_FLAGS="-DWB_OLSURFACE"
+    OFF_SRC="$LAYOUT/amiga/olsurface_amiga.c $LAYOUT/draw/olsurface.c"
+    echo "GFOpenBench: drawer contents off the screen through GFOpenLayout's surface"
+else
+    OFF_FLAGS=""
+    OFF_SRC=""
+    echo "GFOpenBench: no surface in gfopenlayout at $LAYOUT or gfopengadtools at $OGT: drawer contents drawn into the window"
+fi
 # The launcher's rules (0.1.56; Workbench build plan row 6), plain C (tests/host): the order of SYS:WBStartup,
 # Shift-double-click and LoadWB's switches. The launches themselves are gfopenlaunch.library's (build.sh, launcher/)
 # shellcheck disable=SC2086
 "$CC" $FLAGS -c -o "$TMP/ol_core.o" "$HERE/../launcher/ol_core.c"
 # shellcheck disable=SC2086
-"$CC" $FLAGS $FIND_FLAGS $LV_FLAGS $OB_TATA_DEFS -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -I"$E" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_wbprefs.o" "$TMP/ob_prot.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
+"$CC" $FLAGS $FIND_FLAGS $LV_FLAGS $OFF_FLAGS $OB_TATA_DEFS -I"$LAYOUT/include" -I"$W" -I"$L" -I"$C" -I"$HERE/../launcher" -I"$E" -o "$OUT/GFOpenBench" "$HERE/openbench.c" "$TMP/ol_core.o" "$TMP/ob_builtin.o" "$TMP/ob_malloc.o" "$TMP/ob_info.o" "$TMP/ob_stack.o" "$TMP/ob_wbprefs.o" "$TMP/ob_prot.o" "$TMP/ob_name.o" "$TMP/ob_show.o" "$TMP/ob_snap.o" "$TMP/ob_notify.o" "$TMP/ob_vols.o" "$TMP/ob_eject.o" "$TMP/ob_backdrop.o" "$TMP/ob_host.o" "$TMP/ob_pick.o" \
     $BUILTIN_OBJS $DROP_OBJS \
-    "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" "$W/wb_keys.c" "$W/wb_sel.c" "$W/wb_tt.c" $FIND_SRC $LV_SRC \
+    "$W/wb_drawer.c" "$TMP/wb_dir.o" "$W/wb_fmt.c" "$W/wb_pic.c" "$W/wb_ghost.c" "$W/wb_glyph.c" "$W/wb_thumb.c" "$W/wb_grid.c" "$W/wb_keys.c" "$W/wb_sel.c" "$W/wb_tt.c" $FIND_SRC $LV_SRC $OFF_SRC \
     "$L/ogt_theme.c" "$L/ogt_draw.c" "$L/ogt_icons.c" "$L/ogt_font.c" -lamiga
 rm -rf "$TMP"
 echo "$OUT/GFOpenBench ($(wc -c < "$OUT/GFOpenBench") bytes)"
