@@ -280,6 +280,7 @@
 #include "ol_lib.h"                          /* gfopenlaunch.library, the launcher module */
 #include "ob_backdrop.h"
 #include "ob_strip.h"
+#include "ob_drawn.h"                       /* 0.1.71: the desktop is drawn, for GFOpenMeters and GFOpenTitle */
 #include "ob_host.h"
 #include "ob_arexx.h"
 #include "ob_launch.h"
@@ -310,7 +311,7 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.70"
+#define OPENBENCH_VERSION "0.1.71"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -699,6 +700,36 @@ static ULONG bf_entry(register struct Hook *h __asm("a0"), register struct RastP
     return bf_fill(rp, m);
 }
 
+/* 0.1.71: "the desktop is drawn" (ob_drawn.h): a public port from GFOpenBench's start to its end, looked at by
+ * GFOpenMeters and GFOpenTitle, which wait while it says "not drawn" and then draw once (Dale, the Pi 5, 17 November
+ * 2026: the meters and the tray tore while GFOpenBench was starting). Without it they do as before. */
+static struct ob_drawn_port *drawn_port;
+
+static void drawn_start(void)
+{
+    if (!(drawn_port = AllocVec(sizeof *drawn_port, MEMF_PUBLIC | MEMF_CLEAR))) return;
+    drawn_port->mp.mp_Node.ln_Type = NT_MSGPORT;
+    drawn_port->mp.mp_Node.ln_Name = (char *)OB_DRAWN_PORT;
+    drawn_port->mp.mp_Flags = PA_IGNORE;
+    NewList(&drawn_port->mp.mp_MsgList);
+    drawn_port->magic = OB_DRAWN_MAGIC;
+    drawn_port->drawn = 0;
+    AddPort(&drawn_port->mp);
+}
+
+static void drawn_stop(void)
+{
+    if (!drawn_port) return;
+    RemPort(&drawn_port->mp);                   /* looked at only under Forbid: gone at once */
+    FreeVec(drawn_port);
+    drawn_port = NULL;
+}
+
+static void drawn_set(int drawn)
+{
+    if (drawn_port) drawn_port->drawn = drawn;
+}
+
 /* 0.1.43: the strip, the backdrop under the screen's title bar: its rows (BarHeight + 1, from the top), with the
  * root's backfill, so the backdrop goes on under the bar as it is behind the root. ShowTitle keeps the bar in
  * front of it (a backdrop window over the bar's rows hides the bar otherwise). GFOpenTitle's see-through bar shows
@@ -840,6 +871,7 @@ static int device_hidden(const UBYTE *b)
 static struct Task *main_task;
 static BYTE picture_sig = -1;
 static volatile int picture_busy;
+static int picture_owed;                    /* 0.1.71: a picture started and not yet drawn (ob_drawn.h) */
 static struct Process *picture_proc;        /* 0.1.34: the picture's process while it decodes, and its ticks */
 static int picture_ticks;
 
@@ -4613,6 +4645,7 @@ static void start_picture(void)
     if (!(picture_proc = CreateNewProcTags(NP_Entry, (ULONG)picture_entry, NP_StackSize, 16384,
                                            NP_Name, (ULONG)"GFOpenBench backdrop", NP_Priority, -1, TAG_DONE)))
         picture_busy = 0;
+    else picture_owed = 1;
 }
 
 /* The pictures behind the desktop given up: the decoded one, the datatype's (whose file it keeps open), the
@@ -4635,6 +4668,8 @@ static void drop_picture(void)
     if (picture_ready) { FreeVec(picture_ready); picture_ready = NULL; }
     if (old) FreeVec(old);
     if (o) DisposeDTObject(o);
+    picture_owed = 0;                               /* 0.1.71: nothing owed from a picture let go */
+    if (picture_sig >= 0) SetSignal(0, 1UL << picture_sig);
 }
 
 /* 0.1.19: ENV:Sys/WBPattern.prefs changed: the new root picture shows, or the gradient alone, and the old
@@ -4660,6 +4695,7 @@ static void new_picture(void)
  * The drawers' paths are kept, to open them again. */
 static void desktop_down(void)
 {
+    drawn_set(0);                               /* 0.1.71: first, so nothing copies the desktop as it goes */
     ob_recover_close();                         /* 0.1.68: the Recover deleted window, on this screen */
     drag_img_close();                           /* 0.1.26: a disk icon's drag ends with the desktop */
     dragging = pressed_on = NULL;
@@ -4804,6 +4840,7 @@ static int desktop_up(void)
 {
     int mode;
     ob_box rb;
+    drawn_set(0);                               /* 0.1.71: not drawn until the icons and the picture are */
     if (!look.scr && !(look.scr = LockPubScreen((CONST_STRPTR)"Workbench"))) return 0;
     load_theme(&mode);
     if (!ogt_ctx_init(&ctx, look.scr, &theme, mode) && !ogt_ctx_init(&ctx, look.scr, &theme, OGT_LIGHT)) return 0;
@@ -4865,6 +4902,7 @@ static int desktop_up(void)
     titles_everywhere();
     start_picture();
     mark_ours();
+    if (!picture_owed) drawn_set(1);            /* 0.1.71: no picture coming: drawn now; else once it is in */
     return 1;
 }
 
@@ -5703,6 +5741,7 @@ static int run(void)
         no_signal("the root picture");
         goto out;
     }
+    drawn_start();                                 /* 0.1.71: before the desktop, so it says "not drawn" while it comes */
     if (!(look.scr = LockPubScreen((CONST_STRPTR)"Workbench"))) goto out;
     if (!rtg_here(look.scr)) {
         if (run_shell) PutStr((CONST_STRPTR)"GFOpenBench: GFOpenRTG reports no RTG here: Workbench as usual\n");
@@ -5950,6 +5989,8 @@ static int run(void)
                 strip_redraw();
                 draw_icons();
             }
+            /* 0.1.71: the picture is in (or never came): the desktop is drawn */
+            if (!picture_busy) { picture_owed = 0; if (root) drawn_set(1); }
         }
         if (timer && CheckIO((struct IORequest *)tr)) {
             WaitIO((struct IORequest *)tr);
@@ -6046,6 +6087,7 @@ out:
     if (tport) FreeVec(tport);                    /* ob_dt_port's: no signal of its own */
     notify_end();                               /* 0.1.39: the notifies, then their port */
     desktop_down();                             /* the Information windows, the drawers, the root, the screen */
+    drawn_stop();                               /* 0.1.71 */
     wbc_stop();
     wb_thumb_stop();                            /* its process runs our code, and uses datatypes.library */
     wb_find_stop();                             /* 0.1.49: the search's process runs our code too */

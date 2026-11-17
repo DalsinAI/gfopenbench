@@ -76,6 +76,11 @@
  * whole disk (om_disk.h; the host's status, amicradle #1248). Other drives, and every drive on a host that does not
  * say, read as before.
  *
+ * 0.4.1 (Dale, the Pi 5, 17 November 2026: the panel tore and was drawn again the old way only while GFOpenBench
+ * was starting): GFOpenBench 0.1.71 says when its desktop is drawn (desktop/ob_drawn.h). Until it does, the panel
+ * waits, as it waits while the Workbench is down, then opens once over the finished desktop, with no copies again
+ * at 3 and 6 seconds. With an older GFOpenBench, or none, as before.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -116,8 +121,9 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 #include "om_disk.h"
+#include "../desktop/ob_drawn.h"                 /* 0.4.1: GFOpenBench says when its desktop is drawn */
 
-#define OPENMETERS_VERSION "0.4"
+#define OPENMETERS_VERSION "0.4.1"
 static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
@@ -1321,18 +1327,31 @@ static int run(void)
     /* 0.2.5: started with the Workbench (SYS:WBStartup), the panel copies the desktop while GFOpenBench is still
      * drawing it (its picture is decoded in a process of its own), and what showed in its corners stayed (lab
      * t4-desk: the gradient's blue in the corners of a panel over the picture's grey). Copied again 3 and 6
-     * seconds after it starts. */
+     * seconds after it starts. 0.4.1: only with a GFOpenBench that doesn't say when its desktop is drawn. */
     int settle = 6;
+    /* 0.4.1 (Dale, the Pi 5, 17 November 2026: the panel tore and was drawn again while GFOpenBench was starting):
+     * while GFOpenBench says its desktop isn't drawn yet (desktop/ob_drawn.h), the panel waits, as it does while the
+     * Workbench is down, and opens once over the finished desktop; looked at every tenth of a second meanwhile */
+    ob_hold hold = { 0, 0, 0 };
+    unsigned int ms = 0;
+    unsigned long period_us = 1000000;
+    int bench = 0, drawn = 0;
     placed = opt.left >= 0 && opt.top >= 0;
     wbc_start();
     look_notify_start();
-    if (!open_panel()) { look_notify_end(); wbc_stop(); return RETURN_FAIL; }
+    ob_drawn_look(&bench, &drawn);
+    if (ob_hold_step(&hold, bench, drawn, ms) == OBH_HOLD) wb_down = 2;   /* opened in the loop, once drawn */
+    else {
+        if (!open_panel()) { look_notify_end(); wbc_stop(); return RETURN_FAIL; }
+        if (bench) settle = 0;                  /* GFOpenBench says it is drawn: what was copied stays right */
+    }
     if ((tport = CreateMsgPort()) && (tr = (struct timerequest *)CreateIORequest(tport, sizeof *tr)) &&
         !OpenDevice((STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)tr, 0)) {
         timer = 1;
+        period_us = wb_down == 2 ? 100000 : 1000000;
         tr->tr_node.io_Command = TR_ADDREQUEST;
-        tr->tr_time.tv_secs = 1;
-        tr->tr_time.tv_micro = 0;
+        tr->tr_time.tv_secs = period_us / 1000000;
+        tr->tr_time.tv_micro = period_us % 1000000;
         SendIO((struct IORequest *)tr);
     }
     while (!quit && (win || wb_down)) {
@@ -1348,10 +1367,20 @@ static int run(void)
          * "open" twice, and the second opened a second, empty panel over the first */
         case WBC_OPEN: if (wb_down) wb_down = 2; break;
         }
-        if (wb_down == 2 && open_panel()) wb_down = 0;
+        if (wb_down == 2) {
+            /* 0.4.1: not before GFOpenBench says its desktop is drawn (or has waited OB_DRAWN_CAP_MS) */
+            int hs;
+            ob_drawn_look(&bench, &drawn);
+            hs = ob_hold_step(&hold, bench, drawn, ms);
+            if (hs != OBH_HOLD && open_panel()) {
+                wb_down = 0;
+                if (bench && drawn) settle = 0;     /* copied from the drawn desktop: not copied again at 3 and 6 s */
+            }
+        }
         if (got & SIGBREAKF_CTRL_F) again = 1;  /* told the look changed */
         if (timer && CheckIO((struct IORequest *)tr)) {
             WaitIO((struct IORequest *)tr);
+            ms += period_us / 1000;
             if (win && !wb_down) {
                 ticks++;
                 if (stale_wait > 0) stale_wait--;
@@ -1369,8 +1398,9 @@ static int run(void)
                     if (w != W || h != H) again = 1; else redraw = 1;
                 }
             }
-            tr->tr_time.tv_secs = 1;
-            tr->tr_time.tv_micro = 0;
+            period_us = wb_down == 2 ? 100000 : 1000000;   /* 0.4.1: a tenth of a second while it waits to open */
+            tr->tr_time.tv_secs = period_us / 1000000;
+            tr->tr_time.tv_micro = period_us % 1000000;
             SendIO((struct IORequest *)tr);
         }
         while (win && (im = (struct IntuiMessage *)GetMsg(win->UserPort))) {
