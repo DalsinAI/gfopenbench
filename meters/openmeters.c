@@ -81,6 +81,12 @@
  * waits, as it waits while the Workbench is down, then opens once over the finished desktop, with no copies again
  * at 3 and 6 seconds. With an older GFOpenBench, or none, as before.
  *
+ * 0.4.2 (Dale, the CM4, 17 November 2026: "cm4s fonts look wrong"): the theme's font is GFOS Sans where the theme
+ * names DejaVu Sans at a size that is drawn (meters/om_font.h). The words are drawn one bit deep, and the Open
+ * theme's DejaVu Sans 13 is an outline, scaled without hinting: stems one pixel on some letters and two on others.
+ * A board with no Look prefs (the Pi 5) showed the screen's font, GFOS Sans 13; one with them (the CM4) the outline.
+ * Now both show GFOS Sans, DejaVu's shapes drawn by hand. The outline still where nothing is drawn.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -121,9 +127,11 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 #include "om_disk.h"
+#include "om_font.h"
+#include "ogt_openfont.h"
 #include "../desktop/ob_drawn.h"                 /* 0.4.1: GFOpenBench says when its desktop is drawn */
 
-#define OPENMETERS_VERSION "0.4.1"
+#define OPENMETERS_VERSION "0.4.2"
 static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
@@ -729,6 +737,29 @@ static colour theme_colour(const char *key, ULONG light, ULONG dark)
     return rgb(look_mode == 1 ? dark : light);
 }
 
+/* 0.4.2: the theme's DejaVu family drawn by hand (GFOS Sans, Bold, Mono) at the size ogt_open_font would ask, as a
+ * designed bitmap of just that size through gfopenfont.library; 0 when the theme names no such family, the size
+ * isn't drawn or the font isn't in FONTS:. */
+static struct TextFont *drawn_font(void)
+{
+    static char drawn_name[32];
+    struct Library *of;
+    struct TextFont *f = NULL;
+    int size = theme.font_size > 0 ? theme.font_size : 12;
+    const char *file;
+    if (scr && scr->Height < 400 && size > 11) size = 11;        /* as ogt_open_font sizes it */
+    if (!(file = om_font_drawn(theme.font, size)) || !(of = ogt_openfont_open())) return NULL;
+    snprintf(drawn_name, sizeof drawn_name, "%s", file);
+    font_ta.ta_Name = (STRPTR)drawn_name;
+    font_ta.ta_YSize = size;
+    font_ta.ta_Style = FS_NORMAL;
+    font_ta.ta_Flags = FPF_DISKFONT | FPF_DESIGNED;
+    f = ogt_openfont_font(of, &font_ta);
+    if (f && f->tf_YSize != size) { CloseFont(f); f = NULL; }   /* only the drawn size, never one scaled from it */
+    CloseLibrary(of);
+    return f;
+}
+
 /* 0.2.5: the icons' font (the user's solid OS list, 24 October 2026). Font prefs' Workbench icon text font at its
  * size, from ENV:Sys/font.prefs (a FONT chunk of type FP_WBFONT; the file is the OS's, IFF PREF); with none set,
  * the font GFOpenBench draws its icon labels in: the theme's, through gfopengadtools' ogt_open_font, as
@@ -739,6 +770,7 @@ static colour theme_colour(const char *key, ULONG light, ULONG dark)
 static struct TextFont *icon_font(void)
 {
     struct TextFont *f = ogt_open_icon_font(&font_ta, font_name, sizeof font_name);   /* gfopengadtools, as GFOpenBench */
+    if (!f && theme_ok) f = drawn_font();                                              /* 0.4.2 */
     if (!f) f = ogt_open_font(theme_ok ? &theme : NULL, scr, &font_ta);
     if (!f) f = OpenFont(scr->Font);
     return f;
