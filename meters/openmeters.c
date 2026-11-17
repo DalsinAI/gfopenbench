@@ -70,6 +70,12 @@
  * card's video RAM (the AutoConfig board's size, AmiCradle Team $DA15 product 9 or 15) with no fill.
  *
  * Built with gfopengadtools' theme reader (lib/ogt_theme.c) and gfopenprefs' Common/wbclose.h (meters/build.sh).
+ * 0.4 (Dale, 17 November 2026): on AmiCradle the drives that are folders share one host disk, each told what it
+ * holds plus an equal share of what is free, so five drives each showed "81 GBytes" where any one could grow into
+ * 405. A drive that shares its host disk now reads "81 GBytes (405 GBytes)": its share, then what is free on the
+ * whole disk (om_disk.h; the host's status, amicradle #1248). Other drives, and every drive on a host that does not
+ * say, read as before.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -109,9 +115,10 @@
 #include "ogt_theme.h"
 #include "ogt_font.h"
 #include "wbclose.h"
+#include "om_disk.h"
 
-#define OPENMETERS_VERSION "0.3"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (11.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.4"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
 struct IntuitionBase *IntuitionBase;
@@ -134,7 +141,7 @@ enum { C_MEM = 1, C_VOL = 2 };     /* a row's kind */
 
 typedef struct {
     char label[32];
-    char value[32];
+    char value[48];                /* 0.4: "2,047 GBytes (99,999 GBytes)" */
     ULONG fill;                    /* used, 0 to 1000; -1: no fill */
     int kind;                      /* C_MEM or C_VOL */
 } row;
@@ -401,6 +408,52 @@ static int hidden(const char *name)
     return 0;
 }
 
+/* 0.4 (Dale, 17 November 2026): the host disk the drives share, beside each drive's share (om_disk.h). Asked of the
+ * host through accontrol.device (ACCMD_BOARD, query ACC_QUERY_STATUS: amicradle-guest devices/accontrol.device/
+ * include/accontrol.h; its numbers here, as GFOpenBench's read_host has them), at the start and then every
+ * HOST_DISK_EVERY readings: the whole status is more than the host should put together every 2 seconds. An Amiga
+ * without accontrol.device is asked 3 times, then never again; a host that stops answering loses its brackets. */
+#define OM_ACCMD_BOARD      (CMD_NONSTD + 2)
+#define OM_ACC_QUERY_STATUS 7
+#define OM_STATUS_BYTES     32768
+#define HOST_DISK_EVERY     5
+static struct om_disk host_disks[OM_DISK_MAX];
+static int host_disks_n, host_disk_wait;
+static UBYTE host_disk_absent;
+
+static void read_host_disks(void)
+{
+    struct MsgPort *mp;
+    struct IOStdReq *io;
+    char *status;
+    int opened = 0;
+    if (host_disk_absent >= 3) return;
+    if (host_disk_wait > 0) { host_disk_wait--; return; }
+    host_disk_wait = HOST_DISK_EVERY - 1;
+    host_disks_n = 0;
+    if (!(status = AllocVec(OM_STATUS_BYTES + 1, MEMF_PUBLIC | MEMF_CLEAR))) return;
+    if ((mp = CreateMsgPort())) {
+        if ((io = (struct IOStdReq *)CreateIORequest(mp, sizeof *io))) {
+            if (!OpenDevice((STRPTR)"accontrol.device", 0, (struct IORequest *)io, 0)) {
+                opened = 1;
+                io->io_Command = OM_ACCMD_BOARD;
+                io->io_Offset = OM_ACC_QUERY_STATUS;
+                io->io_Data = status;
+                io->io_Length = OM_STATUS_BYTES;
+                if (!DoIO((struct IORequest *)io)) {
+                    status[io->io_Actual < OM_STATUS_BYTES ? io->io_Actual : OM_STATUS_BYTES] = 0;
+                    host_disks_n = om_disk_read(status, host_disks, OM_DISK_MAX);
+                }
+                CloseDevice((struct IORequest *)io);
+            }
+            DeleteIORequest((struct IORequest *)io);
+        }
+        DeleteMsgPort(mp);
+    }
+    if (opened) host_disk_absent = 0; else { host_disk_absent++; host_disk_wait = 0; }
+    FreeVec(status);
+}
+
 typedef struct { char name[32]; } vol;
 
 /* The mounted volumes (each with a handler at work), by name, read with Info() with requesters off: a disk that
@@ -443,9 +496,9 @@ static void volume_rows(void)
             unsigned long long freeb = total > used ? total - used : 0;
             row *r = add_row(v[i].name, C_VOL);
             if (r) {
-                char n[24];
-                if (freeb >= (10ULL << 30)) { thousands(n, sizeof n, (freeb + (1ULL << 29)) >> 30); snprintf(r->value, sizeof r->value, "%s GBytes", n); }
-                else { thousands(n, sizeof n, (freeb + (1ULL << 19)) >> 20); snprintf(r->value, sizeof r->value, "%s MBytes", n); }
+                /* 0.4: "81 GBytes (405 GBytes)" on a drive that shares its host disk: its share, then the whole disk's free */
+                const struct om_disk *hd = om_disk_find(host_disks, host_disks_n, v[i].name);
+                om_disk_value(r->value, sizeof r->value, freeb, hd ? hd->host_free : 0);
                 r->fill = used_of(used, total);
             }
         }
@@ -474,7 +527,7 @@ static void read_all(void)
         }
     }
     if (!opt.novideo) video_row();
-    if (!opt.novolumes) volume_rows();
+    if (!opt.novolumes) { read_host_disks(); volume_rows(); }
 }
 
 /* ---- the look: the dock's tint, the theme's colours ------------------------------------------ */
