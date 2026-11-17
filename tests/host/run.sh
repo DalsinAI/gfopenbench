@@ -30,6 +30,8 @@ sh "$HERE/tests/host/test_guest_index.sh"
 # the WBGap ARexx scripts close the drawer windows they make (W2, X3)
 sh "$HERE/tests/host/test_rexx_drawers.sh"
 sh "$HERE/tests/host/test_stove_dir.sh"
+# GFOpenMeters' icon: amicradle's icon writer found in scripts/icons/ and in scripts/ (meters/make_icon.py)
+python3 "$HERE/tests/host/test_meters_icon.py"
 "$OUT/test_wbgap_rows"
 # wbgap_probe: how far apart WBGapTest's window probe reads pixels (X1's fitted drawer)
 cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/tests/amiga" "$HERE/tests/host/test_wbgap_probe.c" -o "$OUT/test_wbgap_probe"

@@ -5,8 +5,8 @@ icon is chosen, from art/OpenMeters.png and art/OpenMeters-selected.png.
 
     python3 meters/make_icon.py AMICRADLE OUT.info [STACK]
 
-AMICRADLE is an amicradle checkout (its scripts/amiga_icon.py writes the
-icon). As GFOpenUp's pack does it: each 64 x 64 picture is shown at 85 per
+AMICRADLE is an amicradle checkout (its scripts/icons/amiga_icon.py writes the
+icon; scripts/amiga_icon.py in a checkout from before amicradle #1179 moved it). As GFOpenUp's pack does it: each 64 x 64 picture is shown at 85 per
 cent, every pixel solid or see-through, dithered for a 16-bit screen, and the
 chosen frame gets the OS 3.5 glow. The icon is a tool, left unplaced so
 Workbench puts it where there is room, with the tooltypes GFOpenMeters' own
@@ -30,6 +30,16 @@ ICON_SCALE = 0.85        # as gfopenup's build_pack.py, and as Gorilla's are sho
 WBTOOL = 3
 
 
+def icon_scripts(amicradle: Path) -> Path | None:
+    """The folder of an amicradle checkout that holds amiga_icon.py: scripts/icons since amicradle #1179
+    (16 Nov 2026), scripts before it. None when neither has it. With only the old place looked in, a build
+    against amicradle main made no GFOpenMeters.info and said only that there was no checkout."""
+    for d in (amicradle / "scripts" / "icons", amicradle / "scripts"):
+        if (d / "amiga_icon.py").is_file():
+            return d
+    return None
+
+
 def tooltypes() -> list[str]:
     """MAKEICON's tooltypes, from openmeters.c's make_icon (its tt[] list)."""
     src = (HERE / "openmeters.c").read_text(encoding="latin-1")
@@ -45,7 +55,10 @@ def main() -> int:
         return 2
     amicradle, out = Path(sys.argv[1]), Path(sys.argv[2])
     stack = int(sys.argv[3]) if len(sys.argv) == 4 else 16384
-    sys.path.insert(0, str(amicradle / "scripts"))
+    scripts = icon_scripts(amicradle)
+    if scripts is None:
+        raise SystemExit(f"{amicradle}: no scripts/icons/amiga_icon.py (or scripts/amiga_icon.py): not an amicradle checkout")
+    sys.path.insert(0, str(scripts))
     import amiga_icon
     from PIL import Image
 
