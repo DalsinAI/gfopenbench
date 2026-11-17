@@ -118,6 +118,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -I"$HERE/desktop" "$HERE/tests/host/test_o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_host.c" \
   "$HERE/tests/host/test_ob_host.c" -o "$OUT/test_ob_host"
 "$OUT/test_ob_host"
+# om_disk: the host disk a drive shares, in GFOpenMeters' volume bars, from the host's status (GFOpenMeters 0.4)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_disk.c" \
+  "$HERE/tests/host/test_om_disk.c" -o "$OUT/test_om_disk"
+"$OUT/test_om_disk"
 # ob_order: RAM Disk first, the boot volume second, on the desktop's column (GFOpenBench 0.1.46)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_order.c" -o "$OUT/test_ob_order"

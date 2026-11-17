@@ -8,7 +8,7 @@ Our own Workbench for AmigaOS 3.2: a `workbench.library`, an `icon.library` and 
 
 The window look (Open light) is written up in `Design-Window-Look.md`, with its reference picture in `reference/`.
 
-**GFOpenMeters** (`meters/`) is a desktop widget for GFOpenBench: a small panel with the date and time, and a bar each for Chip RAM, Fast RAM, the graphics card's memory and every volume, drawn as GFOpenDock draws its shelf. **0.2.9** (4 November 2026): under GFOpenGfx its text's plane goes in any memory, not Chip RAM (494 bytes of Chip freed); under OS 3.2's graphics.library it stays in Chip as before.
+**GFOpenMeters** (`meters/`) is a desktop widget for GFOpenBench: a small panel with the date and time, and a bar each for Chip RAM, Fast RAM, the graphics card's memory and every volume, drawn as GFOpenDock draws its shelf. **0.4** (17 November 2026): on AmiCradle a drive that shares its host disk with other drives reads "81 GBytes (405 GBytes)", its share and then what is free on the whole disk, which any one of them can grow into (`meters/om_disk.c`). **0.2.9** (4 November 2026): under GFOpenGfx its text's plane goes in any memory, not Chip RAM (494 bytes of Chip freed); under OS 3.2's graphics.library it stays in Chip as before.
 
 **GFOpenBenchmark** (`benchmark/`, 7 November 2026) is a benchmark, not part of the desktop: Dhrystone 2.1 MIPS, MFLOPS (Whetstone, LINPACK 100, DAXPY, single precision and FSGLMUL/FSGLDIV), memory bandwidth in Chip and Fast RAM, RectFill/ClipBlit/Text, and GL through ogles3.library (fill, triangles, a heavy shader, compute, present), with a report and one JSON line to compare runs. `benchmark/README.md` says what each figure is.
 
