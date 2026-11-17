@@ -53,6 +53,8 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/workbench" "$HERE/workben
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_show.c" \
   "$HERE/tests/host/test_ob_show.c" -o "$OUT/test_ob_show"
+cc -std=gnu99 -O2 -Wall -Wextra -Werror -I"$HERE/desktop" "$HERE/tests/host/test_ob_title.c" -o "$OUT/test_ob_title"
+"$OUT/test_ob_title"
 "$OUT/test_ob_show"
 # ob_snap: Snapshot's record, the icon places GFOpenBench keeps (GFOpenBench 0.1.38)
 # shellcheck disable=SC2086

@@ -260,6 +260,7 @@
 #include "ob_builtin.h"
 #include "ob_info.h"
 #include "ob_name.h"
+#include "ob_title.h"
 #ifdef OB_HAVE_TATA
 #include "tata_inspect.h"
 #endif
@@ -309,8 +310,8 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.69"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (16.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.70"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -605,14 +606,16 @@ static void human_size(char *buf, size_t size, unsigned long long b)
 /* 1 when the title changed. */
 static int make_title(void)
 {
-    char chip[16], fast[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
-    unsigned long long fastfree = AvailMem(MEMF_FAST), extfree;
+    char chip[16], fast[16], ext[16], t[sizeof screen_title], pad[BARLOGO_MAX_SPACES + 1], cpu[64];
+    unsigned long long extfree;
     int k;
     count_boards();                           /* each time: the cores board may give its cores after we start */
     read_host();
-    if (extmem_free(&extfree)) fastfree += extfree;      /* 0.1.48: one Fast figure, the extended memory in it */
+    /* 0.1.70: Fast and the extended memory apart (0.1.48 to 0.1.69: one Fast figure, the extended memory in it) */
+    ext[0] = 0;
+    if (extmem_free(&extfree)) human_size(ext, sizeof ext, extfree);
     human_size(chip, sizeof chip, AvailMem(MEMF_CHIP));
-    human_size(fast, sizeof fast, fastfree);
+    human_size(fast, sizeof fast, AvailMem(MEMF_FAST));
     barlogo_pad(look.scr, pad);               /* made again each time: GFOpenLook may make the bar taller after we start */
     /* "1 (68k)", the cores board's "+ 10 (m68k/x64)" when it is fitted, and the host's "+ 12 (x64)" */
     k = snprintf(cpu, sizeof cpu, "1 (68k)");
@@ -620,8 +623,9 @@ static int make_title(void)
         k += snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)cores, barlogo_isas(isas));
     if (host_cores)
         snprintf(cpu + k, sizeof cpu - k, " + %lu (%s)", (unsigned long)host_cores, host_isa[0] ? host_isa : "host");
-    snprintf(t, sizeof t, "%sOpenBench " OPENBENCH_VERSION " - Chip %s, Fast %s, GPU = %lu, CPU = %s",
-             pad, chip, fast, (unsigned long)gpus, cpu);
+    ob_title_text(t, sizeof t, pad, OPENBENCH_VERSION, chip, fast, ext, (unsigned long)gpus, cpu,
+                  ob_title_lines(((struct Library *)IntuitionBase)->lib_Version,
+                                 ((struct Library *)IntuitionBase)->lib_Revision));
     if (!strcmp(t, screen_title))
         return 0;
     strcpy(screen_title, t);
