@@ -16,7 +16,9 @@
 /* does this intuition.library draw a title's 0x1F as the small line? */
 static inline int ob_title_lines(unsigned version, unsigned revision)
 {
-    return version > 47 || (version == 47 && revision >= 101);
+    /* by the revision: the thin GFOpenKick's intuition.library says 48.100 where the full one says 47.100 (the Pi 5,
+     * 17 November 2026: boxes where the lines should be), and OS 3.2.3's own is 47.5x */
+    return version >= 47 && revision >= 101;
 }
 
 static inline int ob_title_text(char *t, unsigned long size, const char *pad, const char *ver, const char *chip,

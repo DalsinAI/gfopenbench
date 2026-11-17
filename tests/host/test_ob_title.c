@@ -10,8 +10,9 @@ int main(void)
 {
     char t[192], s[24];
     int k;
-    CHECK(!ob_title_lines(47, 100) && ob_title_lines(47, 101) && ob_title_lines(48, 0) && !ob_title_lines(40, 200)
+    CHECK(!ob_title_lines(47, 100) && ob_title_lines(47, 101) && !ob_title_lines(48, 0) && !ob_title_lines(40, 200)
           && !ob_title_lines(47, 54), "the small line from intuition.library 47.101");
+    CHECK(!ob_title_lines(48, 100) && ob_title_lines(48, 101), "the thin GFOpenKick's 48.100 has none, its 48.101 has");
     /* the lines, with extended memory */
     k = ob_title_text(t, sizeof t, "    ", "0.1.70", "8 MB", "1.7 GB", "1.1 GB", 1, "1 (68k) + 4 (ARM)", 1);
     CHECK(!strcmp(t, "    OpenBench 0.1.70 \x1F Chip 8 MB \x1F Fast 1.7 GB \x1F Ext 1.1 GB \x1F GPU = 1, CPU = 1 (68k) + 4 (ARM)"),
