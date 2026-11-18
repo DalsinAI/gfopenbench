@@ -1,11 +1,12 @@
 # Copyright (c) 2026 AmiCradle Team. MIT licence.
-# GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on a GitHub-hosted
-# runner with the os32-gcc16 stove (gfopenup's stove action), never the Team's machines. desktop/build.sh is built
+# GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on amigachromebuild's
+# runner for this repository (label amicradle-validate, never daletop) with the os32-gcc16 stove (gfopenup's stove
+# action). desktop/build.sh is built
 # against the siblings' main as build_pack.py builds it (OGT, OAP, FILES, TATA, LAYOUT). A pull request builds only;
 # a push to main publishes build/os3/GFOpenBench, and GFOpenMeters with its icon (meters/build.sh; the icon by
 # amicradle's icon writer, so amicradle is a sibling), to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
 # with PART.json (this commit, the siblings' commits, the compiler) and latest.json. The newest 30 builds are kept.
-# The private siblings are read with the organisation secret PARTS_READ_TOKEN (read-only Contents).
+# The private siblings are read with the runner's own read access (amigachromebuild's gh login): no token, no secret.
 name: GFOpenUp part
 on:
   pull_request:
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   part:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, amicradle-validate]
     timeout-minutes: 30
     permissions:
       contents: write
@@ -28,17 +29,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: gfopenbench
-      - name: The siblings at main
-        env:
-          TOKEN: ${{ secrets.PARTS_READ_TOKEN }}
+      - name: The siblings at main, with the runner's own read access
         run: |
           set -eu
+          XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"; export XDG_RUNTIME_DIR
+          [ -S "$XDG_RUNTIME_DIR/bus" ] && { DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"; export DBUS_SESSION_BUS_ADDRESS; }
           for r in $SIBLINGS; do
-            if [ -n "$TOKEN" ]; then url="https://x-access-token:$TOKEN@github.com/DalsinAI/$r"; else url="https://github.com/DalsinAI/$r"; fi
-            git clone -q --depth 1 "$url" "$r" || { echo "::error::$r: no read access (organisation secret PARTS_READ_TOKEN)"; exit 1; }
-            git -C "$r" remote set-url origin "https://github.com/DalsinAI/$r"
+            rm -rf "$r"
+            git clone -q --depth 1 "https://github.com/DalsinAI/$r" "$r" \
+              || { echo "::error::$r: cannot read it from here (gh auth status, as the user this runs as)"; exit 1; }
           done
-      - uses: DalsinAI/gfopenup/.github/actions/stove@team3/parts-on-merge-20261117
+      - uses: DalsinAI/gfopenup/.github/actions/stove@main
       - name: Build (build.sh, desktop/build.sh, meters/build.sh)
         run: |
           set -eu
@@ -46,7 +47,7 @@ jobs:
           sh gfopenbench/build.sh "$W/gfopenbench/build/os3"
           OGT=$W/gfopengadtools OAP=$W/gfopenprefs FILES=$W/gfopenfilemanager TATA=$W/gfopentata LAYOUT=$W/gfopenlayout \
             sh gfopenbench/desktop/build.sh "$W/gfopenbench/build/os3"
-          python3 -m pip install --quiet pillow
+          python3 -c 'import PIL' 2>/dev/null || python3 -m pip install --quiet --user pillow
           OGT=$W/gfopengadtools OAP=$W/gfopenprefs AMICRADLE=$W/amicradle sh gfopenbench/meters/build.sh "$W/gfopenbench/build/os3"
           ls -l gfopenbench/build/os3/GFOpenBench gfopenbench/build/os3/GFOpenMeters gfopenbench/build/os3/GFOpenMeters.info
       - name: Host tests
