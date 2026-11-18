@@ -1,7 +1,7 @@
 # Copyright (c) 2026 AmiCradle Team. MIT licence.
 # GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on amigachromebuild's
-# runner for this repository (label amicradle-validate, never daletop) with the os32-gcc16 stove (gfopenup's stove
-# action). desktop/build.sh is built
+# runner for this repository (label amicradle-validate, never daletop) with that machine's own os32-gcc16 stove
+# (tools/stove-dir.sh), the same compiler and NDK the os3 check builds with. desktop/build.sh is built
 # against the siblings' main as build_pack.py builds it (OGT, OAP, FILES, TATA, LAYOUT). A pull request builds only;
 # a push to main publishes build/os3/GFOpenBench, and GFOpenMeters with its icon (meters/build.sh; the icon by
 # amicradle's icon writer, so amicradle is a sibling), to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
@@ -39,7 +39,13 @@ jobs:
             git clone -q --depth 1 "https://github.com/DalsinAI/$r" "$r" \
               || { echo "::error::$r: cannot read it from here (gh auth status, as the user this runs as)"; exit 1; }
           done
-      - uses: DalsinAI/gfopenup/.github/actions/stove@main
+      - name: The machine's os32-gcc16 stove
+        run: |
+          set -eu
+          S=$(sh gfopenbench/tools/stove-dir.sh)
+          "$S/prefix/bin/m68k-amigaos-gcc" --version | head -1
+          echo "OS32_GCC16=$S" >> "$GITHUB_ENV"
+          echo "STOVE=$S" >> "$GITHUB_ENV"
       - name: Build (build.sh, desktop/build.sh, meters/build.sh)
         run: |
           set -eu
