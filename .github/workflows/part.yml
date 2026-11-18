@@ -1,0 +1,87 @@
+# Copyright (c) 2026 AmiCradle Team. MIT licence.
+# GFOpenBench's GFOpenUp part, built on every merge (gfopenup docs/design/PARTS-ON-MERGE.md): on amigachromebuild's
+# runner for this repository (label amicradle-validate, never daletop) with that machine's own os32-gcc16 stove
+# (tools/stove-dir.sh), the same compiler and NDK the os3 check builds with. desktop/build.sh is built
+# against the siblings' main as build_pack.py builds it (OGT, OAP, FILES, TATA, LAYOUT). A pull request builds only;
+# a push to main publishes build/os3/GFOpenBench, and GFOpenMeters with its icon (meters/build.sh; the icon by
+# amicradle's icon writer, so amicradle is a sibling), to the rolling pre-release "parts" as gfopenbench-<commit12>.tar.gz,
+# with PART.json (this commit, the siblings' commits, the compiler) and latest.json. The newest 30 builds are kept.
+# The private siblings are read with the runner's own read access (amigachromebuild's gh login): no token, no secret.
+name: GFOpenUp part
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: part-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  part:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, amicradle-validate]
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      SIBLINGS: gfopengadtools gfopenprefs gfopenfilemanager gfopentata gfopenlayout amicradle
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: gfopenbench
+      - name: The siblings at main, with the runner's own read access
+        run: |
+          set -eu
+          XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"; export XDG_RUNTIME_DIR
+          [ -S "$XDG_RUNTIME_DIR/bus" ] && { DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"; export DBUS_SESSION_BUS_ADDRESS; }
+          for r in $SIBLINGS; do
+            rm -rf "$r"
+            git clone -q --depth 1 "https://github.com/DalsinAI/$r" "$r" \
+              || { echo "::error::$r: cannot read it from here (gh auth status, as the user this runs as)"; exit 1; }
+          done
+      - name: The machine's os32-gcc16 stove
+        run: |
+          set -eu
+          S=$(sh gfopenbench/tools/stove-dir.sh)
+          "$S/prefix/bin/m68k-amigaos-gcc" --version | head -1
+          echo "STOVE=$S" >> "$GITHUB_ENV"
+      - name: Build (build.sh, desktop/build.sh, meters/build.sh)
+        run: |
+          set -eu
+          W=$GITHUB_WORKSPACE
+          sh gfopenbench/build.sh "$W/gfopenbench/build/os3"
+          OGT=$W/gfopengadtools OAP=$W/gfopenprefs FILES=$W/gfopenfilemanager TATA=$W/gfopentata LAYOUT=$W/gfopenlayout \
+            sh gfopenbench/desktop/build.sh "$W/gfopenbench/build/os3"
+          python3 -c 'import PIL' 2>/dev/null || python3 -m pip install --quiet --user pillow
+          OGT=$W/gfopengadtools OAP=$W/gfopenprefs AMICRADLE=$W/amicradle sh gfopenbench/meters/build.sh "$W/gfopenbench/build/os3"
+          ls -l gfopenbench/build/os3/GFOpenBench gfopenbench/build/os3/GFOpenMeters gfopenbench/build/os3/GFOpenMeters.info
+      - name: Host tests
+        run: sh gfopenbench/tests/host/run.sh
+      - name: The part
+        id: part
+        run: |
+          set -eu
+          c=$(git -C gfopenbench rev-parse HEAD); s=${c:0:12}
+          sibs=$(for r in $SIBLINGS; do printf '"%s": "%s", ' "$r" "$(git -C "$r" rev-parse HEAD)"; done)
+          cc=$("$STOVE/prefix/bin/m68k-amigaos-gcc" --version | head -1)
+          mkdir -p out
+          cat > gfopenbench/PART.json <<J
+          {"repo": "gfopenbench", "commit": "$c", "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+           "files": ["build/os3/GFOpenBench", "build/os3/GFOpenMeters", "build/os3/GFOpenMeters.info"], "siblings": {${sibs%, }}, "compiler": "$cc"}
+          J
+          tar -C gfopenbench -czf "out/gfopenbench-$s.tar.gz" PART.json build/os3/GFOpenBench build/os3/GFOpenMeters build/os3/GFOpenMeters.info
+          cp gfopenbench/PART.json out/latest.json
+          cat out/latest.json
+          echo "asset=out/gfopenbench-$s.tar.gz" >> "$GITHUB_OUTPUT"
+      - name: Publish to the "parts" pre-release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          gh release view parts >/dev/null 2>&1 || gh release create parts --prerelease --target main \
+            --title "GFOpenUp part builds" --notes "Each merge's GFOpenUp part, by commit (gfopenup docs/design/PARTS-ON-MERGE.md)."
+          gh release upload parts "${{ steps.part.outputs.asset }}" out/latest.json --clobber
+          gh release view parts --json assets --jq '[.assets[] | select(.name | startswith("gfopenbench-"))] | sort_by(.createdAt) | reverse | .[30:] | .[].name' \
+            | while read -r n; do gh release delete-asset parts "$n" -y; done
