@@ -44,7 +44,6 @@ jobs:
           set -eu
           S=$(sh gfopenbench/tools/stove-dir.sh)
           "$S/prefix/bin/m68k-amigaos-gcc" --version | head -1
-          echo "OS32_GCC16=$S" >> "$GITHUB_ENV"
           echo "STOVE=$S" >> "$GITHUB_ENV"
       - name: Build (build.sh, desktop/build.sh, meters/build.sh)
         run: |
