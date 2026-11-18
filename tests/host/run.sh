@@ -127,6 +127,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_disk.c" \
   "$HERE/tests/host/test_om_disk.c" -o "$OUT/test_om_disk"
 "$OUT/test_om_disk"
+# om_font: the hand-drawn GFOS font for a theme's DejaVu family, in GFOpenMeters' words (GFOpenMeters 0.4.2)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_font.c" \
+  "$HERE/tests/host/test_om_font.c" -o "$OUT/test_om_font"
+"$OUT/test_om_font"
 # ob_order: RAM Disk first, the boot volume second, on the desktop's column (GFOpenBench 0.1.46)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/tests/host/test_ob_order.c" -o "$OUT/test_ob_order"
