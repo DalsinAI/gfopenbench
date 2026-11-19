@@ -311,8 +311,8 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.71"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.72"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (19.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -641,6 +641,11 @@ static struct Window *root;
  * and the strip covers the whole screen behind it. ENV:GFOpenBench/Backdrop "0"; anything else, or none, is on. */
 static int root_framed;
 static int auto_arrange;                    /* 0.1.52: Tools > Auto-arrange icons (M34), ENV:GFOpenBench/AutoArrange "1" */
+/* 0.1.72: GFOpenBench > Align AppIcons (Dale, 19 November 2026: "aligns the app icons ... running vertically from the
+ * bottom right corner, upwards"): programs' AppIcons in one column at the desktop's bottom right, the first at the
+ * bottom, the next above it, whatever started them; off the grid, so the disks and icons left out flow as before.
+ * ENV:GFOpenBench/AlignAppIcons "1". */
+static int align_appicons;
 #define ROOT_W (root_framed ? root->GZZWidth : root->Width)
 #define ROOT_H (root_framed ? root->GZZHeight : root->Height)
 #define ROOT_X (root->LeftEdge + (root_framed ? root->BorderLeft : 0))
@@ -1267,6 +1272,34 @@ static void put_in(dicon *ic, const wb_gcell *c)
     ic->y = y;
 }
 
+/* 0.1.72: Align AppIcons: icons[first..] (the AppIcons) up the right edge from the bottom, each centred in a column
+ * as wide as the widest of them or its label, a row of the label's height and the grid's gap between them */
+static void appicons_column(int first, LONG em)
+{
+    struct RastPort *rp = root->RPort;
+    LONG colw = 10 * em, y = ROOT_H - GRID_Y, gap = label_h / 2 > 8 ? label_h / 2 : 8, cx;
+    int i;
+    for (i = first; i < nicons; i++) {
+        LONG lw = ogt_text_width(rp, icons[i].name);
+        if (lw > 14 * em) lw = 14 * em;
+        if (icons[i].w > colw) colw = icons[i].w;
+        if (lw > colw) colw = lw;
+    }
+    cx = ROOT_W - GRID_X - colw / 2;
+    for (i = first; i < nicons; i++) {
+        dicon *ic = &icons[i];
+        LONG x = cx - ic->w / 2, top;
+        y -= ic->lt + label_h;              /* the picture, then its label under it */
+        top = y;
+        ic->ix += x - ic->x;
+        ic->iy += top - ic->y;
+        ic->x = x;
+        ic->y = top;
+        y -= gap;
+        if (y < GRID_Y) y = ROOT_H - GRID_Y;  /* a column full: start again at the bottom (rare: many programs) */
+    }
+}
+
 /* Every icon read into the column grid (above), in icons[]'s order (the Clean Up order). clean: Icons > Clean Up,
  * the user's places forgotten. */
 static void place_icons(int clean)
@@ -1306,8 +1339,14 @@ static void place_icons(int clean)
             c->y = icons[i].sgy;
         }
     }
-    wb_grid_columns(&gspec, gcells, nicons, ROOT_W - 2 * GRID_X, ROOT_H - 2 * GRID_Y, ip.right, &glay);
-    for (i = 0; i < nicons; i++) put_in(&icons[i], &gcells[i]);
+    {
+        int ngrid = nicons;                 /* 0.1.72: aligned, the AppIcons (last in icons[]) are off the grid */
+        if (align_appicons)
+            while (ngrid > 0 && icons[ngrid - 1].lo == OB_LO_APP) ngrid--;
+        wb_grid_columns(&gspec, gcells, ngrid, ROOT_W - 2 * GRID_X, ROOT_H - 2 * GRID_Y, ip.right, &glay);
+        for (i = 0; i < ngrid; i++) put_in(&icons[i], &gcells[i]);
+        if (ngrid < nicons) appicons_column(ngrid, em);
+    }
 }
 
 /* An icon let go of on the desktop: its place the user's for the run, on the grid's nearest place when snapping is
@@ -2768,7 +2807,8 @@ enum { M_SHELL = 1, M_REDRAW, M_UPDATE, M_ABOUT, M_LOADWB, M_QUIT, M_ICON_OPEN, 
        M_RESETWB, M_EXECUTE, M_RENAME, M_DELETE,
        M_OPENVOL, M_FIND, M_FORMAT, M_AUTOARRANGE,     /* 0.1.52 */
        M_SELALL, M_CLEARSEL,                            /* 0.1.58 */
-       M_RECOVER, M_PUTBACK };                          /* 0.1.68: recover deleted (Dale 13 Nov 2026) */
+       M_RECOVER, M_PUTBACK,                            /* 0.1.68: recover deleted (Dale 13 Nov 2026) */
+       M_ALIGNAPPS };                                   /* 0.1.72: Align AppIcons */
 
 /* 0.1.56: programs' AppMenuItems (menus_make): each picked one's id is M_APP0 + its place in app_menus */
 #define MAX_APPMENU 160
@@ -2789,6 +2829,7 @@ static struct NewMenu newmenus[] = {
     { NM_ITEM, (STRPTR)"Redraw All", NULL, 0, 0, (APTR)M_REDRAW },
     { NM_ITEM, (STRPTR)"Update", (STRPTR)"M", 0, 0, (APTR)M_UPDATE },
     { NM_ITEM, (STRPTR)"Resize to Window", NULL, 0, 0, (APTR)M_RESIZE },
+    { NM_ITEM, (STRPTR)"Align AppIcons", NULL, CHECKIT | MENUTOGGLE, 0, (APTR)M_ALIGNAPPS },    /* 0.1.72 */
     /* 0.1.58: Backdrop and Last Message are gone (Dale, 13 November 2026: gaps 2 and 4 removed); Open volume is in
      * the Window menu, as the drawers have it */
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
@@ -3179,6 +3220,7 @@ static void keys_load(void)
         FreeDiskObject(o);
     }
     auto_arrange = arr >= 0 ? arr : setting_on("AutoArrange", 0);
+    align_appicons = setting_on("AlignAppIcons", 0);    /* 0.1.72 */
 }
 
 /* Tools > Auto-arrange icons: ARRANGE= turned on or off in GFOpenBench's icon (wb_tt.h); with no icon to write,
@@ -4540,6 +4582,11 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 arrange_write((it->Flags & CHECKED) != 0);  /* 0.1.58: the ARRANGE= tooltype */
                 arrange_if_auto();
                 break;
+            case M_ALIGNAPPS:                               /* 0.1.72: the AppIcons up the bottom right, or back */
+                align_appicons = (it->Flags & CHECKED) != 0;
+                setting_write("AlignAppIcons", align_appicons);
+                if (root) { place_icons(0); redraw_all(); }
+                break;
             case M_REDRAW: redraw_all(); break;
             case M_PUTAWAY: put_away(); break;      /* 0.1.35 */
             case M_LEAVEOUT: desk_leave_out(); break;       /* 0.1.41 */
@@ -4804,6 +4851,7 @@ static struct Menu *menus_make(void)
         if (nm[k].nm_Type == NM_ITEM || nm[k].nm_Type == NM_SUB)
             if (nm[k].nm_Label != NM_BARLABEL) nm[k].nm_CommKey = (STRPTR)menu_key(nm[k].nm_UserData);    /* 0.1.58 */
         if (nm[k].nm_UserData == (APTR)M_AUTOARRANGE && auto_arrange) nm[k].nm_Flags |= CHECKED;
+        if (nm[k].nm_UserData == (APTR)M_ALIGNAPPS && align_appicons) nm[k].nm_Flags |= CHECKED;   /* 0.1.72 */
         k++;
     }
     if (own && at == t) k = nm_rows(nm, k, tools, ntools);                 /* Tools was the last menu */
