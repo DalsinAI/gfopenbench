@@ -89,6 +89,27 @@ int main(void)
     om_sensors_value(tiny, sizeof tiny, &s);
     CHECK(strlen(tiny) < sizeof tiny, "a small buffer stays ended: \"%s\"", tiny);
 
+    /* the Temp bar's colours: blue, through green, to red */
+    {
+        int r, g, b, i;
+        om_sensors_heat(0, &r, &g, &b);
+        CHECK(b > r && b > g, "blue at the cool end: %d,%d,%d", r, g, b);
+        om_sensors_heat(500, &r, &g, &b);
+        CHECK(g > r && g > b, "green in the middle: %d,%d,%d", r, g, b);
+        om_sensors_heat(750, &r, &g, &b);
+        CHECK(r > b && g > b, "yellow at three quarters: %d,%d,%d", r, g, b);
+        om_sensors_heat(1000, &r, &g, &b);
+        CHECK(r > g && r > b, "red at the hot end: %d,%d,%d", r, g, b);
+        om_sensors_heat(5000, &r, &g, &b);
+        CHECK(r == 220 && g == 45 && b == 35, "past the end is red: %d,%d,%d", r, g, b);
+        for (i = 0; i <= 1000; i++) {           /* every place a colour, and no blue from green on */
+            om_sensors_heat((unsigned long)i, &r, &g, &b);
+            if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) break;
+            if (i >= 500 && b > 70) break;
+        }
+        CHECK(i == 1001, "the colours run smoothly: stopped at %d", i);
+    }
+
     printf("test_om_sensors: %d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

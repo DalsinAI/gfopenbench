@@ -141,3 +141,21 @@ unsigned long om_sensors_fill(const struct om_sensors *s)
     if (s->temp_milli >= OM_SENSORS_HOT_MILLIC) return 1000;
     return s->temp_milli * 1000 / OM_SENSORS_HOT_MILLIC;
 }
+
+void om_sensors_heat(unsigned long t, int *r, int *g, int *b)
+{
+    static const unsigned char stop[5][3] = {
+        { 40, 100, 230 },          /* blue */
+        { 20, 180, 210 },          /* cyan */
+        { 60, 185, 70 },           /* green */
+        { 240, 190, 30 },          /* yellow */
+        { 220, 45, 35 }            /* red */
+    };
+    int i, f;
+    if (t >= 1000) { *r = stop[4][0]; *g = stop[4][1]; *b = stop[4][2]; return; }
+    i = (int)(t / 250);
+    f = (int)(t % 250);
+    *r = stop[i][0] + (stop[i + 1][0] - stop[i][0]) * f / 250;
+    *g = stop[i][1] + (stop[i + 1][1] - stop[i][1]) * f / 250;
+    *b = stop[i][2] + (stop[i + 1][2] - stop[i][2]) * f / 250;
+}

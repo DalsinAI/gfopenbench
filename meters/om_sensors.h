@@ -8,8 +8,10 @@
  * there when the host has it, so a host without a sensor shows nothing for it, and a host that says none shows no row.
  *
  * The row: "47\xb0C at 2.8 GHz", with ", throttled" or ", low volts" while the Pi says so now, and ", 1200 rpm" with
- * a fan. Its bar is the temperature against OM_SENSORS_HOT_MILLIC, 85 C, where the Pi 5's firmware throttles hard, so
- * the warning colour (90 per cent and over) comes at 76.5 C, before its soft limit at 80.
+ * a fan. Its bar is the temperature against OM_SENSORS_HOT_MILLIC, 85 C, where the Pi 5's firmware throttles hard.
+ * The bar is coloured along its length (Dale, 20 November 2026: "blue at one end, red at the end, hues of color as it
+ * goes up"): om_sensors_heat() gives the colour at each place, blue, cyan, green, yellow, red, so a cool Pi's fill
+ * stops in blue or green and a hot one's runs on into orange and red (76.5 C, where the other bars warn, is orange).
  *
  * Plain C, tested on the host (tests/host/test_om_sensors.c). MIT, Copyright (c) 2026 AmiCradle Team. */
 #ifndef OM_SENSORS_H
@@ -41,5 +43,9 @@ void om_sensors_value(char *out, int size, const struct om_sensors *s);
 
 /* The bar, 0 to 1000: the temperature against OM_SENSORS_HOT_MILLIC; (unsigned long)-1 (no fill) without one. */
 unsigned long om_sensors_fill(const struct om_sensors *s);
+
+/* The colour at t of 1000 along the Temp bar: blue (0), cyan (250), green (500), yellow (750), red (1000), in between
+ * mixed; t past 1000 is red. */
+void om_sensors_heat(unsigned long t, int *r, int *g, int *b);
 
 #endif
