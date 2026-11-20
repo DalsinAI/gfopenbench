@@ -25,7 +25,7 @@
  *   BARWIDTH=n            the bars' width in pixels at a 13-pixel font (default 200), in proportion to the font
  *                         (0.2.5); never narrower than the numbers in them
  *   REFRESH=n             seconds between readings (default 2)
- *   NODATE NOMEMORY NOVIDEO NOVOLUMES   leave those out
+ *   NODATE NOMEMORY NOVIDEO NOVOLUMES NOSENSORS   leave those out
  *   RAM                   show RAM: too
  *   HIDE=Name|Name        volumes not to show
  *   MAKEICON              (Shell only) write GFOpenMeters.info beside the program with these tooltypes, and stop
@@ -87,6 +87,13 @@
  * A board with no Look prefs (the Pi 5) showed the screen's font, GFOS Sans 13; one with them (the CM4) the outline.
  * Now both show GFOS Sans, DejaVu's shapes drawn by hand. The outline still where nothing is drawn.
  *
+ * 0.5 (Dale, 20 November 2026: "add some way to watch temperatures to openmeter", then, a Pi 5 lifted to 3 GHz:
+ * "thats why i asked for openmeter to show us temps"): on AmiCradle a Temp row under the date, "47\xb0C at 2.8 GHz",
+ * with ", throttled" or ", low volts" while the Pi says so and a fan's rpm where there is one. Its bar is the
+ * temperature against 85 C, where a Pi 5 throttles hard, so it turns the warning colour at 76.5 C (om_sensors.h).
+ * It comes from the host's status with the drives' host disks (read_host), every HOST_EVERY readings; a host that
+ * measures nothing, or an Amiga with no accontrol.device, has no row. NOSENSORS leaves it out.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -127,12 +134,13 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 #include "om_disk.h"
+#include "om_sensors.h"
 #include "om_font.h"
 #include "ogt_openfont.h"
 #include "../desktop/ob_drawn.h"                 /* 0.4.1: GFOpenBench says when its desktop is drawn */
 
-#define OPENMETERS_VERSION "0.4.2"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.5"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (20.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
 struct IntuitionBase *IntuitionBase;
@@ -151,21 +159,21 @@ struct ExpansionBase *ExpansionBase;
 #define DOCK_ENV "ENV:GFOpenDock/Dock"
 #define THEME_DIR "SYS:Prefs/Presets/Themes/"
 
-enum { C_MEM = 1, C_VOL = 2 };     /* a row's kind */
+enum { C_MEM = 1, C_VOL = 2, C_HOST = 3 };     /* a row's kind (0.5: C_HOST, the Temp row) */
 
 typedef struct {
     char label[32];
     char value[48];                /* 0.4: "2,047 GBytes (99,999 GBytes)" */
     ULONG fill;                    /* used, 0 to 1000; -1: no fill */
-    int kind;                      /* C_MEM or C_VOL */
+    int kind;                      /* C_MEM, C_VOL or C_HOST */
 } row;
 
 static struct {
     LONG left, top, barwidth, refresh;
     int corner;                    /* 0 TL, 1 TR, 2 BL, 3 BR */
-    int nodate, nomemory, novideo, novolumes, ram;
+    int nodate, nomemory, novideo, novolumes, nosensors, ram;
     char hide[200];
-} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, "" };
+} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, "" };
 
 static struct Screen *scr;
 static struct Window *win;
@@ -212,6 +220,7 @@ static void tooltypes(struct WBStartup *wbs)
     opt.nomemory = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOMEMORY") != NULL;
     opt.novideo = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOVIDEO") != NULL;
     opt.novolumes = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOVOLUMES") != NULL;
+    opt.nosensors = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOSENSORS") != NULL;
     opt.ram = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"RAM") != NULL;
     FreeDiskObject(dob);
 }
@@ -221,7 +230,7 @@ static int make_icon(void)
 {
     static STRPTR tt[] = { (STRPTR)"CORNER=TOPRIGHT", (STRPTR)"(LEFT=40)", (STRPTR)"(TOP=40)", (STRPTR)"BARWIDTH=200",
                            (STRPTR)"REFRESH=2", (STRPTR)"(NODATE)", (STRPTR)"(NOMEMORY)", (STRPTR)"(NOVIDEO)",
-                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"DONOTWAIT", NULL };
+                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(NOSENSORS)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"DONOTWAIT", NULL };
     char path[256];
     struct DiskObject *dob;
     int ok = 0;
@@ -426,25 +435,29 @@ static int hidden(const char *name)
  * host through accontrol.device (ACCMD_BOARD, query ACC_QUERY_STATUS: amicradle-guest devices/accontrol.device/
  * include/accontrol.h; its numbers here, as GFOpenBench's read_host has them), at the start and then every
  * HOST_DISK_EVERY readings: the whole status is more than the host should put together every 2 seconds. An Amiga
- * without accontrol.device is asked 3 times, then never again; a host that stops answering loses its brackets. */
+ * without accontrol.device is asked 3 times, then never again; a host that stops answering loses its brackets.
+ * 0.5: the same status gives the host's sensors, the Temp row (om_sensors.h); read_host reads both. */
 #define OM_ACCMD_BOARD      (CMD_NONSTD + 2)
 #define OM_ACC_QUERY_STATUS 7
 #define OM_STATUS_BYTES     32768
-#define HOST_DISK_EVERY     5
+#define HOST_EVERY          5
 static struct om_disk host_disks[OM_DISK_MAX];
-static int host_disks_n, host_disk_wait;
-static UBYTE host_disk_absent;
+static int host_disks_n, host_wait;
+static UBYTE host_absent;
+static struct om_sensors host_sensors;
+static int host_have_sensors;
 
-static void read_host_disks(void)
+static void read_host(void)
 {
     struct MsgPort *mp;
     struct IOStdReq *io;
     char *status;
     int opened = 0;
-    if (host_disk_absent >= 3) return;
-    if (host_disk_wait > 0) { host_disk_wait--; return; }
-    host_disk_wait = HOST_DISK_EVERY - 1;
+    if (host_absent >= 3) return;
+    if (host_wait > 0) { host_wait--; return; }
+    host_wait = HOST_EVERY - 1;
     host_disks_n = 0;
+    host_have_sensors = 0;
     if (!(status = AllocVec(OM_STATUS_BYTES + 1, MEMF_PUBLIC | MEMF_CLEAR))) return;
     if ((mp = CreateMsgPort())) {
         if ((io = (struct IOStdReq *)CreateIORequest(mp, sizeof *io))) {
@@ -457,6 +470,7 @@ static void read_host_disks(void)
                 if (!DoIO((struct IORequest *)io)) {
                     status[io->io_Actual < OM_STATUS_BYTES ? io->io_Actual : OM_STATUS_BYTES] = 0;
                     host_disks_n = om_disk_read(status, host_disks, OM_DISK_MAX);
+                    host_have_sensors = om_sensors_read(status, &host_sensors);
                 }
                 CloseDevice((struct IORequest *)io);
             }
@@ -464,8 +478,17 @@ static void read_host_disks(void)
         }
         DeleteMsgPort(mp);
     }
-    if (opened) host_disk_absent = 0; else { host_disk_absent++; host_disk_wait = 0; }
+    if (opened) host_absent = 0; else { host_absent++; host_wait = 0; }
     FreeVec(status);
+}
+
+/* 0.5: the host's temperature (and clock, and whether it is held back), "47\xb0C at 2.8 GHz" (om_sensors.h) */
+static void sensors_row(void)
+{
+    row *r;
+    if (!host_have_sensors || !(r = add_row("Temp", C_HOST))) return;
+    om_sensors_value(r->value, sizeof r->value, &host_sensors);
+    r->fill = om_sensors_fill(&host_sensors);
 }
 
 typedef struct { char name[32]; } vol;
@@ -534,6 +557,8 @@ static void read_all(void)
     Amiga2Date(ds.ds_Days * 86400 + ds.ds_Minute * 60 + ds.ds_Tick / TICKS_PER_SECOND, &cd);
     snprintf(date_line, sizeof date_line, "%s, %d %s %d, %02d:%02d", days[cd.wday % 7], cd.mday,
              months[(cd.month + 11) % 12], cd.year, cd.hour, cd.min);
+    if (!opt.nosensors || !opt.novolumes) read_host();
+    if (!opt.nosensors) sensors_row();
     if (!opt.nomemory) {
         if (!allocation_rows()) {
             memory_row("Chip RAM", MEMF_CHIP);
@@ -541,7 +566,7 @@ static void read_all(void)
         }
     }
     if (!opt.novideo) video_row();
-    if (!opt.novolumes) { read_host_disks(); volume_rows(); }
+    if (!opt.novolumes) volume_rows();
 }
 
 /* ---- the look: the dock's tint, the theme's colours ------------------------------------------ */
@@ -1475,7 +1500,7 @@ int main(int argc, char **argv)
 {
     struct WBStartup *wbs = argc == 0 ? (struct WBStartup *)argv : NULL;
     struct RDArgs *rda = NULL;
-    LONG a[13];
+    LONG a[14];
     int rc = RETURN_FAIL;
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 39);
     GfxBase = (struct GfxBase *)OpenLibrary((STRPTR)"graphics.library", 39);
@@ -1489,7 +1514,7 @@ int main(int argc, char **argv)
     else {
         memset(a, 0, sizeof a);
         if (!(rda = ReadArgs((STRPTR)"CORNER/K,LEFT/K/N,TOP/K/N,BARWIDTH/K/N,REFRESH/K/N,NODATE/S,NOMEMORY/S,NOVIDEO/S,"
-                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S", a, NULL))) {
+                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S,NOSENSORS/S", a, NULL))) {
             PrintFault(IoErr(), (STRPTR)"GFOpenMeters");
             goto done;
         }
@@ -1504,6 +1529,7 @@ int main(int argc, char **argv)
         opt.novideo = a[7] != 0;
         opt.novolumes = a[8] != 0;
         opt.ram = a[9] != 0;
+        opt.nosensors = a[12] != 0;
         if (a[10]) strncpy(opt.hide, (const char *)a[10], sizeof opt.hide - 1);
     }
     if (opt.barwidth < 60) opt.barwidth = 60;

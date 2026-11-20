@@ -29,7 +29,7 @@ mkdir -p "$OUT"
 LATE=""
 if "$CC" -fno-late-combine-instructions -S -o /dev/null -x c /dev/null 2>/dev/null; then LATE="-fno-late-combine-instructions"; fi
 "$CC" -noixemul -m68040 $SPECS -std=gnu99 -Wall -Werror -O2 -fno-tree-loop-distribute-patterns -fno-delete-null-pointer-checks -fno-common $LATE \
-    -I"$OGT/lib" -I"$OAP/Common" -o "$OUT/GFOpenMeters" "$HERE/openmeters.c" "$HERE/om_disk.c" "$HERE/om_font.c" "$OGT/lib/ogt_theme.c" "$OGT/lib/ogt_font.c" -lamiga
+    -I"$OGT/lib" -I"$OAP/Common" -o "$OUT/GFOpenMeters" "$HERE/openmeters.c" "$HERE/om_disk.c" "$HERE/om_sensors.c" "$HERE/om_font.c" "$OGT/lib/ogt_theme.c" "$OGT/lib/ogt_font.c" -lamiga
 echo "GFOpenMeters: $(wc -c < "$OUT/GFOpenMeters") bytes"
 # its icon, GFOpenMeters.info beside it: a frosted panel of bars, a GlowIcon in the GFOpen family's style, with the
 # tooltypes MAKEICON writes (meters/make_icon.py; needs Python with Pillow and an amicradle checkout,
