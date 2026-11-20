@@ -107,7 +107,7 @@ static int parse_quals(const char *s, UWORD *qual, UBYTE *keys)
         for (i = 0; i < NQUALS; i++)
             if (!strcmp(word, quals[i].name)) break;
         if (i == NQUALS) {
-            Printf("DragTest: no qualifier %s\n", (ULONG)word);
+            Printf((CONST_STRPTR)"DragTest: no qualifier %s\n", (ULONG)word);
             return -1;
         }
         *qual |= quals[i].qual;
@@ -185,10 +185,10 @@ static void list(void)
     ULONG lock = LockIBase(0);
     for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen) {
         struct Window *w;
-        Printf("screen \"%s\" %ld x %ld%s\n", (ULONG)(s->Title ? (char *)s->Title : ""), (LONG)s->Width,
+        Printf((CONST_STRPTR)"screen \"%s\" %ld x %ld%s\n", (ULONG)(s->Title ? (char *)s->Title : ""), (LONG)s->Width,
                (LONG)s->Height, (ULONG)(s == IntuitionBase->FirstScreen ? " (front)" : ""));
         for (w = s->FirstWindow; w; w = w->NextWindow)
-            Printf("  window \"%s\" at %ld,%ld size %ld x %ld%s%s\n", (ULONG)(w->Title ? (char *)w->Title : ""),
+            Printf((CONST_STRPTR)"  window \"%s\" at %ld,%ld size %ld x %ld%s%s\n", (ULONG)(w->Title ? (char *)w->Title : ""),
                    (LONG)w->LeftEdge, (LONG)w->TopEdge, (LONG)w->Width, (LONG)w->Height,
                    (ULONG)(w->Flags & WFLG_BACKDROP ? " backdrop" : ""),
                    (ULONG)(w == IntuitionBase->ActiveWindow ? " active" : ""));
