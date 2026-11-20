@@ -1,13 +1,11 @@
-# Builds GFOpenBench on the Team's self-hosted runner, which has the os32-gcc16
-# stove (m68k-amigaos-gcc 16 and NDK 3.2; the NDK is never in this repository),
-# and runs the host tests on GitHub's own runner. The compiler's messages
-# show on the pull request as annotations; the build is the run's artifact.
+# Builds GFOpenBench with the os32-gcc16 stove (m68k-amigaos-gcc 16 and NDK 3.2; the NDK is never in this
+# repository) and runs the host tests, both on bigguy's runners (lumavault): GitHub's are not used, and
+# amigachromebuild's runners are gone. The stove is .github/actions/stove (gfopenup's): GFOpenAmigaGCC from
+# gfopengcc's release and NDK3.2.lha from Aminet, checked against their sha256s. The compiler's messages show on
+# the pull request as annotations.
 #
-# This repository is public, so the self-hosted job runs only for pushes
-# and for pull requests from branches of this repository, never for a
-# fork's: a fork's code never runs on the Team's machine.
-# The stove is $OS32_GCC16 on the runner, else tools/stove-dir.sh (~/AmiCradle/kitchen/stoves/os32-gcc16)
-# (build.sh stops when given the os32 stove's GCC 6.5).
+# This repository is public, so the build runs only for pushes and for pull requests from branches of this
+# repository, never for a fork's: a fork's code never runs on the Team's machines.
 # MIT, Copyright (c) 2026 AmiCradle Team.
 name: Build on the stove
 on:
@@ -18,16 +16,17 @@ on:
 jobs:
   os3:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, amicradle-validate]   # its stove is amigachromebuild's, never daletop's or bigguy's
+    runs-on: [self-hosted, lumavault]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/stove
       - name: Build
         shell: bash
         run: |
           export STOVE="${OS32_GCC16:-$(sh tools/stove-dir.sh)}"
           if [ ! -x "$STOVE/prefix/bin/m68k-amigaos-gcc" ]; then
-            echo "::error::No os32-gcc16 stove at $STOVE (set OS32_GCC16 on the runner)"
+            echo "::error::No os32-gcc16 stove at $STOVE (.github/actions/stove)"
             exit 1
           fi
           mkdir -p build/os3
@@ -51,6 +50,7 @@ jobs:
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true      # GitHub's storage is billed; the build's log is the record
         with:
           name: os3
           path: build/os3
