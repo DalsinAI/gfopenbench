@@ -25,7 +25,8 @@
  *   BARWIDTH=n            the bars' width in pixels at a 13-pixel font (default 200), in proportion to the font
  *                         (0.2.5); never narrower than the numbers in them
  *   REFRESH=n             seconds between readings (default 2)
- *   NODATE NOMEMORY NOVIDEO NOVOLUMES   leave those out
+ *   NODATE NOMEMORY NOVIDEO NOVOLUMES NOSENSORS   leave those out
+ *   MONITOR=command       what a click on it starts (0.5; default SYS:Utilities/GFOpenMonitor, else GFOpenMonitor)
  *   RAM                   show RAM: too
  *   HIDE=Name|Name        volumes not to show
  *   MAKEICON              (Shell only) write GFOpenMeters.info beside the program with these tooltypes, and stop
@@ -34,7 +35,8 @@
  *                         GFOpenBench hands over to it) without this tooltype, Workbench waited for it: no disk icons,
  *                         and after a while "Program 'GFOpenMeters' has not yet returned" (measured, lab t5-display,
  *                         17 October 2026)
- * Drag it anywhere by any part of it. Its menu (right button while it is the active window): Refresh, Quit.
+ * Drag it anywhere by any part of it; a click starts GFOpenMonitor (0.5). Its menu (right button while it is the
+ * active window; a click with Shift held makes it that): Refresh, Monitor, Quit.
  * Ctrl-C quits too.
  *
  * 0.2.5 (the user's solid OS list, 24 October 2026: GFOpenMeters' text much larger than the icon labels): the text
@@ -87,6 +89,20 @@
  * A board with no Look prefs (the Pi 5) showed the screen's font, GFOS Sans 13; one with them (the CM4) the outline.
  * Now both show GFOS Sans, DejaVu's shapes drawn by hand. The outline still where nothing is drawn.
  *
+ * 0.5 (Dale, 20 November 2026: "add some way to watch temperatures to openmeter", then, a Pi 5 lifted to 3 GHz:
+ * "thats why i asked for openmeter to show us temps"): on AmiCradle a Temp row under the date, "47\xb0C at 2.8 GHz",
+ * with ", throttled" or ", low volts" while the Pi says so and a fan's rpm where there is one. Its bar is the
+ * temperature against 85 C, where a Pi 5 throttles hard, so it turns the warning colour at 76.5 C (om_sensors.h).
+ * It comes from the host's status with the drives' host disks (read_host), every HOST_EVERY readings; a host that
+ * measures nothing, or an Amiga with no accontrol.device, has no row. NOSENSORS leaves it out.
+ * Its bar is coloured along its length (Dale, 12:00: "blue at one end, red at the end, hues of color as it goes up"):
+ * blue, cyan, green, yellow, red (om_sensors_heat), so the fill of a cool Pi stops in blue or green and a hot one's
+ * runs on into orange and red. On a palette screen in six steps, the nearest pens.
+ * A click on it starts GFOpenMonitor (Dale, 12:01: "if you click anywhere on the openmeters it will launch monitor"),
+ * or brings it to the front: SYS:Utilities/GFOpenMonitor, else GFOpenMonitor on the path (the open ROM's
+ * C:GFOpenMonitor); MONITOR=command for another. A drag still moves it, and does not start it. A click with
+ * Shift, Alt, Ctrl or Amiga held only makes it the active window, for its menu, which has Monitor too.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -95,6 +111,7 @@
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
 #include <dos/notify.h>
+#include <dos/dostags.h>
 #include <devices/timer.h>
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
@@ -120,6 +137,8 @@
 #include <proto/expansion.h>
 #include <proto/gadtools.h>
 #include <proto/cybergraphics.h>
+#include <devices/input.h>
+#include <proto/input.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -127,18 +146,20 @@
 #include "ogt_font.h"
 #include "wbclose.h"
 #include "om_disk.h"
+#include "om_sensors.h"
 #include "om_font.h"
 #include "ogt_openfont.h"
 #include "../desktop/ob_drawn.h"                 /* 0.4.1: GFOpenBench says when its desktop is drawn */
 
-#define OPENMETERS_VERSION "0.4.2"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (17.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.5"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (20.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
 struct Library *UtilityBase, *IconBase, *GadToolsBase, *CyberGfxBase;
 struct ExpansionBase *ExpansionBase;
+struct Device *InputBase;                  /* 0.5: PeekQualifier, a click told from a drag */
 
 #define MAX_ROWS 24
 #define PAD 12                     /* inside the panel's edge (0.2: room for its rounded ends) */
@@ -151,21 +172,22 @@ struct ExpansionBase *ExpansionBase;
 #define DOCK_ENV "ENV:GFOpenDock/Dock"
 #define THEME_DIR "SYS:Prefs/Presets/Themes/"
 
-enum { C_MEM = 1, C_VOL = 2 };     /* a row's kind */
+enum { C_MEM = 1, C_VOL = 2, C_HOST = 3 };     /* a row's kind (0.5: C_HOST, the Temp row) */
 
 typedef struct {
     char label[32];
     char value[48];                /* 0.4: "2,047 GBytes (99,999 GBytes)" */
     ULONG fill;                    /* used, 0 to 1000; -1: no fill */
-    int kind;                      /* C_MEM or C_VOL */
+    int kind;                      /* C_MEM, C_VOL or C_HOST */
 } row;
 
 static struct {
     LONG left, top, barwidth, refresh;
     int corner;                    /* 0 TL, 1 TR, 2 BL, 3 BR */
-    int nodate, nomemory, novideo, novolumes, ram;
+    int nodate, nomemory, novideo, novolumes, nosensors, ram;
     char hide[200];
-} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, "" };
+    char monitor[120];             /* 0.5: MONITOR=, what a click starts */
+} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, "" };
 
 static struct Screen *scr;
 static struct Window *win;
@@ -180,6 +202,7 @@ static int nrows;
 static char date_line[64];
 static WORD label_w, row_h;
 static struct Gadget drag;
+static int button_was;             /* 0.5: the left button was down at the last tick */
 
 /* ---- settings ------------------------------------------------------------------------------- */
 
@@ -208,10 +231,12 @@ static void tooltypes(struct WBStartup *wbs)
     if ((v = (char *)FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"REFRESH"))) StrToLong((STRPTR)v, &opt.refresh);
     if ((v = (char *)FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"CORNER"))) opt.corner = corner_of(v);
     if ((v = (char *)FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"HIDE"))) strncpy(opt.hide, v, sizeof opt.hide - 1);
+    if ((v = (char *)FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"MONITOR"))) strncpy(opt.monitor, v, sizeof opt.monitor - 1);
     opt.nodate = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NODATE") != NULL;
     opt.nomemory = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOMEMORY") != NULL;
     opt.novideo = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOVIDEO") != NULL;
     opt.novolumes = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOVOLUMES") != NULL;
+    opt.nosensors = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOSENSORS") != NULL;
     opt.ram = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"RAM") != NULL;
     FreeDiskObject(dob);
 }
@@ -221,7 +246,8 @@ static int make_icon(void)
 {
     static STRPTR tt[] = { (STRPTR)"CORNER=TOPRIGHT", (STRPTR)"(LEFT=40)", (STRPTR)"(TOP=40)", (STRPTR)"BARWIDTH=200",
                            (STRPTR)"REFRESH=2", (STRPTR)"(NODATE)", (STRPTR)"(NOMEMORY)", (STRPTR)"(NOVIDEO)",
-                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"DONOTWAIT", NULL };
+                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(NOSENSORS)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"(MONITOR=SYS:Utilities/GFOpenMonitor)",
+                           (STRPTR)"DONOTWAIT", NULL };
     char path[256];
     struct DiskObject *dob;
     int ok = 0;
@@ -426,25 +452,29 @@ static int hidden(const char *name)
  * host through accontrol.device (ACCMD_BOARD, query ACC_QUERY_STATUS: amicradle-guest devices/accontrol.device/
  * include/accontrol.h; its numbers here, as GFOpenBench's read_host has them), at the start and then every
  * HOST_DISK_EVERY readings: the whole status is more than the host should put together every 2 seconds. An Amiga
- * without accontrol.device is asked 3 times, then never again; a host that stops answering loses its brackets. */
+ * without accontrol.device is asked 3 times, then never again; a host that stops answering loses its brackets.
+ * 0.5: the same status gives the host's sensors, the Temp row (om_sensors.h); read_host reads both. */
 #define OM_ACCMD_BOARD      (CMD_NONSTD + 2)
 #define OM_ACC_QUERY_STATUS 7
 #define OM_STATUS_BYTES     32768
-#define HOST_DISK_EVERY     5
+#define HOST_EVERY          5
 static struct om_disk host_disks[OM_DISK_MAX];
-static int host_disks_n, host_disk_wait;
-static UBYTE host_disk_absent;
+static int host_disks_n, host_wait;
+static UBYTE host_absent;
+static struct om_sensors host_sensors;
+static int host_have_sensors;
 
-static void read_host_disks(void)
+static void read_host(void)
 {
     struct MsgPort *mp;
     struct IOStdReq *io;
     char *status;
     int opened = 0;
-    if (host_disk_absent >= 3) return;
-    if (host_disk_wait > 0) { host_disk_wait--; return; }
-    host_disk_wait = HOST_DISK_EVERY - 1;
+    if (host_absent >= 3) return;
+    if (host_wait > 0) { host_wait--; return; }
+    host_wait = HOST_EVERY - 1;
     host_disks_n = 0;
+    host_have_sensors = 0;
     if (!(status = AllocVec(OM_STATUS_BYTES + 1, MEMF_PUBLIC | MEMF_CLEAR))) return;
     if ((mp = CreateMsgPort())) {
         if ((io = (struct IOStdReq *)CreateIORequest(mp, sizeof *io))) {
@@ -457,6 +487,7 @@ static void read_host_disks(void)
                 if (!DoIO((struct IORequest *)io)) {
                     status[io->io_Actual < OM_STATUS_BYTES ? io->io_Actual : OM_STATUS_BYTES] = 0;
                     host_disks_n = om_disk_read(status, host_disks, OM_DISK_MAX);
+                    host_have_sensors = om_sensors_read(status, &host_sensors);
                 }
                 CloseDevice((struct IORequest *)io);
             }
@@ -464,8 +495,17 @@ static void read_host_disks(void)
         }
         DeleteMsgPort(mp);
     }
-    if (opened) host_disk_absent = 0; else { host_disk_absent++; host_disk_wait = 0; }
+    if (opened) host_absent = 0; else { host_absent++; host_wait = 0; }
     FreeVec(status);
+}
+
+/* 0.5: the host's temperature (and clock, and whether it is held back), "47\xb0C at 2.8 GHz" (om_sensors.h) */
+static void sensors_row(void)
+{
+    row *r;
+    if (!host_have_sensors || !(r = add_row("Temp", C_HOST))) return;
+    om_sensors_value(r->value, sizeof r->value, &host_sensors);
+    r->fill = om_sensors_fill(&host_sensors);
 }
 
 typedef struct { char name[32]; } vol;
@@ -534,6 +574,8 @@ static void read_all(void)
     Amiga2Date(ds.ds_Days * 86400 + ds.ds_Minute * 60 + ds.ds_Tick / TICKS_PER_SECOND, &cd);
     snprintf(date_line, sizeof date_line, "%s, %d %s %d, %02d:%02d", days[cd.wday % 7], cd.mday,
              months[(cd.month + 11) % 12], cd.year, cd.hour, cd.min);
+    if (!opt.nosensors || !opt.novolumes) read_host();
+    if (!opt.nosensors) sensors_row();
     if (!opt.nomemory) {
         if (!allocation_rows()) {
             memory_row("Chip RAM", MEMF_CHIP);
@@ -541,7 +583,7 @@ static void read_all(void)
         }
     }
     if (!opt.novideo) video_row();
-    if (!opt.novolumes) { read_host_disks(); volume_rows(); }
+    if (!opt.novolumes) volume_rows();
 }
 
 /* ---- the look: the dock's tint, the theme's colours ------------------------------------------ */
@@ -945,6 +987,27 @@ static void round_box(ULONG *px, int x, int y, int w, int h, int r, colour c, in
         }
 }
 
+/* 0.5: the Temp bar's fill, a round box coloured along its length: each column its place along the whole bar
+ * (span), blue at its start to red at its end (om_sensors_heat). */
+static void heat_box(ULONG *px, int x, int y, int w, int h, int r, int span)
+{
+    if (w <= 0 || h <= 0) return;
+    if (r > w / 2) r = w / 2;
+    if (r > h / 2) r = h / 2;
+    for (int i = 0; i < w; i++) {
+        int hr, hg, hb, ci = i < r ? i : i >= w - r ? w - 1 - i : -1;
+        colour c;
+        om_sensors_heat((unsigned long)i * 1000 / (unsigned long)(span > 1 ? span - 1 : 1), &hr, &hg, &hb);
+        c.r = hr; c.g = hg; c.b = hb;
+        for (int j = 0; j < h; j++) {
+            int X = x + i, Y = y + j, cj = j < r ? j : j >= h - r ? h - 1 - j : -1, cv = 16;
+            if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+            if (ci >= 0 && cj >= 0) cv = corner_cov(ci, cj, r);
+            if (cv) px[Y * W + X] = blend(px[Y * W + X], c, 255 * cv / 16);
+        }
+    }
+}
+
 /* Text in ARGB: drawn in one plane, then each set pixel coloured, c left of split and c2 from it. The plane is in
  * Chip RAM under OS 3.2's graphics.library (its Text blits), in any memory under GFOpenGfx (the CPU draws). */
 static struct BitMap tbm;
@@ -1028,8 +1091,9 @@ static void text_px_contrast(int x, int y, const char *s, colour a, colour b)
 
 /* ---- drawing on a palette screen: the nearest pens, solid, as the dock's are ------------------ */
 
-enum { P_TINT, P_RIM, P_TRACK, P_FILL, P_FULL, P_TEXT, P_DIM, P_FILLTEXT, P_COUNT };
-static LONG pens[P_COUNT] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+#define HEAT_N 6                   /* 0.5: the Temp bar's steps on a palette screen */
+enum { P_TINT, P_RIM, P_TRACK, P_FILL, P_FULL, P_TEXT, P_DIM, P_FILLTEXT, P_HEAT0, P_COUNT = P_HEAT0 + HEAT_N };
+static LONG pens[P_COUNT] = { [0 ... P_COUNT - 1] = -1 };
 static struct BitMap *behind_bm;   /* what is behind the panel, on a palette screen */
 
 static LONG best_pen(colour c)
@@ -1052,6 +1116,11 @@ static void get_pens(void)
     free_pens();
     c[P_TINT] = tint; c[P_RIM] = mix(tint, white, luma(tint) < 128 ? 72 : 150); c[P_TRACK] = c_track; c[P_FILL] = c_fill;
     c[P_FULL] = c_full; c[P_TEXT] = c_text; c[P_DIM] = c_dim; c[P_FILLTEXT] = c_text;
+    for (int k = 0; k < HEAT_N; k++) {          /* 0.5: each step's colour, at its middle */
+        int hr, hg, hb;
+        om_sensors_heat((unsigned long)((2 * k + 1) * 500 / HEAT_N), &hr, &hg, &hb);
+        c[P_HEAT0 + k] = (colour){ hr, hg, hb };
+    }
     for (int i = 0; i < P_COUNT; i++) pens[i] = best_pen(c[i]);
 }
 
@@ -1128,7 +1197,7 @@ static void compose(void)
     for (i = 0; i < nrows; i++, y += row_h) {
         row *r = &rows[i];
         WORD by = y + 1, fw = 0, vx = bx + bar_w - 6 - text_w(r->value);
-        int full = r->fill != (ULONG)-1 && r->fill >= 900;
+        int full = r->kind != C_HOST && r->fill != (ULONG)-1 && r->fill >= 900;   /* 0.5: the Temp bar is its colours */
         if (r->fill != (ULONG)-1 && r->fill > 0) {
             fw = (WORD)(bar_w * r->fill / 1000);
             if (fw < 2 * br) fw = 2 * br;
@@ -1136,13 +1205,23 @@ static void compose(void)
         if (card) {
             text_px(bx - GAP - text_w(r->label), y + 2, r->label, c_text, 0, c_text);
             round_box(work_px, bx, by, bar_w, bh, br, c_track, 255);
-            if (fw) round_box(work_px, bx, by, fw, bh, br, full ? c_full : c_fill, 255);
-            text_px_contrast(vx, y + 2, r->value, c_text, full ? c_full_text : c_fill_text);
+            if (fw && r->kind == C_HOST) heat_box(work_px, bx, by, fw, bh, br, bar_w);
+            else if (fw) round_box(work_px, bx, by, fw, bh, br, full ? c_full : c_fill, 255);
+            text_px_contrast(vx, y + 2, r->value, c_text, r->kind == C_HOST ? (luma(c_text) < 128 ? white : (colour){ 28, 28, 30 })
+                                                          : full ? c_full_text : c_fill_text);
         } else {
             text_at(rp, bx - GAP - text_w(r->label), y + 2, r->label, pen(P_TEXT));
             SetAPen(rp, pen(P_TRACK));
             RectFill(rp, bx, by, bx + bar_w - 1, by + bh - 1);
-            if (fw) { SetAPen(rp, pen(full ? P_FULL : P_FILL)); RectFill(rp, bx, by, bx + fw - 1, by + bh - 1); }
+            if (fw && r->kind == C_HOST) {
+                for (int k = 0; k < HEAT_N; k++) {      /* 0.5: in steps along the bar, as far as the fill goes */
+                    WORD x0 = bx + k * bar_w / HEAT_N, x1 = bx + (k + 1) * bar_w / HEAT_N - 1;
+                    if (x1 > bx + fw - 1) x1 = bx + fw - 1;
+                    if (x0 > x1) break;
+                    SetAPen(rp, pen(P_HEAT0 + k));
+                    RectFill(rp, x0, by, x1, by + bh - 1);
+                }
+            } else if (fw) { SetAPen(rp, pen(full ? P_FULL : P_FILL)); RectFill(rp, bx, by, bx + fw - 1, by + bh - 1); }
             text_at(rp, vx, y + 2, r->value, pen(P_TEXT));
         }
     }
@@ -1242,10 +1321,69 @@ static int placed;                 /* a place of its own (LEFT, TOP, or dragged)
 static struct NewMenu newmenus[] = {
     { NM_TITLE, (STRPTR)"GFOpenMeters", NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Refresh", (STRPTR)"R", 0, 0, (APTR)1 },
+    { NM_ITEM, (STRPTR)"Monitor", (STRPTR)"M", 0, 0, (APTR)3 },
     { NM_ITEM, NM_BARLABEL, NULL, 0, 0, NULL },
     { NM_ITEM, (STRPTR)"Quit", (STRPTR)"Q", 0, 0, (APTR)2 },
     { NM_END, NULL, NULL, 0, 0, NULL }
 };
+
+/* 0.5: GFOpenMonitor, started or brought to the front (a second GFOpenMonitor fronts the first and ends): MONITOR=,
+ * else SYS:Utilities/GFOpenMonitor, else GFOpenMonitor on the path (the open ROM's C:GFOpenMonitor). Its own
+ * process, its in and out NIL:, not waited for. */
+static void start_monitor(void)
+{
+    char cmd[160];
+    BPTR in, out, l;
+    if (opt.monitor[0]) snprintf(cmd, sizeof cmd, "%s", opt.monitor);
+    else {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        APTR oldwin = me->pr_WindowPtr;
+        me->pr_WindowPtr = (APTR)-1;            /* no "please insert" for a SYS: that is not there */
+        l = Lock((STRPTR)"SYS:Utilities/GFOpenMonitor", ACCESS_READ);
+        me->pr_WindowPtr = oldwin;
+        if (l) UnLock(l);
+        snprintf(cmd, sizeof cmd, "%s", l ? "SYS:Utilities/GFOpenMonitor" : "GFOpenMonitor");
+    }
+    in = Open((STRPTR)"NIL:", MODE_OLDFILE);
+    out = Open((STRPTR)"NIL:", MODE_NEWFILE);
+    if (!in || !out) { if (in) Close(in); if (out) Close(out); return; }
+    if (SystemTags((STRPTR)cmd, SYS_Input, (ULONG)in, SYS_Output, (ULONG)out, SYS_Asynch, TRUE,
+                   NP_StackSize, 32768UL, NP_WindowPtr, (ULONG)NULL, TAG_DONE) == -1) { Close(in); Close(out); }
+}
+
+/* 0.5: the left button down on the panel (it was made active, or it is and the button went down over it): when it
+ * comes up with the panel where it was, the pointer still over it and no Shift, Alt, Ctrl or Amiga held, a click,
+ * and GFOpenMonitor is started. A drag moves it (the drag gadget, as before) and starts nothing. */
+#define CLICK_QUALS (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_LALT | IEQUALIFIER_RALT | IEQUALIFIER_CONTROL | \
+                     IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)
+static void watch_click(void)
+{
+    WORD x0 = win->LeftEdge, y0 = win->TopEdge;
+    int n = 0;
+    if (!InputBase || (PeekQualifier() & CLICK_QUALS)) return;
+    while ((PeekQualifier() & IEQUALIFIER_LEFTBUTTON) && n++ < 500) Delay(1);     /* up to 10 seconds */
+    if (n > 500 || win->LeftEdge != x0 || win->TopEdge != y0) return;
+    if (win->MouseX < 0 || win->MouseY < 0 || win->MouseX >= win->Width || win->MouseY >= win->Height) return;
+    start_monitor();
+}
+
+/* 0.5: input.device, for PeekQualifier only; without it a click starts nothing (the menu's Monitor still does) */
+static struct MsgPort *input_port;
+static struct IOStdReq *input_io;
+
+static void input_open(void)
+{
+    if ((input_port = CreateMsgPort()) && (input_io = (struct IOStdReq *)CreateIORequest(input_port, sizeof *input_io)) &&
+        !OpenDevice((STRPTR)"input.device", 0, (struct IORequest *)input_io, 0))
+        InputBase = input_io->io_Device;
+}
+
+static void input_close(void)
+{
+    if (InputBase) { CloseDevice((struct IORequest *)input_io); InputBase = NULL; }
+    if (input_io) { DeleteIORequest((struct IORequest *)input_io); input_io = NULL; }
+    if (input_port) { DeleteMsgPort(input_port); input_port = NULL; }
+}
 
 static void close_panel(void)
 {
@@ -1331,7 +1469,8 @@ static int open_panel(void)
     win = OpenWindowTags(NULL, WA_Left, x, WA_Top, y, WA_Width, w, WA_Height, h, WA_PubScreen, (ULONG)scr,
                          WA_Borderless, TRUE, WA_SimpleRefresh, TRUE, WA_Activate, FALSE, WA_RMBTrap, FALSE,
                          WA_NewLookMenus, TRUE, WA_Gadgets, (ULONG)&drag, WA_Title, (ULONG)"GFOpenMeters",
-                         WA_IDCMP, IDCMP_REFRESHWINDOW | IDCMP_MENUPICK | IDCMP_CHANGEWINDOW, TAG_DONE);
+                         WA_IDCMP, IDCMP_REFRESHWINDOW | IDCMP_MENUPICK | IDCMP_CHANGEWINDOW | IDCMP_ACTIVEWINDOW |
+                                   IDCMP_INTUITICKS, TAG_DONE);     /* 0.5: a click told from a drag */
     if (!win) { close_panel(); return 0; }
     WindowToBack(win);                         /* one above the backdrop, as the dock: every other window goes over it */
     if ((vi = GetVisualInfoA(scr, NULL)) && (menus = CreateMenusA(newmenus, NULL)) && LayoutMenus(menus, vi, GTMN_NewLookMenus, TRUE, TAG_DONE))
@@ -1440,6 +1579,14 @@ static int run(void)
             UWORD code = im->Code;
             ReplyMsg((struct Message *)im);
             if (cl == IDCMP_REFRESHWINDOW) { BeginRefresh(win); show(); EndRefresh(win, TRUE); }
+            else if (cl == IDCMP_ACTIVEWINDOW) { button_was = 1; watch_click(); }
+            else if (cl == IDCMP_INTUITICKS) {
+                /* 0.5: while it is the active window, a press over it (Intuition sends no message for the drag gadget) */
+                int down = InputBase && (PeekQualifier() & IEQUALIFIER_LEFTBUTTON);
+                if (down && !button_was && win->MouseX >= 0 && win->MouseY >= 0 && win->MouseX < win->Width &&
+                    win->MouseY < win->Height) watch_click();
+                button_was = InputBase && (PeekQualifier() & IEQUALIFIER_LEFTBUTTON);
+            }
             else if (cl == IDCMP_CHANGEWINDOW && (win->LeftEdge != px0 || win->TopEdge != py0)) {
                 /* dragged: kept there, and what is behind it there copied */
                 opt.left = win->LeftEdge; opt.top = win->TopEdge; placed = 1;
@@ -1451,6 +1598,7 @@ static int run(void)
                     if (!it) break;
                     if (GTMENUITEM_USERDATA(it) == (APTR)1) again = 1;
                     else if (GTMENUITEM_USERDATA(it) == (APTR)2) quit = 1;
+                    else if (GTMENUITEM_USERDATA(it) == (APTR)3) start_monitor();
                     code = it->NextSelect;
                 }
             }
@@ -1475,7 +1623,7 @@ int main(int argc, char **argv)
 {
     struct WBStartup *wbs = argc == 0 ? (struct WBStartup *)argv : NULL;
     struct RDArgs *rda = NULL;
-    LONG a[13];
+    LONG a[15];
     int rc = RETURN_FAIL;
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 39);
     GfxBase = (struct GfxBase *)OpenLibrary((STRPTR)"graphics.library", 39);
@@ -1483,13 +1631,14 @@ int main(int argc, char **argv)
     GadToolsBase = OpenLibrary((STRPTR)"gadtools.library", 39);
     IconBase = OpenLibrary((STRPTR)"icon.library", 39);
     CyberGfxBase = OpenLibrary((STRPTR)"cybergraphics.library", 41);   /* the panel mixed with the desktop on a card */
+    input_open();
     if (!IntuitionBase || !GfxBase || !UtilityBase || !GadToolsBase) goto done;
     place_read();
     if (wbs) tooltypes(wbs);
     else {
         memset(a, 0, sizeof a);
         if (!(rda = ReadArgs((STRPTR)"CORNER/K,LEFT/K/N,TOP/K/N,BARWIDTH/K/N,REFRESH/K/N,NODATE/S,NOMEMORY/S,NOVIDEO/S,"
-                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S", a, NULL))) {
+                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S,NOSENSORS/S,MONITOR/K", a, NULL))) {
             PrintFault(IoErr(), (STRPTR)"GFOpenMeters");
             goto done;
         }
@@ -1504,6 +1653,8 @@ int main(int argc, char **argv)
         opt.novideo = a[7] != 0;
         opt.novolumes = a[8] != 0;
         opt.ram = a[9] != 0;
+        opt.nosensors = a[12] != 0;
+        if (a[13]) strncpy(opt.monitor, (const char *)a[13], sizeof opt.monitor - 1);
         if (a[10]) strncpy(opt.hide, (const char *)a[10], sizeof opt.hide - 1);
     }
     if (opt.barwidth < 60) opt.barwidth = 60;
@@ -1512,6 +1663,7 @@ int main(int argc, char **argv)
     rc = run();
 done:
     if (rda) FreeArgs(rda);
+    input_close();
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     if (IconBase) CloseLibrary(IconBase);
     if (GadToolsBase) CloseLibrary(GadToolsBase);

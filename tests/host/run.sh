@@ -127,6 +127,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_disk.c" \
   "$HERE/tests/host/test_om_disk.c" -o "$OUT/test_om_disk"
 "$OUT/test_om_disk"
+
+# om_sensors: the host's temperature, clock and throttling, GFOpenMeters' Temp row, from the host's status (0.5)
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_sensors.c" \
+  "$HERE/tests/host/test_om_sensors.c" -o "$OUT/test_om_sensors"
+"$OUT/test_om_sensors"
 # om_font: the hand-drawn GFOS font for a theme's DejaVu family, in GFOpenMeters' words (GFOpenMeters 0.4.2)
 # shellcheck disable=SC2086
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/meters" "$HERE/meters/om_font.c" \
