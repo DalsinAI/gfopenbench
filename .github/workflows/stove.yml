@@ -18,7 +18,7 @@ on:
 jobs:
   os3:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: self-hosted
+    runs-on: [self-hosted, amicradle-validate]   # its stove is amigachromebuild's, never daletop's or bigguy's
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -56,9 +56,13 @@ jobs:
           path: build/os3
           if-no-files-found: ignore
   host:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, lumavault]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: A C compiler and Python's PIL (bigguy's fresh containers)
+        run: |
+          command -v cc >/dev/null && python3 -c 'import PIL' 2>/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo)
+            $S apt-get update -q && $S apt-get install -y -q --no-install-recommends build-essential python3 python3-pil; }
       - name: Host tests
         run: sh tests/host/run.sh
