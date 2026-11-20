@@ -26,9 +26,11 @@ concurrency:
 jobs:
   layout:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, lumavault]
     timeout-minutes: 10
     steps:
+      - name: gh (bigguy's runners don't have it)
+        run: command -v gh >/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo); $S apt-get update -q && $S apt-get install -y -q gh; }
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -70,9 +72,11 @@ jobs:
       github.event_name == 'issue_comment' && github.event.issue.pull_request &&
       contains(github.event.comment.body, 'LAYOUT-EXCEPTION: APPROVE') &&
       !contains(github.event.comment.body, '<!-- layout-guard -->')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, lumavault]
     timeout-minutes: 5
     steps:
+      - name: gh (bigguy's runners don't have it)
+        run: command -v gh >/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo); $S apt-get update -q && $S apt-get install -y -q gh; }
       - name: re-run the layout check
         env:
           GH_TOKEN: ${{ github.token }}
