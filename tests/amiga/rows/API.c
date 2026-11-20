@@ -151,7 +151,7 @@ int wbt_api(int argc, char **argv)
     ok = MakeWorkbenchObjectVisibleA((STRPTR)"RAM:WBGap/a", NULL);
     if (ok) wbt_pass("A8a"); else snprintf(msg, sizeof msg, "MakeWorkbenchObjectVisibleA FALSE (IoErr %ld)", (long)IoErr()), wbt_fail("A8a", msg);
     memset(&hook, 0, sizeof hook);
-    hook.h_Entry = (HOOKFUNC)sel_hook_fn;
+    hook.h_Entry = (ULONG (*)())sel_hook_fn;
     hook.h_Data = &seen;
     ok = ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGap", &hook, NULL);
     if (ok && seen > 0) wbt_pass("A8b"); else snprintf(msg, sizeof msg, "ChangeWorkbenchSelectionA %s, %ld icons seen (IoErr %ld)", ok ? "TRUE" : "FALSE", (long)seen, (long)IoErr()), wbt_fail("A8b", msg);
@@ -194,7 +194,7 @@ int wbt_api(int argc, char **argv)
             memset(&wf, 0, sizeof wf);
             wf.want = "w";
             memset(&wh, 0, sizeof wh);
-            wh.h_Entry = (HOOKFUNC)which_hook_fn;
+            wh.h_Entry = (ULONG (*)())which_hook_fn;
             wh.h_Data = &wf;
             ChangeWorkbenchSelectionA((STRPTR)"RAM:WBGapW", &wh, NULL);
             if (wf.found) { xy[0] = wf.x + 4; xy[1] = wf.y + 4; }
