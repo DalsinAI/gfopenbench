@@ -193,7 +193,7 @@ static struct {
     int nodate, nomemory, novideo, novolumes, nosensors, ram, hostname;
     char hide[200];
     char monitor[120];             /* 0.5: MONITOR=, what a click starts */
-} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, "" };
+} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, 0, "" };
 
 static struct Screen *scr;
 static struct Window *win;
