@@ -110,6 +110,24 @@ int main(void)
         CHECK(i == 1001, "the colours run smoothly: stopped at %d", i);
     }
 
+    /* 0.6, HOSTNAME: the host's name and address, not the instance's name before it nor a volume's "host" */
+    {
+        static const char both[] =
+            "{\"instance\": {\"name\": \"Instance-1\"}, \"volumes\": [{\"label\": \"Work\", \"host\": {\"free\": 5}}], "
+            "\"host\": {\"logicalCores\": 4, \"sensors\": {\"tempMilliC\": 46850}, \"name\": \"amicradle-cm5\", "
+            "\"address\": \"192.168.0.151\"}}";
+        static const char name_only[] = "{\"host\": {\"logicalCores\": 4, \"name\": \"daletop\"}}";
+        static const char older[] = "{\"instance\": {\"name\": \"Instance-1\"}, \"host\": {\"logicalCores\": 4}}";
+        static const char cut[] = "{\"host\": {\"logicalCores\": 4, \"name\": \"amicr";
+        char line[64];
+        CHECK(om_host_ident(both, line, sizeof line) == 1 && !strcmp(line, "amicradle-cm5 / 192.168.0.151"), "\"%s\"", line);
+        CHECK(om_host_ident(name_only, line, sizeof line) == 1 && !strcmp(line, "daletop"), "\"%s\"", line);
+        CHECK(om_host_ident(older, line, sizeof line) == 0 && !line[0], "a host that doesn't say: \"%s\"", line);
+        CHECK(om_host_ident(cut, line, sizeof line) == 0 && !line[0], "cut short: \"%s\"", line);
+        CHECK(om_host_ident(NULL, line, sizeof line) == 0 && !line[0], "no status");
+        CHECK(om_host_ident(both, tiny, sizeof tiny) == 1 && strlen(tiny) == sizeof tiny - 1, "cut to fit: \"%s\"", tiny);
+    }
+
     printf("test_om_sensors: %d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

@@ -44,6 +44,10 @@ void om_sensors_value(char *out, int size, const struct om_sensors *s);
 /* The bar, 0 to 1000: the temperature against OM_SENSORS_HOT_MILLIC; (unsigned long)-1 (no fill) without one. */
 unsigned long om_sensors_fill(const struct om_sensors *s);
 
+/* 0.6: which machine this is, from the status' "host" block (amicradle #1314): "<name> / <address>", or the one of
+ * the two it gives, into out. 1 when it gave one, else out is "". */
+int om_host_ident(const char *status, char *out, int size);
+
 /* The colour at t of 1000 along the Temp bar: blue (0), cyan (250), green (500), yellow (750), red (1000), in between
  * mixed; t past 1000 is red. */
 void om_sensors_heat(unsigned long t, int *r, int *g, int *b);

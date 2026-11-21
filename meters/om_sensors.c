@@ -111,6 +111,34 @@ int om_sensors_read(const char *status, struct om_sensors *s)
     return s->have_temp || s->have_clock || s->have_throttled || s->have_uv || s->have_fan;
 }
 
+/* The "host" object: the one with "logicalCores" in it, since "host" is a key elsewhere too. */
+static const char *host_object(const char *status)
+{
+    const char *p = status;
+    char v[16];
+    while ((p = strstr(p, "\"host\""))) {
+        const char *q = blanks(p + 6);
+        if (*q == ':' && *(q = blanks(q + 1)) == '{' && value_in(q, "logicalCores", v, sizeof v)) return q;
+        p += 6;
+    }
+    return 0;
+}
+
+int om_host_ident(const char *status, char *out, int size)
+{
+    const char *o;
+    char name[64], address[48];
+    int have_name, have_address;
+    if (size <= 0) return 0;
+    out[0] = 0;
+    if (!status || !(o = host_object(status))) return 0;
+    have_name = value_in(o, "name", name, sizeof name) && name[0];
+    have_address = value_in(o, "address", address, sizeof address) && address[0];
+    if (have_name && have_address) snprintf(out, (size_t)size, "%s / %s", name, address);
+    else if (have_name || have_address) snprintf(out, (size_t)size, "%s", have_name ? name : address);
+    return out[0] != 0;
+}
+
 void om_sensors_value(char *out, int size, const struct om_sensors *s)
 {
     int len = 0;
