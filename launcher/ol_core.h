@@ -60,6 +60,14 @@ typedef struct ol_opts {
  * corrupt and ignored), its STACK tool type (kept to OL_STACK_MAX) and Workbench's default stack; TOOLPRI as the priority (kept to -128 to 127), 0 without one. */
 void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_stack);
 
+/* ---- the machine's settings (gfosdesign gfos/machines/machine-settings, 21 Nov 2026) ---- */
+
+/* The machine's words among an icon's tool types (FPU=, PACE=, CACHES=, MMU=, CHIPPLANE=, REFRESH=; the key's case
+ * aside, bracketed ones switched off), as "KEY=value" separated by spaces into out (cap bytes with the NUL). The
+ * launcher pushes them through accontrol.device before the program starts and pops them when it ends. How many were
+ * found; 0 for none (out ""). A word cut short by cap is left out whole. */
+int ol_machine_words(const char *const *tt, char *out, int cap);
+
 /* ---- I11: Shift-double-click ---- */
 
 enum { OL_K_OTHER = 0, OL_K_TOOL, OL_K_PROJECT, OL_K_DRAWER };

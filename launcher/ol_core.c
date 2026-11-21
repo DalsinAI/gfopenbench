@@ -159,3 +159,29 @@ unsigned long ol_switch_parse(const char *line)
     }
     return f;
 }
+
+int ol_machine_words(const char *const *tt, char *out, int cap)
+{
+    static const char *const keys[] = { "FPU", "PACE", "CACHES", "MMU", "CHIPPLANE", "REFRESH", 0 };
+    int len = 0, n = 0, k;
+    if (cap < 1) return 0;
+    out[0] = 0;
+    for (; tt && *tt; tt++) {
+        const char *t = *tt;
+        for (k = 0; keys[k]; k++) {
+            const char *a = t, *b = keys[k];
+            int w = 0, need;
+            while (*b && ol_lower((unsigned char)*a) == ol_lower((unsigned char)*b)) a++, b++;
+            if (*b || *a != '=' || !a[1]) continue;
+            while (t[w] && t[w] != ' ' && t[w] != '\t') w++;
+            need = w + (len ? 1 : 0);
+            if (len + need >= cap) break;
+            if (len) out[len++] = ' ';
+            while (w--) out[len++] = *t++;
+            out[len] = 0;
+            n++;
+            break;
+        }
+    }
+    return n;
+}

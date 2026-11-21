@@ -18,6 +18,7 @@
 #include "ob_tasks.h"
 #include "ol_lib.h"                          /* gfopenlaunch.library (Team 2, build plan row 6) */
 #include "ol_core.h"                         /* 0.1.64: STACK and TOOLPRI read as the library reads them */
+#include "ol_machine.h"                      /* a program's machine settings, pushed and popped (gfosdesign machine-settings) */
 
 #define OB_LA_ARGS (OL_ARGS_MAX + 1)         /* 0.1.64: the tool and up to 32 arguments, as gfopenlaunch.library */
 
@@ -31,6 +32,7 @@ typedef struct launch {
     unsigned long id;
     struct MsgPort *tell;                   /* OB_LR_ENDED to this when it ends or at deadline; NULL none */
     unsigned long deadline;                 /* in ticks (1/50 s) of now() */
+    ULONG mach;                             /* its machine settings' push (launcher/ol_machine.h), popped when it ends */
 } launch;
 
 static struct MsgPort *volatile req_port;   /* the launcher's, for ob_lreq */
@@ -148,6 +150,10 @@ static unsigned long start_tool(const ob_lreq *r)
         FreeVec(L);
         return 0;
     }
+    {
+        char w[256];                        /* the icon's machine words, in force before its first instruction */
+        if (ol_machine_words(ntt ? tt : NULL, w, sizeof w)) L->mach = olm_push(w, sizeof w);
+    }
     /* As Workbench starts a tool: no input or output and no current directory (0.1.7: dos's default NIL: made every
      * libnix tool fail on quitting with 8700000E; 0.1.10: a current directory of its own was unlocked twice) */
     p = CreateNewProcTags(NP_Seglist, (ULONG)seg, NP_FreeSeglist, FALSE,
@@ -157,6 +163,7 @@ static unsigned long start_tool(const ob_lreq *r)
                           NP_HomeDir, (ULONG)DupLock(L->args[0].wa_Lock), NP_Input, 0, NP_Output, 0,
                           NP_CloseInput, FALSE, NP_CloseOutput, FALSE, TAG_DONE);
     if (!p) {
+        olm_pop(L->mach);
         if (L->resident) resident_done(L->resident);
         else UnLoadSeg(seg);
         unlock_args(L, n);
@@ -237,6 +244,7 @@ static void launch_done(launch *L)
     for (pp = &launches; *pp; pp = &(*pp)->next)
         if (*pp == L) { *pp = L->next; break; }
     tell_ended(L);
+    olm_pop(L->mach);                               /* the machine as it was, now that the program has ended */
     if (L->resident) resident_done(L->resident);   /* a resident's code stays: it is the resident list's */
     else UnLoadSeg(L->wbs.sm_Segment);
     for (i = 0; i < L->wbs.sm_NumArgs && i < OB_LA_ARGS; i++)

@@ -32,19 +32,20 @@
 
 #include "ol_core.h"
 #include "ol_lib.h"
+#include "ol_machine.h"
 
 #define REG(r, decl) register decl __asm(#r)
 
 #define VERSION 1
-#define REVISION 1
+#define REVISION 2
 
 /* First in the file: run as a program, the library returns at once. */
 __asm("\t.text\n\t.globl _ol_start\n_ol_start:\n\tmoveq #-1,d0\n\trts\n");
 
 static const char lib_name[] = OL_LIBNAME;
-static const char lib_id[] = "gfopenlaunch.library 1.1 (13.11.2026) GFOpenBench's launcher\r\n";
+static const char lib_id[] = "gfopenlaunch.library 1.2 (21.11.2026) GFOpenBench's launcher\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: gfopenlaunch.library 1.1 (13.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+    "$VER: gfopenlaunch.library 1.2 (21.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 static const char reaper_name[] = "GFOpenBench launcher";
 
 struct ExecBase *SysBase;
@@ -75,6 +76,7 @@ typedef struct ol_run {
     LONG nargs;
     struct WBArg *args;             /* nargs of them, after this */
     char *names;                    /* nargs * OL_NAME_LEN, after the args */
+    ULONG mach;                     /* its machine settings' push (ol_machine.h), popped when it ends; 0 none */
 } ol_run;
 
 static void o_copy(char *d, const char *s, ULONG n)
@@ -99,6 +101,7 @@ static ol_run *run_of_msg(struct Message *m) { return (ol_run *)((UBYTE *)m - of
 static void run_done(struct OLBase *b, ol_run *r)
 {
     LONG i;
+    olm_pop(r->mach);               /* the machine as it was, now that the program has ended */
     ObtainSemaphore(&b->lock);
     Remove((struct Node *)&r->node);
     b->running--;
@@ -267,8 +270,14 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
         run_free_args(r);
         return 0;
     }
+    {
+        /* its icon's machine words (FPU=, PACE=...), in force before its first instruction */
+        char w[256];
+        if (ol_machine_words((const char *const *)GetTagData(OLA_ToolTypes, 0, tags), w, sizeof w)) r->mach = olm_push(w, sizeof w);
+    }
     port = (struct MsgPort *)ol_port_locked(&port_ops, b, 3);   /* with lock held, the port still the reaper's */
     if (!port) {
+        olm_pop(r->mach);
         if (r->resident) {
             Forbid();
             if (r->resident->seg_UC > 0) r->resident->seg_UC--;
@@ -292,6 +301,7 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
     }
     if (!p) {
         ReleaseSemaphore(&b->lock);
+        olm_pop(r->mach);
         if (r->resident) {
             Forbid();
             if (r->resident->seg_UC > 0) r->resident->seg_UC--;

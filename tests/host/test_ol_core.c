@@ -223,8 +223,22 @@ static void test_port(void)
     CHECK("port: no reaper at all: NULL, never locked", !ol_port_locked(&ops, &f, 3) && !f.locked && !f.unlocks);
 }
 
+static void test_machine(void)
+{
+    static const char *const ta[] = {"STACK=65536", "FPU=EXTENDED", "(PACE=A1200)", "pace=hyper", "TOOLPRI=1", 0};
+    static const char *const tb[] = {"FPUX=1", "FPU", "FPU=", "MMU=OFF", "CacheS=Off", 0};
+    static const char *const tc[] = {"CHIPPLANE=ON", "REFRESH=50", 0};
+    char out[64], small[16];
+    CHECK("machine: FPU and PACE taken, STACK and TOOLPRI left to the launcher, a bracketed one off",
+          ol_machine_words(ta, out, sizeof out) == 2 && !strcmp(out, "FPU=EXTENDED pace=hyper"));
+    CHECK("machine: a near name, no value or an empty one is no word", ol_machine_words(tb, out, sizeof out) == 2 && !strcmp(out, "MMU=OFF CacheS=Off"));
+    CHECK("machine: none", ol_machine_words(0, out, sizeof out) == 0 && out[0] == 0);
+    CHECK("machine: a word that won't fit is left out whole", ol_machine_words(tc, small, sizeof small) == 1 && !strcmp(small, "CHIPPLANE=ON"));
+}
+
 int main(void)
 {
+    test_machine();
     test_startup();
     test_opts();
     test_shift();
