@@ -62,8 +62,9 @@ void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_st
 
 /* ---- the machine's settings (gfosdesign gfos/machines/machine-settings, 21 Nov 2026) ---- */
 
-/* The machine's words among an icon's tool types (FPU=, PACE=, CACHES=, MMU=, CHIPPLANE=, REFRESH=; the key's case
- * aside, bracketed ones switched off), as "KEY=value" separated by spaces into out (cap bytes with the NUL). The
+/* The machine's words among an icon's tool types, each with the AC. prefix (AC.FPU=, AC.PACE=, AC.CACHES=, AC.MMU=,
+ * AC.CHIPPLANE=, AC.REFRESH=; the case aside, bracketed ones switched off; Dale, 21 November 2026: "we prefix them"),
+ * as "KEY=value" without the prefix, separated by spaces, into out (cap bytes with the NUL). The
  * launcher pushes them through accontrol.device before the program starts and pops them when it ends. How many were
  * found; 0 for none (out ""). A word cut short by cap is left out whole. */
 int ol_machine_words(const char *const *tt, char *out, int cap);

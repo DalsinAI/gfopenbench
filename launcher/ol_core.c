@@ -168,6 +168,8 @@ int ol_machine_words(const char *const *tt, char *out, int cap)
     out[0] = 0;
     for (; tt && *tt; tt++) {
         const char *t = *tt;
+        if (ol_lower((unsigned char)t[0]) != 'a' || ol_lower((unsigned char)t[1]) != 'c' || t[2] != '.') continue;
+        t += 3;                                    /* "AC.": the machine's, not the program's own tool types */
         for (k = 0; keys[k]; k++) {
             const char *a = t, *b = keys[k];
             int w = 0, need;
