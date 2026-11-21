@@ -26,6 +26,7 @@
  *                         (0.2.5); never narrower than the numbers in them
  *   REFRESH=n             seconds between readings (default 2)
  *   NODATE NOMEMORY NOVIDEO NOVOLUMES NOSENSORS   leave those out
+ *   HOSTNAME              (0.6) the host's name and address under the bars, "amicradle-cm5 / 192.168.0.151"
  *   MONITOR=command       what a click on it starts (0.5; default SYS:Utilities/GFOpenMonitor, else GFOpenMonitor)
  *   RAM                   show RAM: too
  *   HIDE=Name|Name        volumes not to show
@@ -103,6 +104,11 @@
  * C:GFOpenMonitor); MONITOR=command for another. A drag still moves it, and does not start it. A click with
  * Shift, Alt, Ctrl or Amiga held only makes it the active window, for its menu, which has Monitor too.
  *
+ * 0.6 (Dale, 21 November 2026: "add a small identifier option that shows the host name under the gauges on
+ * openmeter, hostname/ip", "will help me figure out who's who"): HOSTNAME puts the host's name and network address
+ * in the date's dim colour under the bars. They come from the host's status, as the Temp row does (om_host_ident),
+ * so an Amiga with no accontrol.device, or a host older than amicradle #1314, shows no line.
+ *
  * Every resource is freed on the way out. MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -151,8 +157,8 @@
 #include "ogt_openfont.h"
 #include "../desktop/ob_drawn.h"                 /* 0.4.1: GFOpenBench says when its desktop is drawn */
 
-#define OPENMETERS_VERSION "0.5"
-static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (20.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENMETERS_VERSION "0.6"
+static const char version[] __attribute__((used)) = "$VER: GFOpenMeters " OPENMETERS_VERSION " (21.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 extern struct ExecBase *SysBase;
 struct IntuitionBase *IntuitionBase;
@@ -184,10 +190,10 @@ typedef struct {
 static struct {
     LONG left, top, barwidth, refresh;
     int corner;                    /* 0 TL, 1 TR, 2 BL, 3 BR */
-    int nodate, nomemory, novideo, novolumes, nosensors, ram;
+    int nodate, nomemory, novideo, novolumes, nosensors, ram, hostname;
     char hide[200];
     char monitor[120];             /* 0.5: MONITOR=, what a click starts */
-} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, "" };
+} opt = { -1, -1, 200, 2, 1, 0, 0, 0, 0, 0, 0, 0, "" };
 
 static struct Screen *scr;
 static struct Window *win;
@@ -238,6 +244,7 @@ static void tooltypes(struct WBStartup *wbs)
     opt.novolumes = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOVOLUMES") != NULL;
     opt.nosensors = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"NOSENSORS") != NULL;
     opt.ram = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"RAM") != NULL;
+    opt.hostname = FindToolType((CONST_STRPTR *)dob->do_ToolTypes, (STRPTR)"HOSTNAME") != NULL;
     FreeDiskObject(dob);
 }
 
@@ -246,7 +253,7 @@ static int make_icon(void)
 {
     static STRPTR tt[] = { (STRPTR)"CORNER=TOPRIGHT", (STRPTR)"(LEFT=40)", (STRPTR)"(TOP=40)", (STRPTR)"BARWIDTH=200",
                            (STRPTR)"REFRESH=2", (STRPTR)"(NODATE)", (STRPTR)"(NOMEMORY)", (STRPTR)"(NOVIDEO)",
-                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(NOSENSORS)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"(MONITOR=SYS:Utilities/GFOpenMonitor)",
+                           (STRPTR)"(NOVOLUMES)", (STRPTR)"(NOSENSORS)", (STRPTR)"(HOSTNAME)", (STRPTR)"(RAM)", (STRPTR)"(HIDE=Name|Name)", (STRPTR)"(MONITOR=SYS:Utilities/GFOpenMonitor)",
                            (STRPTR)"DONOTWAIT", NULL };
     char path[256];
     struct DiskObject *dob;
@@ -463,6 +470,7 @@ static int host_disks_n, host_wait;
 static UBYTE host_absent;
 static struct om_sensors host_sensors;
 static int host_have_sensors;
+static char host_line[112];        /* 0.6: HOSTNAME's line, "" when the host doesn't say */
 
 static void read_host(void)
 {
@@ -475,6 +483,7 @@ static void read_host(void)
     host_wait = HOST_EVERY - 1;
     host_disks_n = 0;
     host_have_sensors = 0;
+    host_line[0] = 0;
     if (!(status = AllocVec(OM_STATUS_BYTES + 1, MEMF_PUBLIC | MEMF_CLEAR))) return;
     if ((mp = CreateMsgPort())) {
         if ((io = (struct IOStdReq *)CreateIORequest(mp, sizeof *io))) {
@@ -488,6 +497,7 @@ static void read_host(void)
                     status[io->io_Actual < OM_STATUS_BYTES ? io->io_Actual : OM_STATUS_BYTES] = 0;
                     host_disks_n = om_disk_read(status, host_disks, OM_DISK_MAX);
                     host_have_sensors = om_sensors_read(status, &host_sensors);
+                    om_host_ident(status, host_line, sizeof host_line);
                 }
                 CloseDevice((struct IORequest *)io);
             }
@@ -574,7 +584,7 @@ static void read_all(void)
     Amiga2Date(ds.ds_Days * 86400 + ds.ds_Minute * 60 + ds.ds_Tick / TICKS_PER_SECOND, &cd);
     snprintf(date_line, sizeof date_line, "%s, %d %s %d, %02d:%02d", days[cd.wday % 7], cd.mday,
              months[(cd.month + 11) % 12], cd.year, cd.hour, cd.min);
-    if (!opt.nosensors || !opt.novolumes) read_host();
+    if (!opt.nosensors || !opt.novolumes || opt.hostname) read_host();
     if (!opt.nosensors) sensors_row();
     if (!opt.nomemory) {
         if (!allocation_rows()) {
@@ -1136,10 +1146,15 @@ static WORD text_w(const char *s)
     return TextLength(&rp, (STRPTR)s, strlen(s));
 }
 
+static int host_shown(void)
+{
+    return opt.hostname && host_line[0];
+}
+
 static void measure(WORD *w, WORD *h)
 {
     int i, br;
-    WORD dw = opt.nodate ? 0 : text_w(date_line), vw = 0;
+    WORD dw = opt.nodate ? 0 : text_w(date_line), vw = 0, hw = host_shown() ? text_w(host_line) : 0;
     row_h = font->tf_YSize + 6;
     br = (row_h - 4) / 2 > 6 ? 6 : (row_h - 4) / 2;
     label_w = 0;
@@ -1157,7 +1172,8 @@ static void measure(WORD *w, WORD *h)
     bar_min = bar_w;
     *w = PAD + label_w + GAP + bar_w + PAD;
     if (dw + 2 * PAD > *w) *w = dw + 2 * PAD;
-    *h = PAD + (opt.nodate ? 0 : row_h + 2) + nrows * row_h + PAD - 2;
+    if (hw + 2 * PAD > *w) *w = hw + 2 * PAD;
+    *h = PAD + (opt.nodate ? 0 : row_h + 2) + nrows * row_h + (hw ? row_h + 2 : 0) + PAD - 2;
 }
 
 static void text_at(struct RastPort *rp, LONG x, LONG y, const char *s, LONG p)
@@ -1224,6 +1240,12 @@ static void compose(void)
             } else if (fw) { SetAPen(rp, pen(full ? P_FULL : P_FILL)); RectFill(rp, bx, by, bx + fw - 1, by + bh - 1); }
             text_at(rp, vx, y + 2, r->value, pen(P_TEXT));
         }
+    }
+    if (host_shown()) {
+        WORD hx = (W - text_w(host_line)) / 2;
+        y += 2;
+        if (card) text_px(hx, y + 2, host_line, c_dim, 0, c_dim);
+        else text_at(rp, hx, y + 2, host_line, pen(P_DIM));
     }
 }
 
@@ -1638,7 +1660,7 @@ int main(int argc, char **argv)
     else {
         memset(a, 0, sizeof a);
         if (!(rda = ReadArgs((STRPTR)"CORNER/K,LEFT/K/N,TOP/K/N,BARWIDTH/K/N,REFRESH/K/N,NODATE/S,NOMEMORY/S,NOVIDEO/S,"
-                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S,NOSENSORS/S,MONITOR/K", a, NULL))) {
+                             "NOVOLUMES/S,RAM/S,HIDE/K,MAKEICON/S,NOSENSORS/S,MONITOR/K,HOSTNAME/S", a, NULL))) {
             PrintFault(IoErr(), (STRPTR)"GFOpenMeters");
             goto done;
         }
@@ -1654,6 +1676,7 @@ int main(int argc, char **argv)
         opt.novolumes = a[8] != 0;
         opt.ram = a[9] != 0;
         opt.nosensors = a[12] != 0;
+        opt.hostname = a[14] != 0;
         if (a[13]) strncpy(opt.monitor, (const char *)a[13], sizeof opt.monitor - 1);
         if (a[10]) strncpy(opt.hide, (const char *)a[10], sizeof opt.hide - 1);
     }
