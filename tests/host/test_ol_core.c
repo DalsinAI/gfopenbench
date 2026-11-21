@@ -225,14 +225,17 @@ static void test_port(void)
 
 static void test_machine(void)
 {
-    static const char *const ta[] = {"STACK=65536", "FPU=EXTENDED", "(PACE=A1200)", "pace=hyper", "TOOLPRI=1", 0};
-    static const char *const tb[] = {"FPUX=1", "FPU", "FPU=", "MMU=OFF", "CacheS=Off", 0};
-    static const char *const tc[] = {"CHIPPLANE=ON", "REFRESH=50", 0};
+    static const char *const ta[] = {"STACK=65536", "AC.FPU=EXTENDED", "(AC.PACE=A1200)", "ac.pace=hyper", "TOOLPRI=1", 0};
+    static const char *const tb[] = {"AC.FPUX=1", "AC.FPU", "AC.FPU=", "AC.MMU=OFF", "Ac.CacheS=Off", 0};
+    static const char *const tc[] = {"AC.CHIPPLANE=ON", "AC.REFRESH=50", 0};
+    static const char *const td[] = {"FPU=EXTENDED", "PACE=A1200", "ACFPU=DOUBLE", "AC=1", "A", 0};
     char out[64], small[16];
     CHECK("machine: FPU and PACE taken, STACK and TOOLPRI left to the launcher, a bracketed one off",
           ol_machine_words(ta, out, sizeof out) == 2 && !strcmp(out, "FPU=EXTENDED pace=hyper"));
     CHECK("machine: a near name, no value or an empty one is no word", ol_machine_words(tb, out, sizeof out) == 2 && !strcmp(out, "MMU=OFF CacheS=Off"));
     CHECK("machine: none", ol_machine_words(0, out, sizeof out) == 0 && out[0] == 0);
+    CHECK("machine: a program's own FPU= or PACE= without AC. is not the machine's",
+          ol_machine_words(td, out, sizeof out) == 0 && out[0] == 0);
     CHECK("machine: a word that won't fit is left out whole", ol_machine_words(tc, small, sizeof small) == 1 && !strcmp(small, "CHIPPLANE=ON"));
 }
 

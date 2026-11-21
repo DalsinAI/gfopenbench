@@ -271,7 +271,7 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
         return 0;
     }
     {
-        /* its icon's machine words (FPU=, PACE=...), in force before its first instruction */
+        /* its icon's machine words (AC.FPU=, AC.PACE=...), in force before its first instruction */
         char w[256];
         if (ol_machine_words((const char *const *)GetTagData(OLA_ToolTypes, 0, tags), w, sizeof w)) r->mach = olm_push(w, sizeof w);
     }
