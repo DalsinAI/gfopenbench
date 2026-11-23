@@ -288,6 +288,7 @@
 #include "ob_guard.h"
 #include "ob_dtask.h"
 #include "ob_pick.h"
+#include "ob_popup.h"
 #include "deskicons.h"
 #include "wb_dir.h"
 #include "wb_fmt.h"
@@ -311,8 +312,8 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.72"
-static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (19.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+#define OPENBENCH_VERSION "0.1.73"
+static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (23.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
 struct Library *WorkbenchBase;
@@ -4384,6 +4385,62 @@ static void volumes_again(void)
     draw_icons();
 }
 
+/* 0.1.73: the menu at the pointer (ob_popup.h; Dale, 23 November 2026: "right clicking on icons has no menu").
+ * Over an icon the root window traps the right button (WFLG_RMBTRAP, set and cleared as the pointer moves), so a
+ * right press there comes as MENUDOWN: the icon is selected (a selection it is already in is kept) and the Icons
+ * menu's items that can be picked now open beside the pointer. The one taken goes through IDCMP_MENUPICK's own code,
+ * so it does exactly what the same item in the menu bar does. Anywhere else the right button shows the screen's menus
+ * as before. */
+static ULONG popup_ids[OB_POPUP_MAX];
+
+static void rmb_follow(WORD mx, WORD my)
+{
+    int want = !dragging && !band_on && icon_at(mx, my) != NULL;
+    if (((root->Flags & WFLG_RMBTRAP) != 0) == want) return;
+    Forbid();                                   /* Intuition reads the flags from its own task */
+    if (want) root->Flags |= WFLG_RMBTRAP;
+    else root->Flags &= ~WFLG_RMBTRAP;
+    Permit();
+}
+
+/* The menu bar's number for the item with this id (GTMENUITEM_USERDATA), as IDCMP_MENUPICK gives it; MENUNULL */
+static UWORD menu_number_of(ULONG id)
+{
+    struct Menu *mn;
+    UWORD mi, ii;
+    for (mn = root->MenuStrip, mi = 0; mn; mn = mn->NextMenu, mi++) {
+        struct MenuItem *it;
+        for (it = mn->FirstItem, ii = 0; it; it = it->NextItem, ii++)
+            if ((ULONG)GTMENUITEM_USERDATA(it) == id) return (UWORD)FULLMENUNUM(mi, ii, NOSUB);
+    }
+    return MENUNULL;
+}
+
+/* The Icons menu's items that can be picked now (text, enabled, no submenu; not Clean Up, which is the desktop's,
+ * not the icon's), beside the pointer. The number of the item taken, or MENUNULL. */
+static UWORD icon_popup(WORD mx, WORD my, int held)
+{
+    const char *labels[OB_POPUP_MAX];
+    struct Menu *mn;
+    int n = 0, k;
+    for (mn = root->MenuStrip; mn; mn = mn->NextMenu)
+        if (mn->MenuName && !strcmp((const char *)mn->MenuName, "Icons")) break;
+    if (mn) {
+        struct MenuItem *it;
+        for (it = mn->FirstItem; it && n < OB_POPUP_MAX; it = it->NextItem) {
+            ULONG id = (ULONG)GTMENUITEM_USERDATA(it);
+            if (!(it->Flags & ITEMTEXT) || !(it->Flags & ITEMENABLED) || it->SubItem || !it->ItemFill) continue;
+            if (!id || id == M_CLEANUP) continue;
+            labels[n] = (const char *)((struct IntuiText *)it->ItemFill)->IText;
+            popup_ids[n++] = id;
+        }
+    }
+    if (!n) return MENUNULL;
+    k = ob_popup(look.scr, (WORD)(ROOT_X + mx), (WORD)(ROOT_Y + my), labels, n, held);
+    ActivateWindow(root);                       /* 0.1.27's lesson: the desktop active again, so the right button works */
+    return k >= 0 ? menu_number_of(popup_ids[k]) : MENUNULL;
+}
+
 static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG secs, ULONG micros)
 {
     switch (cl) {
@@ -4471,9 +4528,21 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
                 draw_icons();
             }
             pressed_on = NULL;
+        } else if (code == MENUDOWN) {             /* 0.1.73: trapped over an icon: its menu beside the pointer */
+            dicon *ic = icon_at(mx, my);
+            if (!ic || dragging || band_on) {
+                rmb_follow(mx, my);                 /* not over one now: the next press shows the screen's menus */
+                break;
+            }
+            if (!ic->selected) select_only(ic);
+            desk_lead = (int)(ic - icons);
+            code = icon_popup(mx, my, 1);
+            if (code == MENUNULL) break;
+            goto menupick;                          /* as the same item picked from the menu bar */
         }
         break;
     case IDCMP_MOUSEMOVE:
+        rmb_follow(mx, my);                         /* 0.1.73 */
         if (band_on) {                              /* 0.1.58: the lasso follows the pointer */
             if (mx == band_x1 && my == band_y1) break;
             band_draw();
@@ -4536,7 +4605,8 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
         }
         break;
     }
-    case IDCMP_MENUPICK: {
+    case IDCMP_MENUPICK:
+    menupick: {
         UWORD num = code;
         int picked = 0;
         /* 0.1.22: at most as many items as the menus have; an item's NextSelect is only set when it is picked
