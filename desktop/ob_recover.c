@@ -228,6 +228,16 @@ int ob_recover_put_back(void)
     return ok;
 }
 
+int ob_recover_is_open(void)
+{
+    int open;
+    sem_init();
+    Forbid();
+    open = rw.task != NULL;
+    Permit();
+    return open;
+}
+
 void ob_recover_close(void)
 {
     int i;
