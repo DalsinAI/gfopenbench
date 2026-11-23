@@ -1,4 +1,4 @@
-/* ob_popsel.c: the menu at the pointer in a drawer window (ob_popsel.h, 0.1.74). MIT, Copyright (c) 2026 AmiCradle Team. */
+/* ob_popsel.c: the menu at the pointer in a drawer window (ob_popsel.h, 0.1.75). MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <string.h>
 
 #include "ob_popsel.h"

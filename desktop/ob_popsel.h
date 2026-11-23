@@ -1,4 +1,4 @@
-/* ob_popsel.h: the menu at the pointer in a drawer window (0.1.74; Dale, 23 November 2026: "right clicking on icons has
+/* ob_popsel.h: the menu at the pointer in a drawer window (0.1.75; Dale, 23 November 2026: "right clicking on icons has
  * no menu"; 0.1.73 did the desktop's icons). What ob_dtask.c asks before it opens ob_popup over a drawer's icon: when
  * the right button is trapped, which icons a right press selects, and which of the drawer's Icons menu items go in
  * the menu. Plain C, no Amiga headers: tests/host/test_ob_popsel.c.

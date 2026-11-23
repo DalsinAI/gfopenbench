@@ -350,7 +350,7 @@ static void x4_test(const char *path)
     __asm volatile("illegal");
 }
 
-/* ---- 0.1.74: the menu at the pointer for a drawer's icon (ob_popsel.h; Dale, 23 November 2026: "right clicking on
+/* ---- 0.1.75: the menu at the pointer for a drawer's icon (ob_popsel.h; Dale, 23 November 2026: "right clicking on
  * icons has no menu"; 0.1.73 did the desktop's). It runs in the drawer's own task, as everything else its window
  * does: the press, the selection, ob_popup's menu and the item taken, which goes to wb_drawer_event as the menu
  * bar's IDCMP_MENUPICK, so it does exactly what the same item in the drawer's Icons menu does. ---- */
@@ -525,7 +525,7 @@ static void dt_entry(void)
             GT_ReplyIMsg(im);
             if (cl == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) send_event(t, OB_DTE_CLICK);
             if (cl == IDCMP_MOUSEBUTTONS && code == MENUDOWN && !left_down && (t->win->Flags & WFLG_RMBTRAP)) {
-                /* 0.1.74: trapped over an icon: its menu beside the pointer, the item taken as the menu bar's */
+                /* 0.1.75: trapped over an icon: its menu beside the pointer, the item taken as the menu bar's */
                 code = icon_popup(d, t->win, mx, my);
                 if (code == MENUNULL) {
                     rmb_follow(d, t->win, mx, my, left_down);   /* not over one now: the next press shows the menus */
@@ -542,7 +542,7 @@ static void dt_entry(void)
                 break;
             }
             if (cl == IDCMP_ACTIVEWINDOW) send_event(t, OB_DTE_ACTIVE);
-            if (cl == IDCMP_MOUSEMOVE || cl == IDCMP_MOUSEBUTTONS) rmb_follow(d, t->win, mx, my, left_down);   /* 0.1.74 */
+            if (cl == IDCMP_MOUSEMOVE || cl == IDCMP_MOUSEBUTTONS) rmb_follow(d, t->win, mx, my, left_down);   /* 0.1.75 */
         }
     }
     Forbid();

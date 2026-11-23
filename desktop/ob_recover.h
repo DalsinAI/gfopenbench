@@ -12,6 +12,8 @@ int ob_recover_open(const char *vol, struct Screen *scr);
 /* Icons > Put back: the file picked in that window put back where it was. 0 (and the caller beeps) when no window
  * is open. */
 int ob_recover_put_back(void);
+/* 1 while that window is open (0.1.74: Put back is enabled only then) */
+int ob_recover_is_open(void);
 /* Closes the window and waits for its process to end (GFOpenBench quitting). */
 void ob_recover_close(void);
 

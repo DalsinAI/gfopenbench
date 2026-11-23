@@ -1,4 +1,4 @@
-/* ob_popsel's host test: the menu at the pointer in a drawer window (GFOpenBench 0.1.74): when the right button is
+/* ob_popsel's host test: the menu at the pointer in a drawer window (GFOpenBench 0.1.75): when the right button is
  * trapped, which icons a right press selects, and which Icons menu items go in the menu.
  *   test_ob_popsel
  * MIT, Copyright (c) 2026 AmiCradle Team. */

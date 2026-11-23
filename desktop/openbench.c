@@ -289,6 +289,7 @@
 #include "ob_dtask.h"
 #include "ob_pick.h"
 #include "ob_popup.h"
+#include "ob_menustate.h"
 #include "deskicons.h"
 #include "wb_dir.h"
 #include "wb_fmt.h"
@@ -312,7 +313,7 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.74"
+#define OPENBENCH_VERSION "0.1.75"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (23.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
@@ -4513,6 +4514,57 @@ static UWORD menu_number_of(ULONG id)
     return MENUNULL;
 }
 
+/* 0.1.74 (GF-127, Dale 23 Nov 2026: "menu options that are not available over what your currently above dont work"):
+ * each item that acts on the selection is enabled only when it can act (ob_menustate.h), as Workbench ghosts them. Run
+ * before each wait and before the menu at the pointer opens, so the menu bar, its Amiga-keys and the menu at the
+ * pointer all agree with what is selected. An item is only touched when its state changes. */
+static const struct { UBYTE id, need; } menu_needs[] = {
+    {M_ICON_OPEN, OB_MS_SEL}, {M_CLEARSEL, OB_MS_SEL},
+    {M_ICON_INFO, OB_MS_SEL_FILE}, {M_RENAME, OB_MS_SEL_FILE}, {M_SNAP, OB_MS_SEL_FILE}, {M_UNSNAP, OB_MS_SEL_FILE},
+    {M_USB_EJECT, OB_MS_DISK}, {M_FORMAT, OB_MS_DISK},
+    {M_PUTAWAY, OB_MS_LOUT}, {M_DELETE, OB_MS_LOUT}, {M_LEAVEOUT, OB_MS_LOUT_TEMP},
+    {M_RECOVER, OB_MS_RECOVER}, {M_PUTBACK, OB_MS_PUTBACK},
+    {M_SELALL, OB_MS_SHOWN}, {M_CLEANUP, OB_MS_FILES}, {M_OPENVOL, OB_MS_ANY_DISK},
+};
+
+static void menu_refresh(void)
+{
+    ob_ms_facts f;
+    unsigned i;
+    int k;
+    if (!root || !root->MenuStrip || dragging || band_on) return;   /* the selection settles when they end */
+    memset(&f, 0, sizeof f);
+    for (k = 0; k < nicons; k++) {
+        dicon *ic = &icons[k];
+        char vol[512];
+        int lo;
+        if (ic->lo != OB_LO_APP) f.files++;
+        if (ic->lo == -1) f.all_disks++;
+        if (!ic->selected) continue;
+        f.sel++;
+        if (ic->lo == OB_LO_APP) continue;
+        f.sel_file++;
+        if (ic->lo == -1) f.disks++;
+        if (ic->lo >= 0 && (lo = lout_find(ic->path)) >= 0) {
+            f.louts++;
+            if (!louts[lo].permanent) f.louts_temp++;
+        }
+        if (ob_rc_volume(ic->path, ic->lo < 0, "Trashcan", vol)) f.recover++;
+    }
+    f.shown = ob_show_icons(&show) ? nicons : 0;
+    f.recover_open = ob_recover_is_open();
+    for (i = 0; i < sizeof menu_needs / sizeof menu_needs[0]; i++) {
+        UWORD num = menu_number_of(menu_needs[i].id);
+        struct MenuItem *it;
+        int want;
+        if (num == MENUNULL || !(it = ItemAddress(root->MenuStrip, num))) continue;
+        want = ob_ms_enabled(&f, menu_needs[i].need);
+        if (((it->Flags & ITEMENABLED) != 0) == want) continue;
+        if (want) OnMenu(root, num);
+        else OffMenu(root, num);
+    }
+}
+
 /* The Icons menu's items that can be picked now (text, enabled, no submenu; not Clean Up, which is the desktop's,
  * not the icon's), beside the pointer. The number of the item taken, or MENUNULL. */
 static UWORD icon_popup(WORD mx, WORD my, int held)
@@ -4633,6 +4685,7 @@ static int root_event(ULONG cl, UWORD code, UWORD qual, WORD mx, WORD my, ULONG 
             }
             if (!ic->selected) select_only(ic);
             desk_lead = (int)(ic - icons);
+            menu_refresh();                         /* 0.1.74: the items for this selection */
             code = icon_popup(mx, my, 1);
             if (code == MENUNULL) break;
             goto menupick;                          /* as the same item picked from the menu bar */
@@ -6069,7 +6122,9 @@ static int run(void)
      * low-memory one) each need a signal for their IDCMP port; 0.1.60 had none left (WBGapTest M2, M6, M8, X3) */
     if (ob_sig_free(main_task->tc_SigAlloc) < OB_SIG_KEEP) no_signal("its requesters (About, Execute Command, New drawer)");
     for (;;) {
-        ULONG sigs = Wait(ob_dt_sigmask() | (1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
+        ULONG sigs;
+        menu_refresh();                             /* 0.1.74 (GF-127): the menus as the desktop is now */
+        sigs = Wait(ob_dt_sigmask() | (1UL << idcmp->mp_SigBit) | (1UL << launch_port->mp_SigBit) | (1UL << picture_sig) | wb_thumb_sigmask() | wb_find_sigmask() | wb_notify_sigmask() |
                           (1UL << pub->mp_SigBit) | (nfy_port ? 1UL << nfy_port->mp_SigBit : 0) | wbc_sigmask() |
                           (aloha_port ? 1UL << aloha_port->mp_SigBit : 0) | (reset_sig >= 0 ? 1UL << reset_sig : 0) |
                           ob_drop_sigmask() | ob_wb_sigmask() | ob_arexx_sigmask() | SIGBREAKF_CTRL_C | (timer ? 1UL << tport->mp_SigBit : 0));
