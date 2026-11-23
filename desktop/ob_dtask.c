@@ -356,8 +356,8 @@ static void x4_test(const char *path)
  * bar's IDCMP_MENUPICK, so it does exactly what the same item in the drawer's Icons menu does. ---- */
 
 /* ob_popsel's numbers are wb_drawer_at's */
-typedef char ob_popsel_is_wb_at[OB_POPSEL_NONE == WB_AT_NONE && OB_POPSEL_SPACE == WB_AT_SPACE &&
-                                OB_POPSEL_DRAWER == WB_AT_DRAWER && OB_POPSEL_FILE == WB_AT_FILE ? 1 : -1];
+typedef char ob_popsel_is_wb_at[(int)OB_POPSEL_NONE == (int)WB_AT_NONE && (int)OB_POPSEL_SPACE == (int)WB_AT_SPACE &&
+                                (int)OB_POPSEL_DRAWER == (int)WB_AT_DRAWER && (int)OB_POPSEL_FILE == (int)WB_AT_FILE ? 1 : -1];
 
 /* What is under the window's point (WB_AT_*), its path in path */
 static int dt_at(wb_drawer *d, struct Window *w, WORD mx, WORD my, char *path, int n)
