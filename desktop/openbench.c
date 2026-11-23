@@ -1111,25 +1111,116 @@ static void read_iconprefs(void)
     wb_iconprefs_parse(&ip, n >= 0 ? a : NULL, m >= 0 ? b : NULL);
 }
 
-static void label_box(dicon *ic, LONG *lx, LONG *ly, LONG *lw)
+/* ---- the labels: ICONALTNAME= and wrapped onto lines (Dale, 23 November 2026) ----
+ * The name an icon shows is its .info's ICONALTNAME= if it has one (a long WHDLoad name made tidy), else its own.
+ * With "wrap" in ENV:Sys/IconLabels a long one goes onto lines (wb_label_wrap: icon.library's rules), each centred
+ * under the picture; without, one line cut with "..." at label_max as before. */
+#define LABEL_TEXT_MAX 127
+typedef struct dlabel {
+    const char *s;                          /* the text shown, its lines in it */
+    wb_lline l[WB_LABEL_LINES_MAX];
+    int n, cut;                             /* its lines; the last ends in "..." */
+    LONG w;                                 /* the widest line, as drawn */
+} dlabel;
+
+static const char *shown_name(const dicon *ic, int *n)
+{
+    const char *a;
+    if (ic->dobj && ic->dobj->do_ToolTypes &&
+        (a = wb_alt_name((const char *)FindToolType((CONST_STRPTR *)ic->dobj->do_ToolTypes, (STRPTR)WB_ALTNAME), n))) {
+        if (*n > LABEL_TEXT_MAX) *n = LABEL_TEXT_MAX;
+        return a;
+    }
+    *n = (int)strlen(ic->name);
+    return ic->name;
+}
+
+/* as the labels are drawn (ogt_text_width), and as icon.library measures them (TextLength), for its label box */
+static int label_measure(void *ctx, const char *s, int n)
+{
+    char b[LABEL_TEXT_MAX + 1];
+    if (n > LABEL_TEXT_MAX) n = LABEL_TEXT_MAX;
+    memcpy(b, s, (size_t)n);
+    b[n] = 0;
+    return ogt_text_width((struct RastPort *)ctx, b);
+}
+
+static int label_measure_lib(void *ctx, const char *s, int n)
+{
+    return TextLength((struct RastPort *)ctx, (STRPTR)s, (UWORD)n);
+}
+
+static void label_of(const dicon *ic, wb_measure_fn m, dlabel *L)
 {
     struct RastPort *rp = root->RPort;
-    LONG tw = ogt_text_width(rp, ic->name);
-    if (tw > label_max) tw = label_max;
-    *lw = tw;
-    *lx = ic->x + (ic->w - tw) / 2;
+    int n, j;
+    L->s = shown_name(ic, &n);
+    L->cut = 0;
+    if (!ip.wrap) {
+        LONG tw = m(rp, L->s, n);
+        L->n = 1;
+        L->l[0].start = 0;
+        L->l[0].len = n;
+        L->l[0].width = (int)tw;
+        L->w = tw > label_max ? label_max : tw;
+        return;
+    }
+    {                                       /* the room: ten of the font's "n", or the picture's width if wider */
+        int em = m(rp, "n", 1), room = (int)ic->w;
+        if (em < 4) em = 4;
+        if (room < WB_LABEL_ROOM_EMS * em) room = WB_LABEL_ROOM_EMS * em;
+        L->n = wb_label_wrap(L->s, n, room, ip.wrap, m, rp, L->l, &L->cut);
+    }
+    L->w = 0;
+    for (j = 0; j < L->n; j++)
+        if (L->l[j].width > L->w) L->w = L->l[j].width;
+}
+
+/* the label's text's top under the box's top: icon.library's label box (labels close) ends at lr's MaxY, its lines
+ * the font's height each (as it counts them) */
+static LONG label_top(dicon *ic, const struct Rectangle *r)
+{
+    struct Rectangle lr;
+    LONG lt = ic->h + LABEL_GAP;
+    if (ip.close && ic->dobj &&
+        GetIconRectangle(root->RPort, ic->dobj, (STRPTR)ic->name, &lr, ICONDRAWA_Borderless, TRUE, TAG_DONE)) {
+        dlabel L;
+        label_of(ic, label_measure_lib, &L);
+        if (lr.MaxY - r->MinY - L.n * label_h > 0) lt = lr.MaxY - r->MinY - L.n * label_h;
+    }
+    return lt;
+}
+
+static void label_box(dicon *ic, LONG *lx, LONG *ly, LONG *lw, dlabel *L)
+{
+    label_of(ic, label_measure, L);
+    *lw = L->w;
+    *lx = ic->x + (ic->w - L->w) / 2;
     *ly = ic->y + ic->lt;
+}
+
+/* line j of the label, NUL-ended, with "..." where it's cut; its x */
+static const char *label_line(const dicon *ic, const dlabel *L, int j, char *b, LONG *x)
+{
+    int m = L->l[j].len;
+    LONG w = L->l[j].width > L->w ? L->w : L->l[j].width;
+    memcpy(b, L->s + L->l[j].start, (size_t)m);
+    if (L->cut && j == L->n - 1) { memcpy(b + m, "...", 3); m += 3; }
+    b[m] = 0;
+    *x = ic->x + (ic->w - w) / 2;
+    return b;
 }
 
 /* The box an icon covers with its label, for clearing. */
 static void icon_extent(dicon *ic, LONG *x0, LONG *y0, LONG *x1, LONG *y1)
 {
     LONG lx, ly, lw;
-    label_box(ic, &lx, &ly, &lw);
+    dlabel L;
+    label_box(ic, &lx, &ly, &lw, &L);
     *x0 = (lx - 5 < ic->x ? lx - 5 : ic->x) - 1;
     *x1 = (lx + lw + 5 > ic->x + ic->w ? lx + lw + 5 : ic->x + ic->w) + 1;
     *y0 = ic->y - 1;
-    *y1 = ly + label_h + 2;
+    *y1 = ly + L.n * label_h + 2;
 }
 
 /* 0.1.34: the desktop's labels in the colour the backdrop asks for (the background pack's lab, 24 October 2026: dark
@@ -1163,25 +1254,34 @@ static void draw_icon(dicon *ic)
 {
     static const ogt_rgb light = { 0xF4, 0xF4, 0xF4 }, shadow = { 0x10, 0x10, 0x14 }, dark = { 0x1A, 0x1A, 0x1E };
     struct RastPort *rp = root->RPort;
-    LONG lx, ly, lw;
-    int tone = ip.tone ? label_tone : 0;
+    LONG lx, ly, lw, x;
+    int tone = ip.tone ? label_tone : 0, j;
+    dlabel L;
+    char b[LABEL_TEXT_MAX + 4];
     if (!ic->dobj || !ob_show_icons(&show)) return;     /* 0.1.37: No icons */
     DrawIconState(rp, ic->dobj, NULL, ic->ix, ic->iy, ic->selected ? IDS_SELECTED : IDS_NORMAL,
                   ICONDRAWA_Frameless, TRUE, ICONDRAWA_Borderless, TRUE, ICONDRAWA_EraseBackground, FALSE,
                   ICONDRAWA_DrawInfo, (ULONG)dri, TAG_DONE);
-    label_box(ic, &lx, &ly, &lw);
+    label_box(ic, &lx, &ly, &lw, &L);
     if (ic->selected) {
         /* 0.1.34: with labels close, round the letters, not over the picture (the font's rows with no ink) */
         int lead = ip.close ? ogt_font_lead(rp->Font) : 0;
-        ogt_box(rp, ogt_pen(&ctx, "accent"), (int)lx - 5, (int)ly + lead - 1, (int)lw + 10, (int)label_h + 2 - lead);
-        ogt_text(rp, ogt_pen(&ctx, "accent.text"), (int)lx, (int)ly, ic->name, (int)lw);
-    } else if (tone == 1) {                 /* a dark backdrop: light, on a shadow a pixel down and right */
-        ogt_text(rp, ogt_pen_rgb(&ctx, shadow), (int)lx + 1, (int)ly + 1, ic->name, (int)lw);
-        ogt_text(rp, ogt_pen_rgb(&ctx, light), (int)lx, (int)ly, ic->name, (int)lw);
-    } else if (tone == 2)                   /* a light one: dark */
-        ogt_text(rp, ogt_pen_rgb(&ctx, dark), (int)lx, (int)ly, ic->name, (int)lw);
-    else
-        ogt_text(rp, ogt_pen(&ctx, "icon.text"), (int)lx, (int)ly, ic->name, (int)lw);
+        ogt_box(rp, ogt_pen(&ctx, "accent"), (int)lx - 5, (int)ly + lead - 1, (int)lw + 10,
+                (int)(L.n * label_h) + 2 - lead);
+    }
+    for (j = 0; j < L.n; j++) {             /* each line centred under the picture */
+        const char *t = label_line(ic, &L, j, b, &x);
+        int y = (int)(ly + j * label_h);
+        if (ic->selected)
+            ogt_text(rp, ogt_pen(&ctx, "accent.text"), (int)x, y, t, (int)lw);
+        else if (tone == 1) {               /* a dark backdrop: light, on a shadow a pixel down and right */
+            ogt_text(rp, ogt_pen_rgb(&ctx, shadow), (int)x + 1, y + 1, t, (int)lw);
+            ogt_text(rp, ogt_pen_rgb(&ctx, light), (int)x, y, t, (int)lw);
+        } else if (tone == 2)               /* a light one: dark */
+            ogt_text(rp, ogt_pen_rgb(&ctx, dark), (int)x, y, t, (int)lw);
+        else
+            ogt_text(rp, ogt_pen(&ctx, "icon.text"), (int)x, y, t, (int)lw);
+    }
 }
 
 static void draw_icons(void)
@@ -1280,9 +1380,12 @@ static void appicons_column(int first, LONG em)
     struct RastPort *rp = root->RPort;
     LONG colw = 10 * em, y = ROOT_H - GRID_Y, gap = label_h / 2 > 8 ? label_h / 2 : 8, cx;
     int i;
+    (void)rp;
     for (i = first; i < nicons; i++) {
-        LONG lw = ogt_text_width(rp, icons[i].name);
-        if (lw > 14 * em) lw = 14 * em;
+        dlabel L;
+        LONG lw;
+        label_of(&icons[i], label_measure, &L);
+        lw = L.w > 14 * em ? 14 * em : L.w;
         if (icons[i].w > colw) colw = icons[i].w;
         if (lw > colw) colw = lw;
     }
@@ -1290,7 +1393,9 @@ static void appicons_column(int first, LONG em)
     for (i = first; i < nicons; i++) {
         dicon *ic = &icons[i];
         LONG x = cx - ic->w / 2, top;
-        y -= ic->lt + label_h;              /* the picture, then its label under it */
+        dlabel L;
+        label_of(ic, label_measure, &L);
+        y -= ic->lt + L.n * label_h;        /* the picture, then its label's lines under it */
         top = y;
         ic->ix += x - ic->x;
         ic->iy += top - ic->y;
@@ -1329,7 +1434,12 @@ static void place_icons(int clean)
         c->pw = icons[i].w;
         c->ph = icons[i].h;
         c->fh = wb_icon_full_h(icons[i].dobj, (int)icons[i].w);    /* its whole picture: its size */
-        c->lw = ogt_text_width(rp, icons[i].name);
+        {                                   /* its label: the widest line, and its lines */
+            dlabel L;
+            label_of(&icons[i], label_measure, &L);
+            c->lw = (int)L.w;
+            c->ll = L.n;
+        }
         if (p) {
             c->pin = 1;
             c->x = p->x;
@@ -1749,13 +1859,7 @@ static void leftouts_add(void)
             ic->w = r.MaxX - r.MinX + 1;
             ic->h = r.MaxY - r.MinY + 1;
         }
-        ic->lt = ic->h + LABEL_GAP;
-        if (ip.close && ic->dobj) {
-            struct Rectangle lr;
-            if (GetIconRectangle(root->RPort, ic->dobj, (STRPTR)ic->name, &lr, ICONDRAWA_Borderless, TRUE, TAG_DONE) &&
-                lr.MaxY - r.MinY - label_h > 0)
-                ic->lt = lr.MaxY - r.MinY - label_h;
-        }
+        ic->lt = label_top(ic, &r);
         ic->ix = -r.MinX;
         ic->iy = -r.MinY;
         nicons++;
@@ -1931,14 +2035,7 @@ static void scan_volumes(void)
             ic->w = r.MaxX - r.MinX + 1;
             ic->h = r.MaxY - r.MinY + 1;
         }
-        ic->lt = ic->h + LABEL_GAP;
-        if (ip.close && ic->dobj) {
-            struct Rectangle lr;
-            /* the label's box ends at MaxY and is the font's height and a row above and below it */
-            if (GetIconRectangle(root->RPort, ic->dobj, (STRPTR)ic->name, &lr, ICONDRAWA_Borderless, TRUE, TAG_DONE) &&
-                lr.MaxY - r.MinY - label_h > 0)
-                ic->lt = lr.MaxY - r.MinY - label_h;
-        }
+        ic->lt = label_top(ic, &r);         /* the label's box ends at MaxY: its lines, and a row above and below */
         ic->x = ic->y = 0;                          /* put in its cell by place_icons */
         ic->ix = -r.MinX;
         ic->iy = -r.MinY;
