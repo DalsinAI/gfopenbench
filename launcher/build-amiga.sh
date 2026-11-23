@@ -3,6 +3,8 @@
 # libraries, into Cradle's OUT so the job lists it. MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# DalsinAI's private repositories from the git mirror where there is one (GF-88: tools/git-mirror.sh)
+. "$HERE/../tools/git-mirror.sh"
 OUT=${OUT:-$HERE/../build/os3}
 # WBGapTest's WBGapIndex (row X2) needs amicradle-guest's tools/openindex: fetched when AMICRADLE_GUEST isn't set
 . "$HERE/../tests/amiga/guest-index.sh"

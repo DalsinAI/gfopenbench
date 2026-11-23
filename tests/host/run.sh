@@ -30,6 +30,8 @@ sh "$HERE/tests/host/test_guest_index.sh"
 # the WBGap ARexx scripts close the drawer windows they make (W2, X3)
 sh "$HERE/tests/host/test_rexx_drawers.sh"
 sh "$HERE/tests/host/test_stove_dir.sh"
+# the build scripts fetch DalsinAI's repositories from the git mirror where there is one (GF-88)
+sh "$HERE/tests/host/test_git_mirror.sh"
 # GFOpenMeters' icon: amicradle's icon writer found in scripts/icons/ and in scripts/ (meters/make_icon.py)
 python3 "$HERE/tests/host/test_meters_icon.py"
 "$OUT/test_wbgap_rows"
