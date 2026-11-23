@@ -152,7 +152,10 @@ static unsigned long start_tool(const ob_lreq *r)
     }
     {
         char w[256];                        /* the icon's machine words, in force before its first instruction */
-        if (ol_machine_words(ntt ? tt : NULL, w, sizeof w)) L->mach = olm_push(w, sizeof w);
+        if (ol_machine_words(ntt ? tt : NULL, w, sizeof w)) {
+            ol_machine_program(w, sizeof w, L->names[0]);       /* a JIT word is the program's: NP_Name below */
+            L->mach = olm_push(w, sizeof w);
+        }
     }
     /* As Workbench starts a tool: no input or output and no current directory (0.1.7: dos's default NIL: made every
      * libnix tool fail on quitting with 8700000E; 0.1.10: a current directory of its own was unlocked twice) */

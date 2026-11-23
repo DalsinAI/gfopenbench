@@ -63,11 +63,17 @@ void ol_opts_read(ol_opts *o, const char *const *tt, long icon_stack, long wb_st
 /* ---- the machine's settings (gfosdesign gfos/machines/machine-settings, 21 Nov 2026) ---- */
 
 /* The machine's words among an icon's tool types, each with the AC. prefix (AC.FPU=, AC.PACE=, AC.CACHES=, AC.MMU=,
- * AC.CHIPPLANE=, AC.REFRESH=; the case aside, bracketed ones switched off; Dale, 21 November 2026: "we prefix them"),
+ * AC.CHIPPLANE=, AC.REFRESH=, AC.JIT.<name>=; the case aside, bracketed ones switched off; Dale, 21 November 2026: "we prefix them"),
  * as "KEY=value" without the prefix, separated by spaces, into out (cap bytes with the NUL). The
  * launcher pushes them through accontrol.device before the program starts and pops them when it ends. How many were
  * found; 0 for none (out ""). A word cut short by cap is left out whole. */
 int ol_machine_words(const char *const *tt, char *out, int cap);
+/* AC.JIT.<name>= (23 Nov 2026) names its JIT (AC090 the 68k's; AC460, ARM, X86 later): ol_machine_words passes any
+ * JIT's word and the machine takes only its own. The JIT word is the program's, not the machine's, so with one in out
+ * this adds " PROGRAM=<name>", the program's process name (the tool's file name, as Workbench names it), so the
+ * machine applies it to that program's tasks while the push stands. 1 when added; 0 with no JIT word, a name with a
+ * space, longer than 39, or no room. */
+int ol_machine_program(char *out, int cap, const char *name);
 
 /* ---- I11: Shift-double-click ---- */
 

@@ -237,6 +237,21 @@ static void test_machine(void)
     CHECK("machine: a program's own FPU= or PACE= without AC. is not the machine's",
           ol_machine_words(td, out, sizeof out) == 0 && out[0] == 0);
     CHECK("machine: a word that won't fit is left out whole", ol_machine_words(tc, small, sizeof small) == 1 && !strcmp(small, "CHIPPLANE=ON"));
+    {
+        static const char *const tj[] = {"AC.JIT.AC090=NOAHEAD", "AC.JIT.AC460=AHEAD", "AC.JIT=NOAHEAD", "AC.JIT.=X", "AC.FPU=DOUBLE", 0};
+        static const char *const tk[] = {"AC.FPU=DOUBLE", 0};
+        char big[128];
+        CHECK("machine: every JIT's own word passed, a bare JIT= or JIT.= not",
+              ol_machine_words(tj, big, sizeof big) == 3 && !strcmp(big, "JIT.AC090=NOAHEAD JIT.AC460=AHEAD FPU=DOUBLE"));
+        CHECK("machine: a JIT word gets the program's name", ol_machine_program(big, sizeof big, "GFOpenBrowser") == 1
+              && !strcmp(big, "JIT.AC090=NOAHEAD JIT.AC460=AHEAD FPU=DOUBLE PROGRAM=GFOpenBrowser"));
+        ol_machine_words(tk, big, sizeof big);
+        CHECK("machine: no JIT word, no name", ol_machine_program(big, sizeof big, "Calc") == 0 && !strcmp(big, "FPU=DOUBLE"));
+        ol_machine_words(tj, big, sizeof big);
+        CHECK("machine: a name with a space is not added", ol_machine_program(big, sizeof big, "My Tool") == 0);
+        ol_machine_words(tj, small, sizeof small);
+        CHECK("machine: no room, no name", ol_machine_program(small, sizeof small, "GFOpenBrowser") == 0);
+    }
 }
 
 int main(void)
