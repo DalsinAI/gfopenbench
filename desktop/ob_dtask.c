@@ -9,6 +9,7 @@
 #include <dos/dostags.h>
 #include <dos/var.h>
 #include <libraries/gadtools.h>
+#include <workbench/workbench.h>
 #include <clib/alib_protos.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -18,6 +19,8 @@
 #include "ob_dtask.h"
 #include "ob_guard.h"
 #include "wb_find.h"
+#include "ob_popup.h"
+#include "ob_popsel.h"
 
 #define DT_NOTE_SIG SIGBREAKF_CTRL_F    /* a drawer's notes come on its Ctrl-F: no signal to allocate first */
 #define DT_FIND     0x40000000UL        /* notes of this file's own */
@@ -347,6 +350,109 @@ static void x4_test(const char *path)
     __asm volatile("illegal");
 }
 
+/* ---- 0.1.74: the menu at the pointer for a drawer's icon (ob_popsel.h; Dale, 23 November 2026: "right clicking on
+ * icons has no menu"; 0.1.73 did the desktop's). It runs in the drawer's own task, as everything else its window
+ * does: the press, the selection, ob_popup's menu and the item taken, which goes to wb_drawer_event as the menu
+ * bar's IDCMP_MENUPICK, so it does exactly what the same item in the drawer's Icons menu does. ---- */
+
+/* ob_popsel's numbers are wb_drawer_at's */
+typedef char ob_popsel_is_wb_at[OB_POPSEL_NONE == WB_AT_NONE && OB_POPSEL_SPACE == WB_AT_SPACE &&
+                                OB_POPSEL_DRAWER == WB_AT_DRAWER && OB_POPSEL_FILE == WB_AT_FILE ? 1 : -1];
+
+/* What is under the window's point (WB_AT_*), its path in path */
+static int dt_at(wb_drawer *d, struct Window *w, WORD mx, WORD my, char *path, int n)
+{
+    path[0] = 0;
+    return wb_drawer_at(d, (WORD)(w->LeftEdge + mx), (WORD)(w->TopEdge + my), path, n);
+}
+
+/* The hits of the search of every drive are what the window shows: its task's search is still the one (wb_find.c
+ * keeps its signal from the start until the search is stopped or another starts, and the window shows its drawer
+ * again then); the drawer's icons are under the hits, so wb_drawer_at's entry isn't the one the pointer is on */
+static int dt_hits(void)
+{
+    return wb_find_sigmask() != 0;
+}
+
+/* Over an icon (and not in a drag, nor over the hits) the window traps the right button, so a right press there
+ * comes as MENUDOWN; anywhere else it shows the menus as before. Set and cleared as the pointer moves. */
+static void rmb_follow(wb_drawer *d, struct Window *w, WORD mx, WORD my, int left_down)
+{
+    char path[256];
+    int want = ob_popsel_trap(dt_at(d, w, mx, my, path, sizeof path), left_down, dt_hits());
+    if (((w->Flags & WFLG_RMBTRAP) != 0) == want) return;
+    Forbid();                                   /* Intuition reads the flags from its own task */
+    if (want) w->Flags |= WFLG_RMBTRAP;
+    else w->Flags &= ~WFLG_RMBTRAP;
+    Permit();
+}
+
+typedef struct press_ctx {
+    const char *leaf;                           /* the entry pressed on */
+    int found, keep, trash;                     /* it is there; it was selected; it is a trashcan */
+} press_ctx;
+
+static int press_find(void *ctx, const char *name, int type, int selected, WORD x, WORD y)
+{
+    press_ctx *p = (press_ctx *)ctx;
+    (void)x; (void)y;
+    if (!p->found && !strcmp(name, p->leaf)) {
+        p->found = 1;
+        p->keep = selected != 0;
+        p->trash = type == WBGARBAGE;
+    }
+    return 2;
+}
+
+static int press_select(void *ctx, const char *name, int type, int selected, WORD x, WORD y)
+{
+    const press_ctx *p = (const press_ctx *)ctx;
+    (void)type; (void)selected; (void)x; (void)y;
+    return ob_popsel_select(name, p->leaf, p->keep);
+}
+
+#define DT_ICON_ITEMS 32
+
+/* A right press at the window's point: the icon there selected (a selection it is in is kept) and the drawer's Icons
+ * menu's items that can be picked now beside the pointer. The menu number of the item taken, as IDCMP_MENUPICK gives
+ * it, or MENUNULL. */
+static UWORD icon_popup(wb_drawer *d, struct Window *w, WORD mx, WORD my)
+{
+    char path[256];
+    press_ctx p;
+    struct Menu *mn;
+    struct MenuItem *it, *its[DT_ICON_ITEMS];
+    ob_popsel_item list[DT_ICON_ITEMS];
+    const char *labels[OB_POPUP_MAX];
+    int pick[OB_POPUP_MAX], n = 0, k, i;
+    UWORD mi;
+
+    if (!ob_popsel_trap(dt_at(d, w, mx, my, path, sizeof path), 0, dt_hits())) return MENUNULL;
+    memset(&p, 0, sizeof p);
+    p.leaf = ob_popsel_leaf(path);
+    wb_drawer_each(d, press_find, &p);
+    if (!p.found) return MENUNULL;
+    for (mn = w->MenuStrip, mi = 0; mn; mn = mn->NextMenu, mi++)
+        if (mn->MenuName && !strcmp((const char *)mn->MenuName, "Icons")) break;
+    if (!mn || !(mn->Flags & MENUENABLED)) return MENUNULL;
+    for (it = mn->FirstItem; it && n < DT_ICON_ITEMS; it = it->NextItem, n++) {
+        list[n].label = (it->Flags & ITEMTEXT) && it->ItemFill ? (const char *)((struct IntuiText *)it->ItemFill)->IText
+                                                               : NULL;
+        list[n].enabled = (it->Flags & ITEMENABLED) != 0;
+        list[n].sub = it->SubItem != NULL;
+        list[n].id = (unsigned long)GTMENUITEM_USERDATA(it);
+        its[n] = it;
+    }
+    if (!(k = ob_popsel_items(list, n, p.trash, pick, OB_POPUP_MAX))) return MENUNULL;
+    if (!p.keep) wb_drawer_each(d, press_select, &p);      /* the icon alone, as a click leaves it */
+    for (i = 0; i < k; i++) labels[i] = list[pick[i]].label;
+    i = ob_popup(w->WScreen, (WORD)(w->LeftEdge + mx), (WORD)(w->TopEdge + my), labels, k, 1);
+    ActivateWindow(w);                          /* the drawer active again, as the desktop is after its menu */
+    if (i < 0) return MENUNULL;
+    its[pick[i]]->NextSelect = MENUNULL;        /* this item alone: wb_drawer_event follows NextSelect */
+    return (UWORD)FULLMENUNUM(mi, pick[i], NOSUB);
+}
+
 static void dt_entry(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -356,7 +462,7 @@ static void dt_entry(void)
     wb_look lk;
     ob_dt *t;
     wb_drawer *d;
-    int open = 1;
+    int open = 1, left_down = 0;
 
     WaitPort(&me->pr_MsgPort);
     sm = GetMsg(&me->pr_MsgPort);
@@ -418,11 +524,25 @@ static void dt_entry(void)
             WORD mx = im->MouseX, my = im->MouseY;
             GT_ReplyIMsg(im);
             if (cl == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) send_event(t, OB_DTE_CLICK);
+            if (cl == IDCMP_MOUSEBUTTONS && code == MENUDOWN && !left_down && (t->win->Flags & WFLG_RMBTRAP)) {
+                /* 0.1.74: trapped over an icon: its menu beside the pointer, the item taken as the menu bar's */
+                code = icon_popup(d, t->win, mx, my);
+                if (code == MENUNULL) {
+                    rmb_follow(d, t->win, mx, my, left_down);   /* not over one now: the next press shows the menus */
+                    continue;
+                }
+                cl = IDCMP_MENUPICK;
+                qual = 0;
+                ia = NULL;
+            }
+            if (cl == IDCMP_MOUSEBUTTONS && (code == SELECTDOWN || code == SELECTUP)) left_down = code == SELECTDOWN;
+            if (cl == IDCMP_INACTIVEWINDOW) left_down = 0;
             if (!wb_drawer_event(d, cl, code, qual, ia, mx, my, secs, micros)) {
                 open = 0;
                 break;
             }
             if (cl == IDCMP_ACTIVEWINDOW) send_event(t, OB_DTE_ACTIVE);
+            if (cl == IDCMP_MOUSEMOVE || cl == IDCMP_MOUSEBUTTONS) rmb_follow(d, t->win, mx, my, left_down);   /* 0.1.74 */
         }
     }
     Forbid();

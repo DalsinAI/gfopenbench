@@ -1,6 +1,7 @@
 /* ob_popup.h: GFOpenBench's menu at the pointer (0.1.73): a right press on an icon on the desktop opens a menu of what
  * can be done to it, the Icons menu's items, beside the pointer (Dale, 23 November 2026: right-clicking an icon gave
- * no menu). A right press on the desktop's own space still shows the screen's menus, as on Workbench.
+ * no menu). A right press on the desktop's own space still shows the screen's menus, as on Workbench. Since 0.1.74
+ * the drawer windows' icons have it too, from their own tasks (ob_dtask.c, ob_popsel.h).
  *
  * The menu is a borderless window of its own: let the right button go over an item to take it (the press held), or,
  * after a press let go without moving onto the menu, click an item with either button; Esc, a click outside or
