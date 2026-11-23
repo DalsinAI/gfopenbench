@@ -273,7 +273,10 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
     {
         /* its icon's machine words (AC.FPU=, AC.PACE=...), in force before its first instruction */
         char w[256];
-        if (ol_machine_words((const char *const *)GetTagData(OLA_ToolTypes, 0, tags), w, sizeof w)) r->mach = olm_push(w, sizeof w);
+        if (ol_machine_words((const char *const *)GetTagData(OLA_ToolTypes, 0, tags), w, sizeof w)) {
+            ol_machine_program(w, sizeof w, r->names);          /* a JIT word is the program's: NP_Name below */
+            r->mach = olm_push(w, sizeof w);
+        }
     }
     port = (struct MsgPort *)ol_port_locked(&port_ops, b, 3);   /* with lock held, the port still the reaper's */
     if (!port) {
