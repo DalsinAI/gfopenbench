@@ -2,7 +2,7 @@
 # GFOpenBench host tests: wbspy's lines (tools/spyfmt.c), workbench.library's
 # lists (workbench/wb_core.c), the desktop's No icons (desktop/ob_show.c), Snapshot's
 # record (desktop/ob_snap.c), the ENV: files the desktop follows (desktop/ob_notify.c), the mounted volumes'
-# fingerprint (desktop/ob_vols.c), a disk's .backdrop (desktop/ob_backdrop.c), the backdrop windows' places (desktop/ob_strip.h), and icon.library's core
+# fingerprint (desktop/ob_vols.c), a disk's .backdrop (desktop/ob_backdrop.c), a drawer's menu at the pointer (desktop/ob_popsel.c), the backdrop windows' places (desktop/ob_strip.h), and icon.library's core
 # (icon/icon_core.c) against icons made by Python's own zlib.
 # MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
@@ -82,6 +82,12 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 # ob_eject: which way Icons > Eject takes a disk, floppy, PCMCIA card or not removable (GFOpenBench 0.1.58, row M35)
 cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_eject.c" \
   "$HERE/tests/host/test_ob_eject.c" -o "$OUT/test_ob_eject"
+# ob_popsel: the menu at the pointer in a drawer window, which icons a right press selects and the items it shows
+# (GFOpenBench 0.1.75)
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_popsel.c" \
+  "$HERE/tests/host/test_ob_popsel.c" -o "$OUT/test_ob_popsel"
+"$OUT/test_ob_popsel"
 # ob_recover_core: Icons > Recover deleted... and Put back (Dale 13 Nov 2026) over GFOpenFiles' engine, from a
 # gfopenfilemanager checkout (FILES, default ../../gfopenfilemanager) with gfopenfiles.library 1.1's calls
 FILES=${FILES:-$HERE/../gfopenfilemanager}

@@ -313,7 +313,7 @@
 #define OGT_PALETTE_READ
 #include "ogt_palette.h"
 
-#define OPENBENCH_VERSION "0.1.74"
+#define OPENBENCH_VERSION "0.1.75"
 static const char version[] __attribute__((used)) = "$VER: GFOpenBench " OPENBENCH_VERSION " (23.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 
 struct Library *IconBase;
