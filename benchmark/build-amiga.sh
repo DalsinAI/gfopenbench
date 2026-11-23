@@ -7,6 +7,8 @@
 # MIT, Copyright (c) 2026 Dalsin Limited / the AmiCradle Team.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# DalsinAI's private repositories from the git mirror where there is one (GF-88: tools/git-mirror.sh)
+. "$HERE/../tools/git-mirror.sh"
 OUT=${OUT:-$HERE/../build/os3}
 STOVE=${STOVE:-$(sh "$HERE/../tools/stove-dir.sh")}
 DEPS=${DEPS:-$OUT/deps}

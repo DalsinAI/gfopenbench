@@ -4,6 +4,8 @@
 # MIT, Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
+# DalsinAI's private repositories from the git mirror where there is one (GF-88: tools/git-mirror.sh)
+. "$HERE/../../tools/git-mirror.sh"
 STOVE=${STOVE:-$(sh "$HERE/../../tools/stove-dir.sh")}
 CC="$STOVE/prefix/bin/m68k-amigaos-gcc"
 OUT=${OUT:-$HERE/build-amiga}
