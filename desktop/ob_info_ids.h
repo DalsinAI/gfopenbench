@@ -5,6 +5,8 @@
 #define OB_INFO_IDS_H
 
 enum { G_NAME = 1, G_TYPE, G_SIZE, G_DATE, G_PS, G_PA, G_PR, G_PW, G_PE, G_PD, G_COMMENT, G_TOOL, G_TTLIST, G_TTSTR,
-       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_ADV, G_HOLD, G_PURE, G_COUNT };
+       G_TTNEW, G_TTDEL, G_SAVE, G_CANCEL, G_SIZE2, G_STACK, G_ADV, G_HOLD, G_PURE,
+       G_KIND,              /* 0.1.76: what kind of icon it is (ob_iconkind.h) */
+       G_COUNT };
 
 #endif
