@@ -31,10 +31,11 @@ jobs:
     steps:
       - name: gh (bigguy's runners don't have it)
         run: command -v gh >/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo); $S apt-get update -q && $S apt-get install -y -q gh; }
+      # no ref: on bigguy (act) the workspace already is the pull request's head, and a checkout naming a ref
+      # wiped it and fetched the head from GitHub, which never has a team's branch (every job then failed)
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
       - name: guard
         env:
           GH_TOKEN: ${{ github.token }}
