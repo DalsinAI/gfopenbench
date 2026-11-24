@@ -252,6 +252,21 @@ static void test_machine(void)
         ol_machine_words(tj, small, sizeof small);
         CHECK("machine: no room, no name", ol_machine_program(small, sizeof small, "GFOpenBrowser") == 0);
     }
+    {   /* 24 Nov 2026: NATIVEAPP=, NATIVELIBRARIES=; MMU= and the NATIVE words are the program's, so they get its name */
+        static const char *const tn[] = {"AC.NATIVEAPP=NO", "ac.nativelibraries=no", "AC.NATIVE=NO", "AC.CACHES=OFF", 0};
+        static const char *const tm[] = {"AC.MMU=OFF", 0};
+        static const char *const tcache[] = {"AC.CACHES=OFF", "AC.FPU=EXTENDED", 0};
+        char big[128];
+        CHECK("machine: NATIVEAPP and NATIVELIBRARIES taken, a near name not",
+              ol_machine_words(tn, big, sizeof big) == 3 && !strcmp(big, "NATIVEAPP=NO nativelibraries=no CACHES=OFF"));
+        CHECK("machine: the NATIVE words get the program's name", ol_machine_program(big, sizeof big, "Demo") == 1
+              && !strcmp(big, "NATIVEAPP=NO nativelibraries=no CACHES=OFF PROGRAM=Demo"));
+        ol_machine_words(tm, big, sizeof big);
+        CHECK("machine: MMU= gets the program's name", ol_machine_program(big, sizeof big, "Demo") == 1 && !strcmp(big, "MMU=OFF PROGRAM=Demo"));
+        ol_machine_words(tcache, big, sizeof big);
+        CHECK("machine: CACHES= and FPU= are the machine's: no name", ol_machine_program(big, sizeof big, "Demo") == 0
+              && !strcmp(big, "CACHES=OFF FPU=EXTENDED"));
+    }
 }
 
 int main(void)

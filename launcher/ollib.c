@@ -37,15 +37,15 @@
 #define REG(r, decl) register decl __asm(#r)
 
 #define VERSION 1
-#define REVISION 2
+#define REVISION 3
 
 /* First in the file: run as a program, the library returns at once. */
 __asm("\t.text\n\t.globl _ol_start\n_ol_start:\n\tmoveq #-1,d0\n\trts\n");
 
 static const char lib_name[] = OL_LIBNAME;
-static const char lib_id[] = "gfopenlaunch.library 1.2 (21.11.2026) GFOpenBench's launcher\r\n";
+static const char lib_id[] = "gfopenlaunch.library 1.3 (24.11.2026) GFOpenBench's launcher\r\n";
 static const char lib_ver[] __attribute__((used)) =
-    "$VER: gfopenlaunch.library 1.2 (21.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
+    "$VER: gfopenlaunch.library 1.3 (24.11.2026) MIT, Copyright (c) 2026 AmiCradle Team";
 static const char reaper_name[] = "GFOpenBench launcher";
 
 struct ExecBase *SysBase;
@@ -274,7 +274,7 @@ static ULONG L_LaunchA(REG(a0, struct TagItem *tags), REG(a6, struct OLBase *b))
         /* its icon's machine words (AC.FPU=, AC.PACE=...), in force before its first instruction */
         char w[256];
         if (ol_machine_words((const char *const *)GetTagData(OLA_ToolTypes, 0, tags), w, sizeof w)) {
-            ol_machine_program(w, sizeof w, r->names);          /* a JIT word is the program's: NP_Name below */
+            ol_machine_program(w, sizeof w, r->names);          /* JIT, MMU and NATIVE words are the program's: NP_Name below */
             r->mach = olm_push(w, sizeof w);
         }
     }

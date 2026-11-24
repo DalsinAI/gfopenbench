@@ -153,7 +153,7 @@ static unsigned long start_tool(const ob_lreq *r)
     {
         char w[256];                        /* the icon's machine words, in force before its first instruction */
         if (ol_machine_words(ntt ? tt : NULL, w, sizeof w)) {
-            ol_machine_program(w, sizeof w, L->names[0]);       /* a JIT word is the program's: NP_Name below */
+            ol_machine_program(w, sizeof w, L->names[0]);       /* JIT, MMU and NATIVE words are the program's: NP_Name below */
             L->mach = olm_push(w, sizeof w);
         }
     }
