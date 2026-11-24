@@ -162,7 +162,7 @@ unsigned long ol_switch_parse(const char *line)
 
 int ol_machine_words(const char *const *tt, char *out, int cap)
 {
-    static const char *const keys[] = { "FPU", "PACE", "CACHES", "MMU", "CHIPPLANE", "REFRESH", "JIT.", 0 };
+    static const char *const keys[] = { "FPU", "PACE", "CACHES", "MMU", "CHIPPLANE", "REFRESH", "NATIVEAPP", "NATIVELIBRARIES", "JIT.", 0 };
     int len = 0, n = 0, k;
     if (cap < 1) return 0;
     out[0] = 0;
@@ -199,8 +199,14 @@ int ol_machine_program(char *out, int cap, const char *name)
     const char *p = out, *q;
     int len, nl = 0, has = 0;
     if (!out || !name) return 0;
-    while (*p) {                                       /* a JIT word among them? */
-        if (ol_lower((unsigned char)p[0]) == 'j' && ol_lower((unsigned char)p[1]) == 'i' && ol_lower((unsigned char)p[2]) == 't' && p[3] == '.') has = 1;
+    while (*p) {                                       /* a program's word among them: JIT.<name>=, MMU=, NATIVEAPP=, NATIVELIBRARIES= */
+        static const char *const own[] = { "jit.", "mmu=", "nativeapp=", "nativelibraries=", 0 };
+        int k;
+        for (k = 0; own[k]; k++) {
+            const char *a = p, *b = own[k];
+            while (*b && ol_lower((unsigned char)*a) == *b) a++, b++;
+            if (!*b) has = 1;
+        }
         while (*p && *p != ' ') p++;
         while (*p == ' ') p++;
     }
