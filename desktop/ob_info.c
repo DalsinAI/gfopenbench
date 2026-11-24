@@ -150,8 +150,10 @@ static void read_kind(info *in, const char *ip)
     }
     ob_icon_kind_text(kinds, in->had_icon, in->kind, sizeof in->kind);
     /* an icon.library that can't read this kind (OS 3.2.3 and a PNG icon): say so, as the default is drawn */
-    if (in->had_icon && in->dob_default)
-        strlcat(in->kind, ": not read, default shown", sizeof in->kind);
+    if (in->had_icon && in->dob_default) {
+        size_t k = strlen(in->kind);
+        snprintf(in->kind + k, sizeof in->kind - k, ": not read, default shown");
+    }
 }
 
 /* The icon's picture size, borderless as the box draws it. */
