@@ -174,7 +174,7 @@ static struct wbgap_row rows[] = {   /* modes NULL here may come from tests/amig
     {"L1b", "L1", A, "WBGapLayout.rexx", "no icon clipped by the window"},
     {"L1c", "L1", A, "WBGapLayout.rexx", "the window fits its icons: none clipped, about one icon cell spare at most"},
     /* 14. The system bar (Dale, 14 Nov 03:41: the OS first) */
-    {"B1", NULL, A, NULL, "the Power icon's list: Reboot, Restart, Power off; Esc closes it, nothing picked (14 Nov)"},
+    {"B1", NULL, A, NULL, "the Power icon's list: Reboot, Restart, Restart into AKS, Power off; Esc closes it, nothing picked (14 Nov)"},
     {"B2", NULL, A, NULL, "an Eject row in Power's list for each USB volume mounted (14 Nov)"},
     {"B3", NULL, A, NULL, "the speaker commodity runs after boot: GFOpenSpeaker's port is there (14 Nov)"},
 };

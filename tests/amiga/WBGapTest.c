@@ -30,7 +30,7 @@
  *   WBGapTest CLOSEWBWAIT f s   row C6's line: waits up to s seconds for that CLOSEWB run to be over and prints file f;
  *                               not over in time is FAIL C6, so a CloseWorkBench() that never returns can't hang the run
  *   WBGapTest BAR               rows B1-B3: GFOpenSpeaker's port there (B3); GFOpenTitle's Power icon clicked, its list looked at (where it hangs;
- *                               its height: Reboot, Restart, Power off, and an Eject row for each USB volume mounted)
+ *                               its height: Reboot, Restart, Restart into AKS, Power off, and an Eject row for each USB volume mounted)
  *                               and closed with Esc; nothing in it is picked
  *   WBGapTest DISKS             rows D5 and D5r: RAM:'s volume (NameFromLock) has a disk icon among the desktop's icons,
  *                               and is first in the volume column (RAM:wbgap-root-pos),

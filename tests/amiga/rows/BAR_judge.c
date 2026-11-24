@@ -26,7 +26,7 @@ int wbgap_point_in_box(long x, long y, long l, long t, long w, long h)
 long wbgap_power_height(int sticks, long row_height)
 {
     if (sticks < 0) sticks = 0;
-    return 3 + sticks * row_height + (sticks ? 6 : 0) + 3 * row_height + 3;
+    return 3 + sticks * row_height + (sticks ? 6 : 0) + WBGAP_POWER_ROWS * row_height + 3;
 }
 
 void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2)
