@@ -196,6 +196,11 @@ cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/o
 rm -rf "$OUT/icons"
 python3 "$HERE/tests/host/icon_fixtures.py" "$OUT/icons"
 "$OUT/test_icon_core" "$OUT/icons"
+# ob_iconkind: the Information window's kind of icon (GFOpenBench 0.1.76), each fixture icon as icon_core reads it
+# shellcheck disable=SC2086
+cc -std=c99 -Wall -Wextra -Werror -O1 -g $SAN -I"$HERE/desktop" "$HERE/desktop/ob_iconkind.c" \
+  "$HERE/tests/host/test_ob_iconkind.c" -o "$OUT/test_ob_iconkind"
+"$OUT/test_ob_iconkind" "$OUT/icons"
 bad=0
 while read -r name exact; do
   if ! cmp -s "$OUT/icons/$name.want" "$OUT/icons/$name.got"; then

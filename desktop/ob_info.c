@@ -5,6 +5,10 @@
  * (no code taken): name, type, size, date; Script, Archived, Readable, Writable, Executable, Deletable;
  * Hold and Pure in an Advanced section (not on that row); comment;
  * a project's (or a disk's) default tool; a tool's or a project's stack and tool types; Save and Cancel.
+ * Since 0.1.76 (Dale, 24 November 2026: "information should show the icon regardless for icon format, and show what
+ * kind of icon it is") the icon is read for the window's screen and laid out there, so a GlowIcon, a PNG or an ARGB
+ * icon shows its colour picture (before, an icon with no layout drew its classic picture, a GlowIcon's often a dot);
+ * the box grows to the picture; and an Icon row names its kind (ob_iconkind.h), read from the .info file itself.
  * MIT, Copyright (c) 2026 AmiCradle Team. */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -33,12 +37,15 @@
 #include "ob_info_ids.h"
 #include "ob_stack.h"
 #include "ob_prot.h"
+#include "ob_iconkind.h"
 
 #define MAX_INFO 8
 #define MAX_TT 64
 #define TT_LEN 128
 #define PATH_LEN 256
 #define ICON_BOX 84
+#define ICON_MAX 200                /* the box's largest side; a bigger picture is shown cut to it */
+#define KIND_MAX (256 * 1024)       /* how much of a .info file is read for its kind */
 
 struct info_start {
     struct Message msg;
@@ -57,8 +64,11 @@ typedef struct {
     char path[PATH_LEN];
     char iconpath[PATH_LEN];        /* the icon's name without .info: "Work:Disk" for a disk */
     char name[108];
-    int disk, drawer, had_icon;
+    int disk, drawer, had_icon, dob_default;
     struct DiskObject *dob;
+    struct DrawInfo *dri;
+    WORD icw, ich;                  /* the icon's picture, as GetIconRectangleA has it */
+    char kind[96];                  /* what kind of icon it is (ob_iconkind.h) */
     LONG prot;
     char comment[80];
     char tool[PATH_LEN];
@@ -124,6 +134,49 @@ static void tt_relist(info *in)
     }
 }
 
+/* The kind of icon the .info file at ip is, in words, into in->kind. */
+static void read_kind(info *in, const char *ip)
+{
+    int kinds = 0;
+    UBYTE *buf;
+    if (in->had_icon && (buf = AllocVec(KIND_MAX, MEMF_ANY))) {
+        BPTR fh = Open((CONST_STRPTR)ip, MODE_OLDFILE);
+        if (fh) {
+            LONG n = Read(fh, buf, KIND_MAX);
+            Close(fh);
+            if (n > 0) kinds = ob_icon_kind(buf, n);
+        }
+        FreeVec(buf);
+    }
+    ob_icon_kind_text(kinds, in->had_icon, in->kind, sizeof in->kind);
+    /* an icon.library that can't read this kind (OS 3.2.3 and a PNG icon): say so, as the default is drawn */
+    if (in->had_icon && in->dob_default)
+        strlcat(in->kind, ": not read, default shown", sizeof in->kind);
+}
+
+/* The icon's picture size, borderless as the box draws it. */
+static void icon_size(info *in)
+{
+    struct RastPort rp;
+    struct Rectangle r;
+    in->icw = 32;
+    in->ich = 16;
+    if (!in->dob || IconBase->lib_Version < 44) {
+        if (in->dob && (in->dob->do_Gadget.Flags & GFLG_GADGIMAGE) && in->dob->do_Gadget.GadgetRender) {
+            struct Image *im = (struct Image *)in->dob->do_Gadget.GadgetRender;
+            in->icw = im->Width;
+            in->ich = im->Height;
+        }
+        return;
+    }
+    InitRastPort(&rp);
+    if (GetIconRectangle(&rp, in->dob, NULL, &r, ICONDRAWA_DrawInfo, (ULONG)in->dri, ICONDRAWA_Borderless, TRUE,
+                         TAG_DONE)) {
+        in->icw = r.MaxX - r.MinX + 1;
+        in->ich = r.MaxY - r.MinY + 1;
+    }
+}
+
 static int read_info(info *in)
 {
     size_t n = strlen(in->path);
@@ -181,9 +234,25 @@ static int read_info(info *in)
         char ip[PATH_LEN + 6];
         snprintf(ip, sizeof ip, "%s.info", in->iconpath);
         in->had_icon = exists(ip);
+        /* read for this screen, so a colour icon is laid out (its pens) and drawn in its own colours: with no
+         * layout icon.library draws the classic picture, which in a GlowIcon is often a dot */
+        if (IconBase->lib_Version >= 44)
+            in->dob = GetIconTags((CONST_STRPTR)in->iconpath, ICONGETA_FailIfUnavailable, FALSE,
+                                  ICONGETA_Screen, (ULONG)in->scr, TAG_DONE);
+        else
+            in->dob = GetDiskObject((STRPTR)in->iconpath);
+        if (!in->dob) {
+            in->dob_default = 1;
+            if (IconBase->lib_Version >= 44)
+                in->dob = GetIconTags(NULL, ICONGETA_GetDefaultType, in->disk ? WBDISK : in->drawer ? WBDRAWER : WBTOOL,
+                                      ICONGETA_Screen, (ULONG)in->scr, TAG_DONE);
+            else
+                in->dob = GetDefDiskObject(in->disk ? WBDISK : in->drawer ? WBDRAWER : WBTOOL);
+        }
+        read_kind(in, ip);
     }
-    in->dob = IconBase->lib_Version >= 44 ? GetDiskObjectNew((STRPTR)in->iconpath) : GetDiskObject((STRPTR)in->iconpath);
-    if (!in->dob) in->dob = GetDefDiskObject(in->disk ? WBDISK : in->drawer ? WBDRAWER : WBTOOL);
+    in->dri = GetScreenDrawInfo(in->scr);
+    icon_size(in);
     if (in->dob) {
         static const char *const types[] = { "", "Disk", "Drawer", "Tool", "Project", "Trashcan", "Device", "Kickstart", "AppIcon" };
         STRPTR *t = in->dob->do_ToolTypes;
@@ -259,30 +328,35 @@ static struct Gadget *gad(info *in, struct Gadget *prev, ULONG kind, int id, WOR
 /* The window's inner size for its gadgets; *lay 1: create them too, at the window's borders. */
 static void layout(info *in, WORD *iw, WORD *ih, int make)
 {
-    static const char *const labels[] = { "Name", "Type", "Size", "Changed", "Comment", "Default tool", "Stack", "Tool types", NULL };
+    static const char *const labels[] = { "Name", "Type", "Size", "Changed", "Icon", "Comment", "Default tool", "Stack", "Tool types", NULL };
     static const char *const prot[6] = { "Script", "Archived", "Readable", "Writable", "Executable", "Deletable" };
     struct Gadget *p = NULL;
-    WORD fh = in->scr->Font->ta_YSize, rh = fh + 6, m = 8, lw = 0, vw = 340, x0, y, i, ox = 0, oy = 0, W, rows;
+    WORD fh = in->scr->Font->ta_YSize, rh = fh + 6, m = 8, lw = 0, vw = 340, x0, y, i, ox = 0, oy = 0, W, rows, bw, bh;
     int wrap;
     for (i = 0; labels[i]; i++) { WORD t = text_len(in->scr, labels[i]); if (t > lw) lw = t; }
     lw += 12;
     /* A size line wider than its field goes on two rows, broken after its comma: a big disk's
      * ("131,072 MB: 11,292 used," then "119,779 free (read/write)") was cut at the window's edge. */
     wrap = in->size_b[0] && text_len(in->scr, in->size) > vw - 8;
-    rows = wrap ? 5 : 4;
+    rows = wrap ? 6 : 5;                                  /* and the Icon row (0.1.76) */
     if (make) { ox = in->w->BorderLeft; oy = in->w->BorderTop; p = CreateContext(&in->glist); }
-    W = m + ICON_BOX + m + lw + vw + m;
-    x0 = m + ICON_BOX + m + lw;
+    /* the box: the rows' height, or the picture's with a margin, at most ICON_MAX a side */
+    bw = (WORD)ob_icon_box_side(in->icw, ICON_BOX, ICON_MAX);
+    bh = (WORD)ob_icon_box_side(in->ich, rows * (rh + 4) - 4, ICON_MAX);
+    if (bh < rows * (rh + 4) - 4) bh = rows * (rh + 4) - 4;
+    W = m + bw + m + lw + vw + m;
+    x0 = m + bw + m + lw;
     y = m;
-    in->bx = ox + m; in->by = oy + m; in->bw = ICON_BOX; in->bh = rows * (rh + 4) - 4;
+    in->bx = ox + m; in->by = oy + m; in->bw = bw; in->bh = bh;
     if (make) {
         p = gad(in, p, STRING_KIND, G_NAME, ox + x0, oy + y, vw, rh, "Name", PLACETEXT_LEFT, GTST_String, (ULONG)in->name, GTST_MaxChars, 100, TAG_DONE);
         p = gad(in, p, TEXT_KIND, G_TYPE, ox + x0, oy + y + (rh + 4), vw, rh, "Type", PLACETEXT_LEFT, GTTX_Text, (ULONG)in->type, GTTX_Border, FALSE, TAG_DONE);
         p = gad(in, p, TEXT_KIND, G_SIZE, ox + x0, oy + y + 2 * (rh + 4), vw, rh, "Size", PLACETEXT_LEFT, GTTX_Text, (ULONG)(wrap ? in->size_a : in->size), TAG_DONE);
         if (wrap) p = gad(in, p, TEXT_KIND, G_SIZE2, ox + x0, oy + y + 3 * (rh + 4), vw, rh, NULL, 0, GTTX_Text, (ULONG)in->size_b, TAG_DONE);
-        p = gad(in, p, TEXT_KIND, G_DATE, ox + x0, oy + y + (rows - 1) * (rh + 4), vw, rh, in->disk ? "Created" : "Changed", PLACETEXT_LEFT, GTTX_Text, (ULONG)in->date, TAG_DONE);
+        p = gad(in, p, TEXT_KIND, G_DATE, ox + x0, oy + y + (rows - 2) * (rh + 4), vw, rh, in->disk ? "Created" : "Changed", PLACETEXT_LEFT, GTTX_Text, (ULONG)in->date, TAG_DONE);
+        p = gad(in, p, TEXT_KIND, G_KIND, ox + x0, oy + y + (rows - 1) * (rh + 4), vw, rh, "Icon", PLACETEXT_LEFT, GTTX_Text, (ULONG)in->kind, TAG_DONE);
     }
-    y += rows * (rh + 4) + 4;
+    y += (bh + 4 > rows * (rh + 4) ? bh + 4 : rows * (rh + 4)) + 4;
     if (!in->disk) {
         WORD cw = (W - 2 * m) / 3;
         for (i = 0; i < 6; i++) {
@@ -340,18 +414,40 @@ static void layout(info *in, WORD *iw, WORD *ih, int make)
     *ih = y;
 }
 
+static void draw_icon(info *in, struct RastPort *rp, WORD x, WORD y)
+{
+    if (IconBase->lib_Version >= 44)
+        DrawIconState(rp, in->dob, NULL, x, y, IDS_NORMAL, ICONDRAWA_DrawInfo, (ULONG)in->dri, ICONDRAWA_Borderless, TRUE,
+                      ICONDRAWA_Frameless, TRUE, ICONDRAWA_EraseBackground, TRUE, TAG_DONE);
+    else if ((in->dob->do_Gadget.Flags & GFLG_GADGIMAGE) && in->dob->do_Gadget.GadgetRender)
+        DrawImage(rp, (struct Image *)in->dob->do_Gadget.GadgetRender, x, y);
+}
+
 static void draw_icon_box(info *in)
 {
     struct RastPort *rp = in->w->RPort;
-    struct Rectangle r;
-    WORD iw = 32, ih = 16, x, y;
+    WORD iw = in->icw, ih = in->ich, inw = in->bw - 4, inh = in->bh - 4;
     DrawBevelBox(rp, in->bx, in->by, in->bw, in->bh, GT_VisualInfo, (ULONG)in->vi, GTBB_Recessed, TRUE, TAG_DONE);
     if (!in->dob) return;
-    if (GetIconRectangleA(rp, in->dob, NULL, &r, NULL)) { iw = r.MaxX - r.MinX + 1; ih = r.MaxY - r.MinY + 1; }
-    x = in->bx + (in->bw - iw) / 2;
-    y = in->by + (in->bh - ih) / 2;
-    DrawIconState(rp, in->dob, NULL, x, y, IDS_NORMAL, ICONDRAWA_Borderless, TRUE, ICONDRAWA_Frameless, TRUE,
-                  ICONDRAWA_EraseBackground, TRUE, TAG_DONE);
+    if (iw <= inw && ih <= inh) {
+        draw_icon(in, rp, in->bx + (in->bw - iw) / 2, in->by + (in->bh - ih) / 2);
+        return;
+    }
+    /* bigger than the box (past ICON_MAX): drawn whole off the screen, its middle put in the box */
+    {
+        struct BitMap *bm = AllocBitMap((ULONG)iw, (ULONG)ih, GetBitMapAttr(rp->BitMap, BMA_DEPTH), BMF_CLEAR, rp->BitMap);
+        struct RastPort off;
+        WORD cw = iw < inw ? iw : inw, ch = ih < inh ? ih : inh;
+        if (!bm) return;
+        InitRastPort(&off);
+        off.BitMap = bm;
+        SetRast(&off, in->dri ? in->dri->dri_Pens[BACKGROUNDPEN] : 0);
+        draw_icon(in, &off, 0, 0);
+        BltBitMapRastPort(bm, (iw - cw) / 2, (ih - ch) / 2, rp, in->bx + (in->bw - cw) / 2, in->by + (in->bh - ch) / 2,
+                          cw, ch, 0xC0);
+        WaitBlit();
+        FreeBitMap(bm);
+    }
 }
 
 static const char *str_of(info *in, int id)
@@ -554,6 +650,7 @@ static void info_entry(void)
         if (in->glist) FreeGadgets(in->glist);
         if (in->vi) FreeVisualInfo(in->vi);
         if (in->dob) FreeDiskObject(in->dob);
+        if (in->dri) FreeScreenDrawInfo(in->scr, in->dri);
         FreeVec(in);
     }
     FreeVec(st);
