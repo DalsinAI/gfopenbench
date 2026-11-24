@@ -164,7 +164,7 @@ static int bar_rows(void)
     else if (owner == WBGAP_BAR_OTHER) { wbt_fail("B1", "the window that opened doesn't hang from Power"); b2 = WBGAP_NONE; }
     else if (owner == WBGAP_BAR_UNSURE) { wbt_skip("B1", "the list was pushed to the screen's left edge: Power's or Prefs' can't be told"); b2 = WBGAP_NONE; }
     else {
-        snprintf(why, sizeof why, "the list is %ld high, not %ld (Reboot, Restart, Power off, %d Eject rows)", mh,
+        snprintf(why, sizeof why, "the list is %ld high, not %ld (Reboot, Restart, Restart into AKS, Power off, %d Eject rows)", mh,
                  wbgap_power_height(sticks, rh), sticks);
         wbt_say("B1", b1, why);
     }

@@ -13,8 +13,10 @@ int wbgap_bar_menu_owner(long row_right, long menu_left, long menu_width);
 int wbgap_point_in_box(long x, long y, long l, long t, long w, long h);
 /* Power's list (GFOpenTitle's menu_open, MK_POWER): 3 pixels, an "Eject <volume>" row for each USB stick mounted
  * (a DOS device on gfopenusbacfs.device or usbdisk.device with a handler running) and a 6-pixel line after them,
- * then Reboot, Restart the machine... and Power off..., then 3 pixels; a row is the bar font's height + 4 */
+ * then Reboot, Restart the machine..., Restart into AKS... (GFOpenTitle 0.12.5, AC-125) and Power off..., then 3 pixels;
+ * a row is the bar font's height + 4 */
+#define WBGAP_POWER_ROWS 4
 long wbgap_power_height(int sticks, long row_height);
-/* B1 (the three power rows) and B2 (an Eject row for each stick) from the list's height: WBGAP_PASS, WBGAP_FAIL or
+/* B1 (the four power rows) and B2 (an Eject row for each stick) from the list's height: WBGAP_PASS, WBGAP_FAIL or
  * WBGAP_SKIP (B2 with no stick mounted) */
 void wbgap_power_judge(long height, int sticks, long row_height, int *b1, int *b2);

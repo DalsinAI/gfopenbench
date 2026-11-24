@@ -35,20 +35,22 @@ void bar_plan(void)
     CHECK(wbgap_bar_menu_owner(100, 0, 100) == WBGAP_BAR_POWER, "at x 0 but ending at the row's edge: Power's");
     {
         int b1, b2;
-        CHECK(wbgap_power_height(0, 12) == 42, "no stick: 3 + 3 rows of 12 + 3");
-        CHECK(wbgap_power_height(2, 12) == 72, "two sticks: their rows and the line too");
-        CHECK(wbgap_power_height(-1, 12) == 42, "a negative count is none");
-        wbgap_power_judge(42, 0, 12, &b1, &b2);
+        CHECK(wbgap_power_height(0, 12) == 54, "no stick: 3 + 4 rows of 12 + 3 (Restart into AKS, GFOpenTitle 0.12.5)");
+        CHECK(wbgap_power_height(2, 12) == 84, "two sticks: their rows and the line too");
+        CHECK(wbgap_power_height(-1, 12) == 54, "a negative count is none");
+        wbgap_power_judge(54, 0, 12, &b1, &b2);
         CHECK(b1 == WBGAP_PASS && b2 == WBGAP_SKIP, "no stick, the power rows: B1 PASS, B2 SKIP");
-        wbgap_power_judge(72, 2, 12, &b1, &b2);
+        wbgap_power_judge(84, 2, 12, &b1, &b2);
         CHECK(b1 == WBGAP_PASS && b2 == WBGAP_PASS, "two sticks, their Eject rows: both PASS");
-        wbgap_power_judge(42, 2, 12, &b1, &b2);
-        CHECK(b1 == WBGAP_PASS && b2 == WBGAP_FAIL, "two sticks but no Eject rows: B2 FAIL");
         wbgap_power_judge(54, 2, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_PASS && b2 == WBGAP_FAIL, "two sticks but no Eject rows: B2 FAIL");
+        wbgap_power_judge(72, 2, 12, &b1, &b2);
         CHECK(b1 == WBGAP_FAIL && b2 == WBGAP_FAIL, "one Eject row for two sticks: neither");
+        wbgap_power_judge(42, 0, 12, &b1, &b2);
+        CHECK(b1 == WBGAP_FAIL && b2 == WBGAP_SKIP, "three rows (GFOpenTitle before 0.12.5, no Restart into AKS): B1 FAIL");
         wbgap_power_judge(30, 0, 12, &b1, &b2);
         CHECK(b1 == WBGAP_FAIL && b2 == WBGAP_SKIP, "two rows only, no stick: B1 FAIL, B2 SKIP");
-        wbgap_power_judge(42, 0, 0, &b1, &b2);
+        wbgap_power_judge(54, 0, 0, &b1, &b2);
         CHECK(b1 == WBGAP_FAIL, "no row height: no PASS");
     }
     CHECK(wbgap_find("B1") >= 0 && wbgap_find("B2") >= 0 && wbgap_find("B3") >= 0, "B1-B3 are rows");
