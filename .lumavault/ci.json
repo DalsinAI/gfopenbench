@@ -1,0 +1,4 @@
+{
+  "workflows": ["layout-guard.yml", "repo-guard.yml", "stove.yml"],
+  "why": "part.yml builds on amigachromebuild's amicradle-validate runner and publishes to GitHub's parts release; it doesn't run on bigguy. The part comes from the kitchen and the nightly."
+}
