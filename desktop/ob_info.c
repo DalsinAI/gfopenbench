@@ -237,9 +237,12 @@ static int read_info(info *in)
         snprintf(ip, sizeof ip, "%s.info", in->iconpath);
         in->had_icon = exists(ip);
         /* read for this screen, so a colour icon is laid out (its pens) and drawn in its own colours: with no
-         * layout icon.library draws the classic picture, which in a GlowIcon is often a dot */
+         * layout icon.library draws the classic picture, which in a GlowIcon is often a dot. With a .info it
+         * must be that icon (ICONGETA_FailIfUnavailable TRUE): asked to fall back, icon.library hands out the
+         * default for a .info it can't read (a PNG icon on a library without PNG), and the window said
+         * nothing (lab, 24 November 2026); now the default is read below and the Icon row says ": not read" */
         if (IconBase->lib_Version >= 44)
-            in->dob = GetIconTags((CONST_STRPTR)in->iconpath, ICONGETA_FailIfUnavailable, FALSE,
+            in->dob = GetIconTags((CONST_STRPTR)in->iconpath, ICONGETA_FailIfUnavailable, in->had_icon ? TRUE : FALSE,
                                   ICONGETA_Screen, (ULONG)in->scr, TAG_DONE);
         else
             in->dob = GetDiskObject((STRPTR)in->iconpath);
