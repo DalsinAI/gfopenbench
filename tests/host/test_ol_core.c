@@ -248,7 +248,14 @@ static void test_machine(void)
         ol_machine_words(tk, big, sizeof big);
         CHECK("machine: no JIT word, no name", ol_machine_program(big, sizeof big, "Calc") == 0 && !strcmp(big, "FPU=DOUBLE"));
         ol_machine_words(tj, big, sizeof big);
-        CHECK("machine: a name with a space is not added", ol_machine_program(big, sizeof big, "My Tool") == 0);
+        CHECK("machine: a name with a space is added in quotes", ol_machine_program(big, sizeof big, "My Tool") == 1
+              && !strcmp(big, "JIT.AC090=NOAHEAD JIT.AC460=AHEAD FPU=DOUBLE PROGRAM=\"My Tool\""));
+        ol_machine_words(tj, big, sizeof big);
+        CHECK("machine: a name with a quote, an = or a tab is not added", ol_machine_program(big, sizeof big, "My\"Tool") == 0
+              && ol_machine_program(big, sizeof big, "A=B") == 0 && ol_machine_program(big, sizeof big, "A\tB") == 0
+              && !strcmp(big, "JIT.AC090=NOAHEAD JIT.AC460=AHEAD FPU=DOUBLE"));
+        CHECK("machine: a name starting or ending in a space is not added", ol_machine_program(big, sizeof big, " Tool") == 0
+              && ol_machine_program(big, sizeof big, "Tool ") == 0);
         ol_machine_words(tj, small, sizeof small);
         CHECK("machine: no room, no name", ol_machine_program(small, sizeof small, "GFOpenBrowser") == 0);
     }

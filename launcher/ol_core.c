@@ -197,7 +197,7 @@ int ol_machine_words(const char *const *tt, char *out, int cap)
 int ol_machine_program(char *out, int cap, const char *name)
 {
     const char *p = out, *q;
-    int len, nl = 0, has = 0;
+    int len, nl = 0, has = 0, sp = 0;
     if (!out || !name) return 0;
     while (*p) {                                       /* a program's word among them: JIT.<name>=, MMU=, NATIVEAPP=, NATIVELIBRARIES= */
         static const char *const own[] = { "jit.", "mmu=", "nativeapp=", "nativelibraries=", 0 };
@@ -211,12 +211,18 @@ int ol_machine_program(char *out, int cap, const char *name)
         while (*p == ' ') p++;
     }
     if (!has) return 0;
-    for (q = name; *q; q++) { if (*q == ' ' || *q == '\t' || *q == '=') return 0; nl++; }
-    if (!nl || nl > 39) return 0;
+    for (q = name; *q; q++) {                          /* a space is kept in quotes: PROGRAM="My Tool" (24 Nov 2026) */
+        if (*q == '\t' || *q == '=' || *q == '"' || *q == '\n' || *q == '\r') return 0;
+        if (*q == ' ') sp = 2;
+        nl++;
+    }
+    if (!nl || nl > 39 || name[0] == ' ' || name[nl - 1] == ' ') return 0;
     for (len = 0; out[len]; len++) {}
-    if (len + 9 + nl >= cap) return 0;
+    if (len + 9 + sp + nl >= cap) return 0;
     for (q = " PROGRAM="; *q; ) out[len++] = *q++;
+    if (sp) out[len++] = '"';
     for (q = name; *q; ) out[len++] = *q++;
+    if (sp) out[len++] = '"';
     out[len] = 0;
     return 1;
 }
