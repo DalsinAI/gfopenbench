@@ -3,42 +3,37 @@
 # Fails a PR that adds graphics.library drawing calls (RectFill, BltBitMap,
 # BltTemplate, Text, Move, Draw, SetAPen, SetBPen, SetDrMd, ScrollRaster,
 # EraseRect and the blit variants) outside GFOpenLayout's own sources. Calls
-# already in the tree only warn; all are listed in one comment on the PR.
+# already in the tree only warn; all are listed in the job's log and summary.
 # Exception: "LAYOUT-EXCEPTION: <reason>" in the PR description, and a PR comment
 # "LAYOUT-EXCEPTION: APPROVE <sha8>" with "Reviewer: <name> (Team 3)" for the
-# current head (that comment re-runs this check). Team 3 writes it in
-# amicradle-teams and Team 5 copies it onto the PR with the note's path. Paths GFOpenLayout owns, or listed in
-# .layout-guard-allow (one glob per line), are not checked.
+# current head. Team 3 writes it in amicradle-teams and Team 5 copies it onto the
+# PR with the note's path; the next push or a CI re-run picks it up. Paths
+# GFOpenLayout owns, or listed in .layout-guard-allow (one glob per line), are
+# not checked.
+# CI is bigguy's, on the forge (no GitHub, 25 Nov 2026): the PR's comments are read
+# from the forge's API with the jobs' read-only FORGE_TOKEN.
 name: Layout guard
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-  issue_comment:
-    types: [created, edited]
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
-  actions: write
 concurrency:
-  group: layout-guard-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
+  group: layout-guard-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   layout:
-    if: github.event_name == 'pull_request'
     runs-on: [self-hosted, lumavault]
     timeout-minutes: 10
     steps:
-      - name: gh (bigguy's runners don't have it)
-        run: command -v gh >/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo); $S apt-get update -q && $S apt-get install -y -q gh; }
       # no ref: on bigguy (act) the workspace already is the pull request's head, and a checkout naming a ref
-      # wiped it and fetched the head from GitHub, which never has a team's branch (every job then failed)
+      # wiped it and fetched the head again (every job then failed)
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: guard
         env:
-          GH_TOKEN: ${{ github.token }}
+          FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
@@ -46,8 +41,23 @@ jobs:
         run: |
           set -uo pipefail
           printf '%s\n' "$BODY" > "$RUNNER_TEMP/body.txt"
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("<!-- layout-guard -->") | not) | .body + "\n\u001e"' > "$RUNNER_TEMP/comments.txt" || true
+          # the forge's address is the checkout's origin (http://host:3000/Owner/repo.git)
+          forge=$(git remote get-url origin | sed -E 's#^(https?://)[^@/]*@#\1#; s#^(https?://[^/]+)/.*#\1#')
+          : > "$RUNNER_TEMP/comments.txt"
+          if [ -n "${FORGE_TOKEN:-}" ] && [ -n "$forge" ]; then
+            page=1
+            while :; do
+              got=$(curl -fsS -H "Authorization: token $FORGE_TOKEN" \
+                    "$forge/api/v1/repos/$GITHUB_REPOSITORY/issues/$PR/comments?limit=50&page=$page") || { echo "::warning::the PR's comments could not be read from the forge"; break; }
+              n=$(printf '%s' "$got" | jq 'length')
+              [ "$n" -gt 0 ] || break
+              printf '%s' "$got" | jq -r '.[] | select(.body | contains("<!-- layout-guard -->") | not) | .body + "\n\u001e"' >> "$RUNNER_TEMP/comments.txt"
+              [ "$n" -lt 50 ] && break
+              page=$((page + 1))
+            done
+          else
+            echo "::warning::no FORGE_TOKEN: the PR's comments (exception approvals) are not read"
+          fi
           python3 -I .github/layout-guard/layout_guard.py --self-test || exit 1
           # the split the script reads: each comment, then a line holding only 0x1E (jq's \u001e escape)
           [ "$(printf '[{"body":"a"}]' | jq -r '.[] | .body + "\n\u001e"' | od -An -tx1 | tr -d ' \n')" = 610a1e0a ] || { echo "jq comment split broken"; exit 1; }
@@ -55,37 +65,8 @@ jobs:
             --body "$RUNNER_TEMP/body.txt" --comments "$RUNNER_TEMP/comments.txt" \
             --report "$RUNNER_TEMP/report.md"
           rc=$?
-          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY" || true
-          # one comment per PR, updated in place
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-                 --jq '.[] | select(.body | startswith("<!-- layout-guard -->")) | .id' | head -1)
           if [ -s "$RUNNER_TEMP/report.md" ]; then
-            if [ -n "$id" ]; then
-              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/report.md" >/dev/null || true
-            else
-              gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@"$RUNNER_TEMP/report.md" >/dev/null || true
-            fi
+            cat "$RUNNER_TEMP/report.md"
+            cat "$RUNNER_TEMP/report.md" >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
           fi
           exit $rc
-  rerun:
-    # a Team 3 exception approval re-runs the check on the PR's head
-    if: >-
-      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
-      contains(github.event.comment.body, 'LAYOUT-EXCEPTION: APPROVE') &&
-      !contains(github.event.comment.body, '<!-- layout-guard -->')
-    runs-on: [self-hosted, lumavault]
-    timeout-minutes: 5
-    steps:
-      - name: gh (bigguy's runners don't have it)
-        run: command -v gh >/dev/null || { S=$([ "$(id -u)" = 0 ] || echo sudo); $S apt-get update -q && $S apt-get install -y -q gh; }
-      - name: re-run the layout check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha)
-          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/layout-guard.yml/runs?head_sha=$head&event=pull_request&per_page=1" --jq '.workflow_runs[0].id // empty')
-          if [ -z "$run" ]; then echo "no layout guard run for $head"; exit 0; fi
-          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/rerun" >/dev/null
-          echo "re-ran run $run for ${head:0:8}"
